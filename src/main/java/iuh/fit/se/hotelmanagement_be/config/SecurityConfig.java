@@ -19,21 +19,38 @@ import org.springframework.stereotype.Component;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig  {
-    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     private final JwtAuthenticationFilter jwtAuthFilter;
-
+    private final AuthEntryPoint authEntryPoint;
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll() // Đăng ký, Đăng nhập không cần token
-                        .requestMatchers("/api/v1/rooms/public/**").permitAll() // Xem phòng không cần token
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN") // Chỉ Admin mới vào được
-                        .anyRequest().authenticated() // Tất cả request khác đều cần đăng nhập
-                )
-                .addFilterBefore((Filter) jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+                                // 1. Swagger UI
+                                .requestMatchers(
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html"
+                                ).permitAll()
+
+                                // 2. Mở hết các API đăng ký/đăng nhập/otp (thêm dấu ** ở mọi ngóc ngách)
+                                .requestMatchers(
+                                        "/auth/**",
+                                        "/api/v1/auth/**"
+                                ).permitAll()
+                                .requestMatchers("/error").permitAll()
+
+                                .requestMatchers("/api/v1/rooms/public/**").permitAll()
+                                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                                .anyRequest().authenticated()
+                        )
+
+                // 3. Đăng ký xử lý lỗi 401/403 bằng AuthEntryPoint
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(authEntryPoint))
+                // 4. Thêm JwtAuthenticationFilter vào trước UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

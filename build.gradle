@@ -43,6 +43,11 @@ dependencies {
     // Test (Mặc định có sẵn)
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Swagger UI / OpenAPI cho Spring Boot 3
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
+    // SMS
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 tasks.named('test') {

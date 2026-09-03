@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResendOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
@@ -28,15 +29,29 @@ public class AuthController {
     AuthService authService;
     OtpService otpService;
 
+    @Operation(
+            summary = "Yêu cầu đăng ký tài khoản khách hàng",
+            description = "Nhận thông tin đăng ký từ khách hàng, kiểm tra trùng lặp và tự động tạo/gửi mã OTP qua email xác thực."
+    )
     @PostMapping("/register-request")
-    public ResponseEntity<String> registerRequest(@RequestBody UserRegisterRequest request) {
-        authService.registerRequest(request);
-        return ResponseEntity.ok("Mã OTP đã được gửi đến email của bạn!");
+    public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody UserRegisterRequest request) {
+        authService.customerRegisterRequest(request);
+
+        ApiResponse<String> apiResponse = ApiResponse.<String>builder()
+                .code(200)
+                .message("Mã OTP đã được gửi đến email của bạn!")
+                .build();
+
+        return ResponseEntity.ok(apiResponse);
     }
 
+    @Operation(
+            summary = "Xác thực mã OTP đăng ký",
+            description = "Kiểm tra mã OTP khách hàng nhập vào. Nếu hợp lệ, hệ thống sẽ kích hoạt tài khoản, gán mặc định vai trò ROLE_CUSTOMER và lưu chính thức vào cơ sở dữ liệu."
+    )
     @PostMapping("/verify-otp")
-    public ResponseEntity<ApiResponse<UserResponse>> verifyOtp(@RequestBody VerifyOtpRequest request) {
-        UserResponse response = authService.verifyOtpAndRegister(request);
+    public ResponseEntity<ApiResponse<UserResponse>> verifyOtpAndRegisterCustomer(@RequestBody VerifyOtpRequest request) {
+        UserResponse response = authService.verifyOtpAndRegisterCustomer(request);
 
         ApiResponse<UserResponse> apiResponse = ApiResponse.<UserResponse>builder()
                 .code(200)
@@ -47,7 +62,10 @@ public class AuthController {
         return ResponseEntity.ok(apiResponse);
     }
 
-    // API 2: Chỉ dùng để đăng nhập và lấy mã JWT Token
+    @Operation(
+            summary = "Đăng nhập hệ thống",
+            description = "Cổng đăng nhập chung cho cả Khách hàng, Nhân viên và Quản lý. Hệ thống sẽ xác thực email, mật khẩu và trả về chuỗi JWT Token chứa thông tin quyền hạn tương ứng."
+    )
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthenticationResponse>> login(@RequestBody UserLoginRequest request) {
         AuthenticationResponse response = authService.login(request);
@@ -60,12 +78,22 @@ public class AuthController {
 
         return ResponseEntity.ok(apiResponse);
     }
-    // Gui lai ma OTP moi
-    @PostMapping("/resend-otp")
-    public ResponseEntity<String> resendOtp(@RequestBody ResendOtpRequest request) {
-       otpService.resendOtp(request.getEmail());
-       return  ResponseEntity.ok("Ma OTP moi gui den email cua ban");
 
+    @Operation(
+            summary = "Gửi lại mã OTP mới",
+            description = "Áp dụng khi khách hàng không nhận được mã hoặc mã cũ đã hết hạn. Hệ thống sẽ hủy mã cũ và sinh một mã OTP 6 số mới gửi về email."
+    )
+    @PostMapping("/resend-otp")
+    public ResponseEntity<ApiResponse<String>> resendOtp(@RequestBody ResendOtpRequest request) {
+        otpService.resendOtp(request.getEmail());
+
+        //
+        ApiResponse<String> apiResponse = ApiResponse.<String>builder()
+                .code(200)
+                .message("Mã OTP mới đã được gửi đến email của bạn.")
+                .build();
+
+        return ResponseEntity.ok(apiResponse);
     }
 
 }

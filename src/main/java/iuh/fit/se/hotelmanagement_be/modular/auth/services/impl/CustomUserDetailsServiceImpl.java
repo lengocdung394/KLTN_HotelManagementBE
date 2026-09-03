@@ -1,6 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
 
-import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.UserRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -13,11 +13,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class CustomUserDetailsServiceImpl implements UserDetailsService {
 
-    UserRepository userRepository;
+    AccountRepository  accountRepository;
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Coi giá trị 'username' gửi lên chính là email
-        return userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+        return accountRepository.findByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Account not found with email: " + username));
     }
 }

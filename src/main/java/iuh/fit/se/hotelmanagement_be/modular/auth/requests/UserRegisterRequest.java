@@ -9,8 +9,12 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserRegisterRequest {
-    String password;
-    String phone;
     String email;
+    String phone;
     String fullName;
+    String address;
+    String cccd;
+    String position;
+    Long hotelId;
+    String password;
 }

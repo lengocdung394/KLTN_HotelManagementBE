@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 public class OtpVerification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "otpverification_id")
     Long id;
 
     @Column(nullable = false)
@@ -33,10 +34,15 @@ public class OtpVerification {
 
     // Thêm lưu tạm thông tin đăng ký (đã mã hóa password) hoặc dạng JSON
     String fullName;
-    String password;
+
     String phone;
 
+    String password;
+
     boolean verified;
+
+    String cccd;
+
     int failedAttempts;
 
 }

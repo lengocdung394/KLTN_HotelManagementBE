@@ -1,11 +1,13 @@
 package iuh.fit.se.hotelmanagement_be.config;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import jakarta.servlet.Filter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,9 +20,11 @@ import org.springframework.stereotype.Component;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
+@EnableMethodSecurity // BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ @PreAuthorize HOẠT ĐỘNG
 public class SecurityConfig  {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final AuthEntryPoint authEntryPoint;
+    private final AccountRepository accountRepository;
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

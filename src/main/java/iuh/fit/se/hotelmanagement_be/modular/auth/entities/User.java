@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 @EqualsAndHashCode()
 @Data
@@ -20,42 +22,29 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "users")
-public class User implements UserDetails {
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     Long id;
-    String email;
+
+    String cccd;
+
     String fullName;
+
+    String address;
+
+    String position;
+
     String phone;
-    String password;
+    String avatarUrl;
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
-    }
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hotel_id")
+    Hotel hotel;
 
-    @Override
-    public String getUsername() {
-        return "";
-    }
+    // Account
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
+    Account Account;
 
-    @Override
-    public boolean isAccountNonExpired() {
-        return UserDetails.super.isAccountNonExpired();
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return UserDetails.super.isAccountNonLocked();
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return UserDetails.super.isCredentialsNonExpired();
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
-    }
 }

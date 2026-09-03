@@ -4,6 +4,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -11,8 +13,10 @@ import org.springframework.stereotype.Service;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
@@ -23,18 +27,29 @@ public class JwtService {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
 
-    // Sửa hàm cũ nhận String sang nhận object User của bạn
-    public String generateToken(User user) {
-        // 1. Tạo một Map chứa các thông tin tùy biến muốn nhét thêm vào Token
+    public String generateToken(Account account) {
+        // 1. Tạo một Map chứa các thông tin tùy biến muốn nhét thêm vào Token JWT
         Map<String, Object> extraClaims = new HashMap<>();
-        extraClaims.put("fullName", user.getFullName());
-        extraClaims.put("phone", user.getPhone());
-        // Bạn có thể nhét thêm role vào đây nếu muốn: extraClaims.put("role", user.getRole());
+
+        // Kiểm tra an toàn xem đối tượng user liên kết có bị null không trước khi bốc thông tin cá nhân
+        if (account.getUser() != null) {
+            extraClaims.put("fullName", account.getUser().getFullName());
+            extraClaims.put("phone", account.getUser().getPhone());
+            extraClaims.put("position", account.getUser().getPosition()); // Nhét thêm chức vụ nếu FE cần
+        }
+
+        //  Đút thêm danh sách Roles/Permissions vào Token để Frontend dễ dàng bốc ra kiểm tra quyền ẩn/hiện menu
+        if (account.getRoles() != null) {
+            List<String> roles = account.getRoles().stream()
+                    .map(Role::getName)
+                    .collect(Collectors.toList());
+            extraClaims.put("roles", roles);
+        }
 
         // 2. Build Token kèm theo Claims
         return Jwts.builder()
-                .setClaims(extraClaims) // ĐÚT THÊM THÔNG TIN VÀO ĐÂY
-                .setSubject(user.getEmail()) // Email vẫn nằm ở trường Subject mặc định
+                .setClaims(extraClaims)
+                .setSubject(account.getEmail()) // LẤY EMAIL TỪ ACCOUNT: Làm chuỗi định danh chủ thể Token
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

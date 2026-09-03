@@ -42,11 +42,12 @@ public class OtpService {
         // TH1 da xac thu thanh cong truoc do
         if (otp.isVerified())
             throw new RuntimeException(" Tai khoan da duoc xac thuc thanh cong truoc do");
+
         // TH2 tai khoan da bi khoa do dang nhap sai qua 3 lan
         if (otp.getFailedAttempts() > 3)
             throw new RuntimeException(" Ma OTP da nhap sai qua 3 lan. Vui long nhan yeu cau gui lai ma");
-        // TH3 Ma OTP het han
 
+        // TH3 Ma OTP het han
         if(otp.getExpiredAt().isBefore(LocalDateTime.now()))
             throw new RuntimeException("Ma OTP da het han vui long yeu cau gui lai");
 

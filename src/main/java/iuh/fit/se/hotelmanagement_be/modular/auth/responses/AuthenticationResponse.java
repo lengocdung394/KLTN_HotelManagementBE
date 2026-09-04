@@ -12,4 +12,5 @@ public class AuthenticationResponse {
     String token;
     String email;
     String fullName;
+    String position;
 }

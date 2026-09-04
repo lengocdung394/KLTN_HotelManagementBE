@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,7 +23,8 @@ public class CloudinaryService {
 
     /**
      * Hàm dùng chung để tải ảnh lên Cloudinary và đưa vào đúng thư mục (Folder)
-     * @param file: File ảnh nhị phân nhận từ client gửi lên (nhân viên, phòng...)
+     *
+     * @param file:       File ảnh nhị phân nhận từ client gửi lên (nhân viên, phòng...)
      * @param folderName: Tên thư mục con muốn lưu trên Web (ví dụ: "avatars", "rooms")
      * @return Chuỗi đường dẫn URL tuyệt đối có giao thức https:// để lưu vào Database
      */
@@ -44,5 +47,16 @@ public class CloudinaryService {
             // Trả về lỗi tường minh nếu quá trình truyền file qua internet gặp sự cố
             throw new RuntimeException("Lỗi nghiêm trọng khi truyền file lên Cloudinary: " + e.getMessage());
         }
+    }
+
+    // Upload nhiều ảnh
+    public List<String> uploadMultipleImages(List<MultipartFile> files, String folderName) {
+        if (files == null || files.isEmpty()) {
+            return List.of();
+        }
+        return files.stream()
+                .filter(file -> file != null && !file.isEmpty())
+                .map(file -> uploadImage(file, folderName)) // Gọi lại hàm upload 1 ảnh lẻ đã có
+                .collect(Collectors.toList());
     }
 }

@@ -137,7 +137,8 @@ public class AuthServiceImpl implements AuthService {
         return AuthenticationResponse.builder()
                 .token(jwtToken)
                 .email(account.getEmail())
-                .fullName(account.getUser().getFullName()) // Lấy tên hiển thị từ thực thể User liên kết
+                .fullName(account.getUser().getFullName())
+                .position(account.getUser().getPosition())// Lấy tên hiển thị từ thực thể User liên kết
                 .build();
     }
 }

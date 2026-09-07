@@ -1,11 +1,13 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.controllers;
 
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
@@ -15,10 +17,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -53,4 +52,17 @@ public class RoomController {
                 .build());
     }
 
+
+    @GetMapping
+    @Operation(summary = "Lấy danh sách phòng theo ID của tầng")
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRooms(@RequestParam Long floorId) {
+        List<RoomResponse> roomResponseList = roomService.getRoomsByFloorId(floorId);
+
+        return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
+                .code(200)
+                .result(roomResponseList)
+                .message("Lay thanh cong danh sach")
+                .build());
+
+    }
 }

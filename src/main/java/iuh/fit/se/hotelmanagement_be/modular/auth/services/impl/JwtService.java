@@ -6,7 +6,6 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -36,8 +35,16 @@ public class JwtService {
             extraClaims.put("fullName", account.getUser().getFullName());
             extraClaims.put("phone", account.getUser().getPhone());
             extraClaims.put("position", account.getUser().getPosition()); // Nhét thêm chức vụ nếu FE cần
-        }
 
+        }
+        // LƯU HOTEL_ID VÀO JWT TOKEN
+        if (account.getUser().getHotel() != null) {
+            extraClaims.put("hotelId", account.getUser().getHotel().getId());
+            extraClaims.put("hotelName", account.getUser().getHotel().getName());
+        } else {
+            extraClaims.put("hotelId", null); // Dành cho Super Admin (không giới hạn chi nhánh)
+            extraClaims.put("hotelName", "Toàn hệ thống"); // Cho Super Admin
+        }
         //  Đút thêm danh sách Roles/Permissions vào Token để Frontend dễ dàng bốc ra kiểm tra quyền ẩn/hiện menu
         if (account.getRoles() != null) {
             List<String> roles = account.getRoles().stream()
@@ -59,6 +66,10 @@ public class JwtService {
     // 1. Trích xuất Username/Email từ Token
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public Long extractHotelId(String token) {
+        return extractClaim(token, claims -> claims.get("hotelId", Long.class));
     }
 
     // 2. Kiểm tra Token có hợp lệ không

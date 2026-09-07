@@ -37,7 +37,13 @@ public class Account implements UserDetails {
     @JoinColumn(name = "user_id")
     User user;
 
-    //
+    public Long getHotelId() {
+        if (this.user != null && this.user.getHotel() != null) {
+            return this.user.getHotel().getId();
+        }
+        return null; // Admin tổng
+    }
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "account_role",
             joinColumns = @JoinColumn(name = "account_id"),
@@ -47,11 +53,13 @@ public class Account implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        if (this.roles == null || this.roles.isEmpty()) {
+            return List.of();
+        }
         return this.roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName())) // role.getName() phải trả về "ROLE_ADMIN"
+                .map(role -> new SimpleGrantedAuthority(role.getName()))
                 .collect(Collectors.toList());
     }
-
     @Override
     public String getUsername() {
         return this.email;

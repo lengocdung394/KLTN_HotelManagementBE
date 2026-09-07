@@ -12,5 +12,5 @@ public class FloorResponse {
     Long id;
     String name;
     Integer floorNumber;
-    Long buildingId;
+
 }

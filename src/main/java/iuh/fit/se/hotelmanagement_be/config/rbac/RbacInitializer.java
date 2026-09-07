@@ -1,6 +1,5 @@
 package iuh.fit.se.hotelmanagement_be.config.rbac;
 
-
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
@@ -43,14 +42,17 @@ public class RbacInitializer implements CommandLineRunner {
     private final BuildingRepository buildingRepository;
     private final HotelRepository hotelRepository;
     private final FloorRepository floorRepository;
-    private final ProvinceRepository  provinceRepository;
+    private final ProvinceRepository provinceRepository;
+
     @Override
     @Transactional
     public void run(String... args) {
 
+        // ==========================================
+        // 1. KHỞI TẠO PERMISSIONS & ROLES (RBAC)
+        // ==========================================
         Map<String, Permission> permissionMap = new HashMap<>();
 
-        // 1. Tạo các Permission nếu chưa có
         for (String p : rbacConfig.getPermissions()) {
             Permission permission = permissionRepository.findByName(p)
                     .orElseGet(() -> permissionRepository.save(
@@ -59,9 +61,7 @@ public class RbacInitializer implements CommandLineRunner {
             permissionMap.put(p, permission);
         }
 
-        // 2. Tạo Role + gán Permission
         for (String roleName : rbacConfig.getRoles().keySet()) {
-
             Role role = roleRepository.findByName(roleName)
                     .orElseGet(() -> roleRepository.save(
                             Role.builder()
@@ -70,77 +70,129 @@ public class RbacInitializer implements CommandLineRunner {
                                     .build()
                     ));
 
-            // Gán permission theo file config
             for (String p : rbacConfig.getRoles().get(roleName)) {
                 role.getPermissions().add(permissionMap.get(p));
             }
-
-            // Lưu lại role
             roleRepository.save(role);
         }
 
-        System.out.println("RBAC initialization completed.");
+        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
+                .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_ADMIN"));
 
-        Hotel targetHotel;
+        System.out.println(">>> [STARTUP] Khởi tạo hệ thống Permission & Role hoàn tất.");
 
+        // ==========================================
+        // 2. KHỞI TẠO CHI NHÁNH 1: TP. HỒ CHÍ MINH
+        // ==========================================
         if (!hotelRepository.existsByName("Sài Gòn Sky Hotel & Residence")) {
-            // 1. Tạo Tỉnh/Thành phố
-            Province province = provinceRepository.save(
-                    Province.builder().name("TP. Hồ Chí Minh").build()
-            );
+            Province provinceHcm = provinceRepository.save(Province.builder().name("TP. Hồ Chí Minh").build());
 
-            // 2. Tạo Khách sạn
-            targetHotel = hotelRepository.save(
+            Hotel hotel1 = hotelRepository.save(
                     Hotel.builder()
                             .name("Sài Gòn Sky Hotel & Residence")
                             .address("123 Lê Lợi, Quận 1, TP. HCM")
                             .phone("0283999999")
-                            .province(province)
+                            .province(provinceHcm)
                             .build()
             );
 
-            // 3. Tạo Tòa nhà (Building) Mercury
-            Building building = buildingRepository.save(
-                    Building.builder().name("Mercury").hotel(targetHotel).build()
+            // Tòa nhà & Tầng mẫu cho Chi nhánh 1
+            Building b1 = buildingRepository.save(Building.builder().name("Tòa A - Sài Gòn").hotel(hotel1).build());
+            floorRepository.save(Floor.builder().floorNumber(1).building(b1).build());
+            floorRepository.save(Floor.builder().floorNumber(2).building(b1).build());
+
+            // Admin Chi nhánh 1
+            createBranchAdmin(
+                    "admin.saigon@senviet.vn",
+                    "Quản Lý Sài Gòn",
+                    "0901111111",
+                    "Admin Chi nhánh Sài Gòn",
+                    hotel1,
+                    adminRole
             );
-
-            // 4. Tạo các Tầng (Floor 1 và Floor 2)
-            floorRepository.save(Floor.builder().floorNumber(1).building(building).build());
-            floorRepository.save(Floor.builder().floorNumber(2).building(building).build());
-
-            System.out.println(">>> [STARTUP] Đã khởi tạo dữ liệu Khách sạn, Tòa nhà và Tầng mẫu.");
-        } else {
-            // Nếu đã chạy lần 2, lấy khách sạn cũ ra để gán cho Admin tổng nếu cần
-            targetHotel = hotelRepository.findAll().get(0);
+            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 1: Sài Gòn Sky Hotel & Account: admin.saigon@senviet.vn");
         }
 
-        String adminEmail = "admin@senviet.vn";
+        // ==========================================
+        // 3. KHỞI TẠO CHI NHÁNH 2: HÀ NỘI
+        // ==========================================
+        if (!hotelRepository.existsByName("Hà Nội Grand Hotel")) {
+            Province provinceHanoi = provinceRepository.save(Province.builder().name("TP. Hà Nội").build());
 
-        if (!accountRepository.existsByEmail(adminEmail)) {
-            Role adminRole = roleRepository.findByName("ROLE_ADMIN")
-                    .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_ADMIN"));
+            Hotel hotel2 = hotelRepository.save(
+                    Hotel.builder()
+                            .name("Hà Nội Grand Hotel")
+                            .address("45 Tràng Tiền, Hoàn Kiếm, Hà Nội")
+                            .phone("0243888888")
+                            .province(provinceHanoi)
+                            .build()
+            );
 
-            // Tạo thông tin cá nhân Admin
-            User adminUser = User.builder()
+            // Tòa nhà & Tầng mẫu cho Chi nhánh 2
+            Building b2 = buildingRepository.save(Building.builder().name("Tòa Hoàn Kiếm - Hà Nội").hotel(hotel2).build());
+            floorRepository.save(Floor.builder().floorNumber(1).building(b2).build());
+            floorRepository.save(Floor.builder().floorNumber(2).building(b2).build());
+
+            // Admin Chi nhánh 2
+            createBranchAdmin(
+                    "admin.hanoi@senviet.vn",
+                    "Quản Lý Hà Nội",
+                    "0902222222",
+                    "Admin Chi nhánh Hà Nội",
+                    hotel2,
+                    adminRole
+            );
+            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 2: Hà Nội Grand Hotel & Account: admin.hanoi@senviet.vn");
+        }
+
+        // ==========================================
+        // 4. KHỞI TẠO ADMIN TỔNG (SUPER ADMIN)
+        // ==========================================
+        String superAdminEmail = "admin@senviet.vn";
+        if (!accountRepository.existsByEmail(superAdminEmail)) {
+            User superAdminUser = User.builder()
                     .fullName("Admin Tổng Toàn Hệ Thống")
                     .phone("0901234567")
-                    .position("Admin tổng")
-                    .hotel(targetHotel) // Gắn Admin tối cao thuộc biên chế khách sạn đầu tiên
+                    .position("Super Admin")
+                    .hotel(null) // null đại diện cho việc quản lý toàn bộ hệ thống
                     .build();
 
-            // Tạo tài khoản bảo mật
-            Account adminAccount = Account.builder()
-                    .email(adminEmail)
-                    .password(passwordEncoder.encode("admin123")) // pass login: admin123
+            Account superAdminAccount = Account.builder()
+                    .email(superAdminEmail)
+                    .password(passwordEncoder.encode("admin123"))
                     .roles(Set.of(adminRole))
                     .build();
 
-            adminAccount.setUser(adminUser);
-            adminUser.setAccount(adminAccount);
+            superAdminAccount.setUser(superAdminUser);
+            superAdminUser.setAccount(superAdminAccount);
 
-            userRepository.save(adminUser);
-            System.out.println(">>> [STARTUP] ĐÃ KHỞI TẠO THÀNH CÔNG TÀI KHOẢN ADMIN TỔI CAO: " + adminEmail);
+            userRepository.save(superAdminUser);
+            System.out.println(">>> [STARTUP] Đã tạo Tài khoản Admin Tổng: " + superAdminEmail);
+        }
+    }
+
+    /**
+     * Helper method tạo tài khoản Admin cho chi nhánh
+     */
+    private void createBranchAdmin(String email, String fullName, String phone, String position, Hotel hotel, Role role) {
+        if (!accountRepository.existsByEmail(email)) {
+            User user = User.builder()
+                    .fullName(fullName)
+                    .phone(phone)
+                    .position(position)
+                    .hotel(hotel)
+                    .build();
+
+            Account account = Account.builder()
+                    .email(email)
+                    .password(passwordEncoder.encode("admin123"))
+                    .roles(Set.of(role))
+                    .build();
+
+            account.setUser(user);
+            user.setAccount(account);
+
+            userRepository.save(user);
         }
     }
 }
-

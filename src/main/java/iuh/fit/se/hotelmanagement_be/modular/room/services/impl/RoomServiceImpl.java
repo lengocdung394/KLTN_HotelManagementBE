@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
@@ -9,12 +10,14 @@ import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -22,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +45,6 @@ public class RoomServiceImpl implements RoomService {
             throw new RuntimeException(
                     "Vui long dang tai anh"
             );
-
 
         //2. Kiem tra tang floor
         Floor floor = floorRepository.findById(dto.getFloorId()).orElseThrow(() -> new RuntimeException(" Khong tim thay tang"));
@@ -101,5 +104,32 @@ public class RoomServiceImpl implements RoomService {
                 .build();
     }
 
+    @Override
+    public List<RoomResponse> getRoomsByFloorId(Long floorId) {
+        Floor floor = floorRepository.findById(floorId)
+                .orElseThrow(() -> new RuntimeException("Floor not found"));
 
+        // Lấy hotelId của User đang login từ SecurityContext
+        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
+
+        // Nếu không phải Super Admin VÀ tầng này không thuộc khách sạn của User -> Báo lỗi Access Denied
+        if (currentHotelId != null && !floor.getBuilding().getHotel().getId().equals(currentHotelId)) {
+            throw new AccessDeniedException("Bạn không có quyền truy cập dữ liệu tầng của chi nhánh khác!");
+        }
+
+        return roomRepository.findByFloorId(floorId).stream()
+                .map(r -> RoomResponse.builder()
+                        .id(r.getId())
+                        .floorId(r.getFloor().getId())
+                        .roomStatus(r.getRoomStatus())
+                        .roomType(r.getRoomType())
+                        .basePrice(r.getBasePrice())
+                        .totalAmenitiesPrice(r.getTotalAmenitiesPrice())
+                        .totalPrice(r.calculateTotalPrice())
+                        .defaultImageUrl(r.getDefaultImageUrl())
+                        .avatarUrl(r.getAvatarUrl())
+                        .amenities(r.getAmenities()).build()
+                )
+                .collect(Collectors.toList());
+    }
 }

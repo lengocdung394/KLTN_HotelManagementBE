@@ -17,7 +17,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -30,7 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "Staff Management", description = "APIs quản lý nhân sự và phân quyền")
 @SecurityRequirement(name = "bearerAuth") //Giúp Swagger hiển thị khóa Bearer Token trên API này
-public class StaffController {
+public class EmployeeController {
     UserServiceImpl userService;
 
     @Operation(summary = "Tạo tài khoản nhân sự cấp dưới")

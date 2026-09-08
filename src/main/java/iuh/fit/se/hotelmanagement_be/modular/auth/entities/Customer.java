@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import jakarta.persistence.*;
 import lombok.*;
@@ -34,5 +35,18 @@ public class Customer {
 
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Booking> bookings;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "loyalty_tier", nullable = false)
+    @Builder.Default
+    LoyaltyTier loyaltyTier = LoyaltyTier.BRONZE;
+
+    @Column(name = "total_spent")
+    @Builder.Default
+    Double totalSpent = 0.0;
+
+    @Column(name = "total_bookings")
+    @Builder.Default
+    int totalBookings = 0;
 
 }

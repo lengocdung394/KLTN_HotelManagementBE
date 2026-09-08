@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.OtpVerification;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.OtpRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,7 @@ public class OtpService {
     private EmailService emailService;
 
     @Transactional
-    public void saveOtp(String email, String otpCode, UserRegisterRequest request) {
+    public void saveOtp(String email, String otpCode, CustomerCreateRequest request) {
         // Email này da có OTP cũ thì xóa trước khi tạo mới
         otpRepository.deleteByEmail(email);
 

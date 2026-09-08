@@ -1,13 +1,15 @@
 package iuh.fit.se.hotelmanagement_be.config.rbac;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.User;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.PermissionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.UserRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Building;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
@@ -38,7 +40,7 @@ public class RbacInitializer implements CommandLineRunner {
     private final RbacConfig rbacConfig;
     private final AccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
-    private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
     private final BuildingRepository buildingRepository;
     private final HotelRepository hotelRepository;
     private final FloorRepository floorRepository;
@@ -150,23 +152,24 @@ public class RbacInitializer implements CommandLineRunner {
         // ==========================================
         String superAdminEmail = "admin@senviet.vn";
         if (!accountRepository.existsByEmail(superAdminEmail)) {
-            User superAdminUser = User.builder()
-                    .fullName("Admin Tổng Toàn Hệ Thống")
-                    .phone("0901234567")
-                    .position("Super Admin")
-                    .hotel(null) // null đại diện cho việc quản lý toàn bộ hệ thống
-                    .build();
-
+            //  1. Tạo Account trước
             Account superAdminAccount = Account.builder()
                     .email(superAdminEmail)
                     .password(passwordEncoder.encode("admin123"))
                     .roles(Set.of(adminRole))
                     .build();
 
-            superAdminAccount.setUser(superAdminUser);
-            superAdminUser.setAccount(superAdminAccount);
+            //  2. Tạo Employee gắn Account vào
+            Employee superAdminEmployee = Employee.builder()
+                    .fullName("Admin Tổng Toàn Hệ Thống")
+                    .phone("0901234567")
+                    .position("Super Admin")
+                    .hotel(null) // null đại diện cho việc quản lý toàn bộ hệ thống
+                    .account(superAdminAccount)
+                    .build();
 
-            userRepository.save(superAdminUser);
+            //  3. Lưu Employee
+            employeeRepository.save(superAdminEmployee);
             System.out.println(">>> [STARTUP] Đã tạo Tài khoản Admin Tổng: " + superAdminEmail);
         }
     }
@@ -176,23 +179,21 @@ public class RbacInitializer implements CommandLineRunner {
      */
     private void createBranchAdmin(String email, String fullName, String phone, String position, Hotel hotel, Role role) {
         if (!accountRepository.existsByEmail(email)) {
-            User user = User.builder()
-                    .fullName(fullName)
-                    .phone(phone)
-                    .position(position)
-                    .hotel(hotel)
-                    .build();
-
             Account account = Account.builder()
                     .email(email)
                     .password(passwordEncoder.encode("admin123"))
                     .roles(Set.of(role))
                     .build();
 
-            account.setUser(user);
-            user.setAccount(account);
+            Employee employee = Employee.builder()
+                    .fullName(fullName)
+                    .phone(phone)
+                    .position(position)
+                    .hotel(hotel)
+                    .account(account)
+                    .build();
 
-            userRepository.save(user);
+            employeeRepository.save(employee);
         }
     }
 }

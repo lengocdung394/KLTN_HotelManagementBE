@@ -1,10 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.entities;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.springframework.security.core.GrantedAuthority;
@@ -33,15 +30,22 @@ public class Account implements UserDetails {
 
     String password;
 
-    @OneToOne
-    @JoinColumn(name = "user_id")
-    User user;
+    // Quan hệ 1-1 ngược lại tới Employee (Account không giữ khóa ngoại)
+    @ToString.Exclude
+    @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    Employee employee;
 
+    // Quan hệ 1-1 ngược lại tới Customer (Account không giữ khóa ngoại)
+    @ToString.Exclude
+    @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    Customer customer;
+
+    // Helper method lấy Hotel ID (chỉ áp dụng cho Nhân viên thuộc chi nhánh)
     public Long getHotelId() {
-        if (this.user != null && this.user.getHotel() != null) {
-            return this.user.getHotel().getId();
+        if (this.employee != null && this.employee.getHotel() != null) {
+            return this.employee.getHotel().getId();
         }
-        return null; // Admin tổng
+        return null; // Admin tổng hoặc Customer
     }
 
     @ManyToMany(fetch = FetchType.EAGER)
@@ -60,6 +64,7 @@ public class Account implements UserDetails {
                 .map(role -> new SimpleGrantedAuthority(role.getName()))
                 .collect(Collectors.toList());
     }
+
     @Override
     public String getUsername() {
         return this.email;

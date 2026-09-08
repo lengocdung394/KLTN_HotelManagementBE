@@ -2,10 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResendOtpRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
@@ -15,10 +12,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/auth")
@@ -34,7 +28,8 @@ public class AuthController {
             description = "Nhận thông tin đăng ký từ khách hàng, kiểm tra trùng lặp và tự động tạo/gửi mã OTP qua email xác thực."
     )
     @PostMapping("/register-request")
-    public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody UserRegisterRequest request) {
+    @ExceptionHandler(value = RuntimeException.class)
+    public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody CustomerCreateRequest request) {
         authService.customerRegisterRequest(request);
 
         ApiResponse<String> apiResponse = ApiResponse.<String>builder()
@@ -50,6 +45,7 @@ public class AuthController {
             description = "Kiểm tra mã OTP khách hàng nhập vào. Nếu hợp lệ, hệ thống sẽ kích hoạt tài khoản, gán mặc định vai trò ROLE_CUSTOMER và lưu chính thức vào cơ sở dữ liệu."
     )
     @PostMapping("/verify-otp")
+    @ExceptionHandler(value = RuntimeException.class)
     public ResponseEntity<ApiResponse<UserResponse>> verifyOtpAndRegisterCustomer(@RequestBody VerifyOtpRequest request) {
         UserResponse response = authService.verifyOtpAndRegisterCustomer(request);
 

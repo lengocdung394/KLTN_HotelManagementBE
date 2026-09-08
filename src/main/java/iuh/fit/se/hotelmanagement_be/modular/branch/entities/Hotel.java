@@ -1,6 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.entities;
 
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.User;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -40,5 +40,5 @@ public class Hotel {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    List<User> users;
+    List<Employee> employees;
 }

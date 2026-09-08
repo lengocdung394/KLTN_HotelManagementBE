@@ -1,13 +1,12 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.User;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.UserRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserCreateResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.UserService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
@@ -28,7 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserServiceImpl implements UserService {
-    UserRepository userRepository;
+    EmployeeRepository employeeRepository;
     AccountRepository accountRepository;
     RoleRepository roleRepository;
     HotelRepository hotelRepository;
@@ -37,94 +36,87 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public UserCreateResponse createStaffAndAccount(UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount) {
+    public EmployeeCreateResponse createStaffAndAccount(UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount) {
         Set<String> creatorRoles = currentAccount.getRoles().stream()
-                .map(role -> role.getName())
-                .collect(java.util.stream.Collectors.toSet());
-
+                .map(Role::getName)
+                .collect(Collectors.toSet());
 
         boolean isManager = creatorRoles.contains("ROLE_MANAGER");
         boolean isAdmin = creatorRoles.contains("ROLE_ADMIN");
 
-
         if (isManager && "Quản lý".equalsIgnoreCase(dto.getPosition())) {
-            throw new RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
+            throw new RuntimeException("Quyen han bi tu choi"); // Hoặc RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
         }
 
         if (isManager) {
-            // Nếu là Quản lý tạo, hệ thống tự động bốc mã khách sạn của ông Quản lý này gắn cho nhân viên mới
-            if (currentAccount.getUser() != null && currentAccount.getUser().getHotel() != null) {
-                dto.setHotelId(currentAccount.getUser().getHotel().getId());
+            // 💡 SỬA LỖI 1: Lấy hotelId từ Employee hoặc hàm getHotelId() trong Account
+            Long currentHotelId = currentAccount.getHotelId(); // Hàm helper đã định nghĩa ở Account entity
+            if (currentHotelId != null) {
+                dto.setHotelId(currentHotelId);
             } else {
                 throw new RuntimeException("Lỗi hệ thống: Tài khoản Quản lý hiện tại chưa được cấu hình chi nhánh làm việc!");
             }
         } else if (isAdmin) {
-            // Nếu là Admin tổng tạo, bắt buộc form Frontend phải chọn và truyền lên mã khách sạn trực thuộc
             if (dto.getHotelId() == null) {
                 throw new RuntimeException("Yêu cầu nhập liệu: Vui lòng lựa chọn chi nhánh khách sạn trực thuộc cho nhân sự mới!");
             }
         } else {
-            // Tài khoản đột nhập không có cả 2 quyền trên
             throw new RuntimeException("Quyền hạn bị từ chối: Bạn không có đặc quyền thực hiện hành động này!");
         }
 
-        // 3. Kiểm tra trùng lặp Email dưới bảng accounts
+        // Kiểm tra trùng lặp Email
         if (accountRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Lỗi: Email này đã được đăng ký tài khoản trong hệ thống!");
+            throw new RuntimeException("Email da ton tai");
         }
 
-        // 4. Xử lý đẩy file ảnh lên gói thư mục 'avatars' của Cloudinary (Nếu có chọn ảnh)
+        // Upload avatar lên Cloudinary
         String uploadedUrl = "";
         if (avatarFile != null && !avatarFile.isEmpty()) {
             uploadedUrl = cloudinaryService.uploadImage(avatarFile, "avatars");
         }
 
-        // 5. Tìm chi nhánh khách sạn trực thuộc dưới DB
+        // Tìm chi nhánh khách sạn
         Hotel hotel = hotelRepository.findById(dto.getHotelId())
                 .orElseThrow(() -> new RuntimeException("Lỗi: Không tìm thấy khách sạn có ID: " + dto.getHotelId()));
 
-        // 6. Phân loại gán Role hệ thống bốc từ file JSON cấu hình của bạn
+        // Phân loại Role
         String targetRoleName = "Quản lý".equalsIgnoreCase(dto.getPosition()) ? "ROLE_MANAGER" : "ROLE_EMPLOYEE";
         Role assignedRole = roleRepository.findByName(targetRoleName)
                 .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy vai trò " + targetRoleName + " dưới DB!"));
 
-        // 7. Khởi tạo thực thể thông tin cá nhân (User)
-        User newUser = User.builder()
-                .fullName(dto.getFullName())
-                .phone(dto.getPhone())
-                .cccd(dto.getCccd())
-                .address(dto.getAddress())
-                .position(dto.getPosition())
-                .avatarUrl(uploadedUrl) // Lưu link URL bốc từ Cloudinary về
-                .hotel(hotel)
-                .build();
-
-        // 8. Tự động cấp tài khoản đăng nhập (Account) với mật khẩu mặc định '1111'
+        // 💡 SỬA LỖI 2: Tạo Account trước
         Account newAccount = Account.builder()
                 .email(dto.getEmail())
-                .password(passwordEncoder.encode("1111")) // Mã hóa pass mặc định
+                .password(passwordEncoder.encode("1111"))
                 .roles(Set.of(assignedRole))
                 .build();
 
-        // Thiết lập mối quan hệ liên kết song phương 1-1
-        newAccount.setUser(newUser);
-        newUser.setAccount(newAccount);
+        // 💡 SỬA LỖI 3: Tạo Employee thay vì User
+        Employee newEmployee = Employee.builder()
+                .fullName(dto.getFullName())
+                .phone(dto.getPhone())
+                .address(dto.getAddress())
+                .position(dto.getPosition())
+                .avatarUrl(uploadedUrl)
+                .hotel(hotel)
+                .account(newAccount) // Gán Account cho Employee (sở hữu khóa ngoại account_id)
+                .build();
 
-        // Lưu xuống DB qua cơ chế Cascade
-        User savedUser = userRepository.save(newUser);
-        return UserCreateResponse.builder()
-                .id(savedUser.getId())
-                .fullName(savedUser.getFullName())
-                .email(savedUser.getAccount().getEmail())
-                .phone(savedUser.getPhone())
-                .address(savedUser.getAddress())
-                .cccd(savedUser.getCccd())
-                .position(savedUser.getPosition())
+        // 💡 SỬA LỖI 4: Lưu Employee (sẽ tự động Cascade lưu luôn Account)
+        Employee savedEmployee = employeeRepository.save(newEmployee);
+
+        // Trả về DTO kết quả
+        return EmployeeCreateResponse.builder()
+                .id(savedEmployee.getId())
+                .fullName(savedEmployee.getFullName())
+                .email(savedEmployee.getAccount().getEmail())
+                .phone(savedEmployee.getPhone())
+                .address(savedEmployee.getAddress())
+                .position(savedEmployee.getPosition())
                 .hotelName(hotel.getName())
-                .roles(savedUser.getAccount().getRoles().stream()
+                .roles(savedEmployee.getAccount().getRoles().stream()
                         .map(Role::getName)
                         .collect(Collectors.toSet()))
                 .build();
     }
-
 }

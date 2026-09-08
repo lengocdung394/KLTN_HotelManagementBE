@@ -5,6 +5,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -27,25 +29,36 @@ public class JwtService {
     }
 
     public String generateToken(Account account) {
-        // 1. Tạo một Map chứa các thông tin tùy biến muốn nhét thêm vào Token JWT
         Map<String, Object> extraClaims = new HashMap<>();
 
-        // Kiểm tra an toàn xem đối tượng user liên kết có bị null không trước khi bốc thông tin cá nhân
-        if (account.getUser() != null) {
-            extraClaims.put("fullName", account.getUser().getFullName());
-            extraClaims.put("phone", account.getUser().getPhone());
-            extraClaims.put("position", account.getUser().getPosition()); // Nhét thêm chức vụ nếu FE cần
+        // 1. Xử lý trường hợp là Nhân viên / Admin
+        if (account.getEmployee() != null) {
+            Employee emp = account.getEmployee();
+            extraClaims.put("fullName", emp.getFullName());
+            extraClaims.put("phone", emp.getPhone());
+            extraClaims.put("position", emp.getPosition());
 
+            // Lấy thông tin Hotel trực thuộc
+            if (emp.getHotel() != null) {
+                extraClaims.put("hotelId", emp.getHotel().getId());
+                extraClaims.put("hotelName", emp.getHotel().getName());
+            } else {
+                // Super Admin (không thuộc chi nhánh nào)
+                extraClaims.put("hotelId", null);
+                extraClaims.put("hotelName", "Toàn hệ thống");
+            }
         }
-        // LƯU HOTEL_ID VÀO JWT TOKEN
-        if (account.getUser().getHotel() != null) {
-            extraClaims.put("hotelId", account.getUser().getHotel().getId());
-            extraClaims.put("hotelName", account.getUser().getHotel().getName());
-        } else {
-            extraClaims.put("hotelId", null); // Dành cho Super Admin (không giới hạn chi nhánh)
-            extraClaims.put("hotelName", "Toàn hệ thống"); // Cho Super Admin
+        // 2. Xử lý trường hợp là Khách hàng
+        else if (account.getCustomer() != null) {
+            Customer cust = account.getCustomer();
+            extraClaims.put("fullName", cust.getFullName());
+            extraClaims.put("phone", cust.getPhone());
+            extraClaims.put("position", "Khách hàng");
+            extraClaims.put("hotelId", null);
+            extraClaims.put("hotelName", null);
         }
-        //  Đút thêm danh sách Roles/Permissions vào Token để Frontend dễ dàng bốc ra kiểm tra quyền ẩn/hiện menu
+
+        // 3. Đút danh sách Roles vào Token cho Frontend kiểm tra quyền
         if (account.getRoles() != null) {
             List<String> roles = account.getRoles().stream()
                     .map(Role::getName)
@@ -53,10 +66,10 @@ public class JwtService {
             extraClaims.put("roles", roles);
         }
 
-        // 2. Build Token kèm theo Claims
+        // 4. Build Token
         return Jwts.builder()
                 .setClaims(extraClaims)
-                .setSubject(account.getEmail()) // LẤY EMAIL TỪ ACCOUNT: Làm chuỗi định danh chủ thể Token
+                .setSubject(account.getEmail())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

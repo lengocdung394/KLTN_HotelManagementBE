@@ -87,6 +87,10 @@ public class Promotion {
     List<CustomerPromotion> customerPromotions;
 
 
+    @Column(name = "is_exclusive")
+    boolean isExclusive = false;
+
+
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)

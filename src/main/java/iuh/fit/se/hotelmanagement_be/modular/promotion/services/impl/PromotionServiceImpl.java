@@ -1,5 +1,10 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
@@ -16,6 +21,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,11 +44,12 @@ public class PromotionServiceImpl implements PromotionService {
 
     // State machine: trạng thái hiện tại → các trạng thái được phép chuyển
     static final Map<PromotionStatus, Set<PromotionStatus>> ALLOWED_TRANSITIONS = Map.of(
-            PromotionStatus.DRAFT,    Set.of(PromotionStatus.ACTIVE, PromotionStatus.INACTIVE),
-            PromotionStatus.ACTIVE,   Set.of(PromotionStatus.INACTIVE, PromotionStatus.EXPIRED),
+            PromotionStatus.DRAFT, Set.of(PromotionStatus.ACTIVE, PromotionStatus.INACTIVE),
+            PromotionStatus.ACTIVE, Set.of(PromotionStatus.INACTIVE, PromotionStatus.EXPIRED),
             PromotionStatus.INACTIVE, Set.of(PromotionStatus.ACTIVE, PromotionStatus.EXPIRED),
-            PromotionStatus.EXPIRED,  Set.of()
+            PromotionStatus.EXPIRED, Set.of()
     );
+    private final HotelRepository hotelRepository;
 
     // ==================== CREATE ====================
     @Override
@@ -49,15 +57,52 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionResponse createPromotion(CreatePromotionRequest request) {
         log.info("Tạo mới khuyến mãi, mã: {}", request.getCode());
 
-        String code = request.getCode().toUpperCase().trim();
+        // 1. Kiem tra xac thuc & Lay role tu SecurityContextHolder
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
 
+        var authorities = authentication.getAuthorities();
+        boolean isAdmin = authorities.stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+        boolean isManager = authorities.stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_MANAGER"));
+
+        if (!isAdmin && !isManager) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        // 2. Validate Mã duy nhất & Hạn sử dụng
+        String code = request.getCode().toUpperCase().trim();
         if (promotionRepository.existsByCodeAndDeletedFalse(code)) {
-            throw new IllegalArgumentException("Mã khuyến mãi '" + code + "' đã tồn tại");
+            throw new AppException(ErrorCode.PROMOTION_CODE_EXISTED);
         }
 
         validateDates(request.getStartDate(), request.getEndDate());
         validateDiscountValue(request.getType(), request.getDiscountValue());
 
+        // 3. Xử lý gán Khách sạn (Hotel) dựa theo quyền
+        Hotel hotel = null;
+
+        if (isManager) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof Account account) {
+                Long managerHotelId = account.getHotelId();
+                if (managerHotelId == null) {
+                    throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
+                }
+                hotel = hotelRepository.findById(managerHotelId)
+                        .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+
+            } else {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+        } else if (isAdmin) {
+            if (request.getHotelId() != null) {
+                hotel = hotelRepository.findById(request.getHotelId()).orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+            }
+        }
+
+        // 4. Khởi tạo đối tượng Promotion
         Promotion promotion = Promotion.builder()
                 .code(code)
                 .name(request.getName().trim())
@@ -70,12 +115,16 @@ public class PromotionServiceImpl implements PromotionService {
                 .endDate(request.getEndDate())
                 .usageLimit(request.getUsageLimit())
                 .status(request.getStatus() != null ? request.getStatus() : PromotionStatus.DRAFT)
+                .isExclusive(request.isExclusive())
+                .hotel(hotel)
                 .usedCount(0)
                 .deleted(false)
                 .build();
 
         promotion = promotionRepository.save(promotion);
-        log.info("Tạo thành công khuyến mãi ID: {}", promotion.getId());
+        log.info("Tạo thành công khuyến mãi ID: {} thuộc phạm vi: {}",
+                promotion.getId(), hotel != null ? "Chi nhánh ID " + hotel.getId() : "Toàn hệ thống");
+
         return toResponse(promotion);
     }
 

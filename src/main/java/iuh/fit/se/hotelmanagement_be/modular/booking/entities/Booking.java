@@ -4,11 +4,14 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -42,4 +45,18 @@ public class Booking {
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingDetail> bookingDetails;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_promotion_id")
+    CustomerPromotion customerPromotion;
+
+    // 3. Tiền giảm & thời điểm áp dụng (khớp với sơ đồ Class của bạn)
+    @Column(name = "apply_amount", precision = 15, scale = 2)
+    BigDecimal applyAmount; // Số tiền được giảm (VD: 100.000 VNĐ)
+
+    @Column(name = "apply_at")
+    LocalDateTime applyAt;  // Thời điểm nhân viên bấm áp dụng mã
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promotion_id")
+    Promotion promotion;
 }

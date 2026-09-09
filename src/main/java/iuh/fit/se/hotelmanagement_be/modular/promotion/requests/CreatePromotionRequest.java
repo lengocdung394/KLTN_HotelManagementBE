@@ -61,4 +61,11 @@ public class CreatePromotionRequest {
 
     @Schema(example = "DRAFT", defaultValue = "DRAFT")
     PromotionStatus status = PromotionStatus.DRAFT;
+
+
+    @Schema(description = "ID Khách sạn áp dụng khuyến mãi", example = "1")
+    Long hotelId;
+
+    @Schema(description = "Là mã độc quyền cá nhân (true) hay mã dùng chung (false)", example = "false", defaultValue = "false")
+    boolean isExclusive = false;
 }

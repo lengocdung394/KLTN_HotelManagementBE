@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
 import jakarta.persistence.*;
@@ -10,6 +11,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -20,7 +22,8 @@ import java.time.LocalDateTime;
 @Table(name = "promotions", indexes = {
         @Index(name = "idx_promotion_code",   columnList = "code",              unique = true),
         @Index(name = "idx_promotion_status", columnList = "status"),
-        @Index(name = "idx_promotion_dates",  columnList = "start_date, end_date")
+        @Index(name = "idx_promotion_dates",  columnList = "start_date, end_date"),
+        @Index(name = "idx_promotion_hotel", columnList = "hotel_id")
 })
 public class Promotion {
 
@@ -79,4 +82,18 @@ public class Promotion {
     @UpdateTimestamp
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "promotion", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<CustomerPromotion> customerPromotions;
+
+
+    @Column(name = "is_exclusive")
+    boolean isExclusive = false;
+
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hotel_id", nullable = true) // Nullable = true để hỗ trợ khuyến mãi toàn hệ thống
+    Hotel hotel;
 }

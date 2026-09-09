@@ -28,7 +28,6 @@ public class AuthController {
             description = "Nhận thông tin đăng ký từ khách hàng, kiểm tra trùng lặp và tự động tạo/gửi mã OTP qua email xác thực."
     )
     @PostMapping("/register-request")
-    @ExceptionHandler(value = RuntimeException.class)
     public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody CustomerCreateRequest request) {
         authService.customerRegisterRequest(request);
 
@@ -45,7 +44,6 @@ public class AuthController {
             description = "Kiểm tra mã OTP khách hàng nhập vào. Nếu hợp lệ, hệ thống sẽ kích hoạt tài khoản, gán mặc định vai trò ROLE_CUSTOMER và lưu chính thức vào cơ sở dữ liệu."
     )
     @PostMapping("/verify-otp")
-    @ExceptionHandler(value = RuntimeException.class)
     public ResponseEntity<ApiResponse<UserResponse>> verifyOtpAndRegisterCustomer(@RequestBody VerifyOtpRequest request) {
         UserResponse response = authService.verifyOtpAndRegisterCustomer(request);
 

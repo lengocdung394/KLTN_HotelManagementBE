@@ -1,7 +1,5 @@
 package iuh.fit.se.hotelmanagement_be.config.rbac;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
@@ -10,14 +8,9 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.PermissionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Building;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Province;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BuildingRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.ProvinceRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.*;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.*;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
@@ -25,10 +18,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -45,6 +35,7 @@ public class RbacInitializer implements CommandLineRunner {
     private final HotelRepository hotelRepository;
     private final FloorRepository floorRepository;
     private final ProvinceRepository provinceRepository;
+    private final BranchRoomPolicyRepository branchRoomPolicyRepository;
 
     @Override
     @Transactional
@@ -83,9 +74,6 @@ public class RbacInitializer implements CommandLineRunner {
 
         System.out.println(">>> [STARTUP] Khởi tạo hệ thống Permission & Role hoàn tất.");
 
-        // ==========================================
-        // 2. KHỞI TẠO CHI NHÁNH 1: TP. HỒ CHÍ MINH
-        // ==========================================
         if (!hotelRepository.existsByName("Sài Gòn Sky Hotel & Residence")) {
             Province provinceHcm = provinceRepository.save(Province.builder().name("TP. Hồ Chí Minh").build());
 
@@ -103,6 +91,39 @@ public class RbacInitializer implements CommandLineRunner {
             floorRepository.save(Floor.builder().floorNumber(1).building(b1).build());
             floorRepository.save(Floor.builder().floorNumber(2).building(b1).build());
 
+            // 👉 KHỞI TẠO CHÍNH SÁCH PHÒNG CHO CHI NHÁNH 1 (Sài Gòn)
+            branchRoomPolicyRepository.saveAll(List.of(
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel1)
+                            .roomType(RoomType.STANDARD) // Đã sửa từ SUITE thành SINGLE
+                            .standardAdults(1)
+                            .maxAdults(1)
+                            .maxInfants(1)
+                            .maxChildren(1)
+                            .extraAdultFee(150000.0)
+                            .extraChildFee(80000.0)
+                            .build(),
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel1)
+                            .roomType(RoomType.DELUXE)
+                            .standardAdults(2)
+                            .maxAdults(2)
+                            .maxChildren(2)
+                            .maxInfants(1)
+                            .extraAdultFee(200000.0)
+                            .extraChildFee(100000.0)
+                            .build(),
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel1)
+                            .roomType(RoomType.SUITE)
+                            .standardAdults(3) // Chỉnh lại số lượng chuẩn cho hợp lý (vd: 3)
+                            .maxAdults(3)
+                            .maxChildren(2)
+                            .maxInfants(1)
+                            .extraAdultFee(300000.0)
+                            .extraChildFee(150000.0)
+                            .build()
+            ));
             // Admin Chi nhánh 1
             createBranchAdmin(
                     "admin.saigon@senviet.vn",
@@ -112,7 +133,7 @@ public class RbacInitializer implements CommandLineRunner {
                     hotel1,
                     adminRole
             );
-            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 1: Sài Gòn Sky Hotel & Account: admin.saigon@senviet.vn");
+            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 1: Sài Gòn Sky Hotel & Policy kèm theo.");
         }
 
         // ==========================================
@@ -135,6 +156,40 @@ public class RbacInitializer implements CommandLineRunner {
             floorRepository.save(Floor.builder().floorNumber(1).building(b2).build());
             floorRepository.save(Floor.builder().floorNumber(2).building(b2).build());
 
+            // 👉 KHỞI TẠO CHÍNH SÁCH PHÒNG CHO CHI NHÁNH 2 (Hà Nội - Giá có thể nhỉnh hơn chút)
+            branchRoomPolicyRepository.saveAll(List.of(
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel2)
+                            .roomType(RoomType.DELUXE)
+                            .standardAdults(1)
+                            .maxAdults(1)
+                            .maxChildren(1)
+                            .maxInfants(1)
+                            .extraAdultFee(180000.0)
+                            .extraChildFee(90000.0)
+                            .build(),
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel2)
+                            .roomType(RoomType.STANDARD)
+                            .standardAdults(2)
+                            .maxAdults(2)
+                            .maxChildren(2)
+                            .maxInfants(1)
+                            .extraAdultFee(250000.0)
+                            .extraChildFee(120000.0)
+                            .build(),
+                    BranchRoomPolicy.builder()
+                            .hotel(hotel2)
+                            .roomType(RoomType.SUITE)
+                            .standardAdults(4)
+                            .maxAdults(3)
+                            .maxChildren(2)
+                            .maxInfants(1)
+                            .extraAdultFee(350000.0)
+                            .extraChildFee(180000.0)
+                            .build()
+            ));
+
             // Admin Chi nhánh 2
             createBranchAdmin(
                     "admin.hanoi@senviet.vn",
@@ -144,9 +199,8 @@ public class RbacInitializer implements CommandLineRunner {
                     hotel2,
                     adminRole
             );
-            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 2: Hà Nội Grand Hotel & Account: admin.hanoi@senviet.vn");
+            System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 2: Hà Nội Grand Hotel & Policy kèm theo.");
         }
-
         // ==========================================
         // 4. KHỞI TẠO ADMIN TỔNG (SUPER ADMIN)
         // ==========================================

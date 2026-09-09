@@ -26,8 +26,8 @@ public class Hotel {
     String name;
 
     @JoinColumn(name = "province_id")
-    @ManyToOne()
     @ToString.Exclude
+    @ManyToOne(fetch = FetchType.LAZY)
     @EqualsAndHashCode.Exclude
     Province province;
 
@@ -47,4 +47,9 @@ public class Hotel {
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true)
     List<Promotion> promotions;
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    List<BranchRoomPolicy> roomPolicies;
 }

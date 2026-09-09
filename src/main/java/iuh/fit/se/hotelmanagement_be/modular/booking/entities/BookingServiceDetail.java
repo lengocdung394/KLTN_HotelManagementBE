@@ -37,4 +37,11 @@ public class BookingServiceDetail {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id", nullable = false)
     Service service;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.usedAt == null) {
+            this.usedAt = LocalDateTime.now();
+        }
+    }
 }

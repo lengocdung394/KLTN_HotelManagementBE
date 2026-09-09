@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/rooms/public/**").permitAll()
                         // TODO: Xóa dòng này sau khi hoàn thiện Auth cho module KM
                         .requestMatchers("/promotions/**").permitAll()
+                        .requestMatchers("/bookings/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

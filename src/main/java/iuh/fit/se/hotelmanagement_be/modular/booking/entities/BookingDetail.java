@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
@@ -34,4 +36,17 @@ public class BookingDetail {
 
     @OneToMany(mappedBy = "bookingDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingServiceDetail> bookingServiceDetails;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
+    Room room;
+
+
+    Integer numAdults;
+
+
+    Integer numChildren;
+
+
+    Integer numInfants;
 }

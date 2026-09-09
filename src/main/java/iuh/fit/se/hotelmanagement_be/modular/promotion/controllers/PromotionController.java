@@ -6,8 +6,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ClaimPromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,12 +39,32 @@ public class PromotionController {
 
     PromotionService promotionService;
 
+
+
+
+    @PostMapping("/claim")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách hàng lưu mã khuyến mãi vào Ví voucher")
+    public ResponseEntity<ApiResponse<CustomerPromotionResponse>> claimPromotion(
+            @Valid @RequestBody ClaimPromotionRequest request) {
+
+        CustomerPromotionResponse result = promotionService.claimPromotion(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.<CustomerPromotionResponse>builder()
+                        .code(1000)
+                        .message("Lưu mã khuyến mãi vào Ví thành công")
+                        .result(result)
+                        .build());
+    }
+
+
     // ============================================================
     // POST /promotions — Tạo mới
     // ============================================================
     @PostMapping
     @Operation(summary = "Tạo mới khuyến mãi")
-    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @PreAuthorize("hasAuthority('MANAGE_PROMOTION') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PromotionResponse>> createPromotion(
             @Valid @RequestBody CreatePromotionRequest request) {
 

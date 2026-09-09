@@ -7,6 +7,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = false)
@@ -40,6 +41,12 @@ public class CustomerPromotion {
     @Column(name = "is_used")
     boolean isUsed = false;
 
+
+    @Column(name = "created_at", updatable = false)
+    LocalDateTime createdAt; // Thời gian khách lưu/được tặng mã
+
+    @Column(name = "used_at")
+    LocalDateTime usedAt; // Thời gian khách dùng mã khi đặt phòng
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)

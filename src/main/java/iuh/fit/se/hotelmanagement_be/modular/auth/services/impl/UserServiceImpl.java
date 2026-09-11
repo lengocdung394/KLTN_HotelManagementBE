@@ -6,9 +6,13 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.UserRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UpdateProfileRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.ProfileResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.UserService;
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
@@ -34,6 +38,69 @@ public class UserServiceImpl implements UserService {
     HotelRepository hotelRepository;
     PasswordEncoder passwordEncoder;
     CloudinaryService cloudinaryService;
+
+    private Account getCurrentAccount() {
+        String email = SecurityUtils.getCurrentUserEmail();
+        if (email == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
+        return accountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản hiện tại"));
+    }
+
+    private ProfileResponse toProfileResponse(Account account) {
+        User user = account.getUser();
+        if (user == null) {
+            throw new RuntimeException("Tài khoản hiện tại chưa có hồ sơ người dùng");
+        }
+        return ProfileResponse.builder()
+                .userId(user.getId())
+                .accountId(account.getId())
+                .fullName(user.getFullName())
+                .email(account.getEmail())
+                .phone(user.getPhone())
+                .cccd(user.getCccd())
+                .dateOfBirth(user.getDateOfBirth())
+                .avatarUrl(user.getAvatarUrl())
+                .position(user.getPosition())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public ProfileResponse getMyProfile() {
+        return toProfileResponse(getCurrentAccount());
+    }
+
+    @Override
+    @Transactional
+    public ProfileResponse updateMyProfile(UpdateProfileRequest request) {
+        Account account = getCurrentAccount();
+        User user = account.getUser();
+        if (user == null) {
+            throw new RuntimeException("Tài khoản hiện tại chưa có hồ sơ người dùng");
+        }
+        user.setFullName(request.getFullName());
+        user.setPhone(request.getPhone());
+        user.setCccd(request.getCccd());
+        user.setDateOfBirth(request.getDateOfBirth());
+        userRepository.save(user);
+        return toProfileResponse(account);
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new RuntimeException("Xác nhận mật khẩu mới không khớp");
+        }
+        Account account = getCurrentAccount();
+        if (!passwordEncoder.matches(request.getCurrentPassword(), account.getPassword())) {
+            throw new RuntimeException("Mật khẩu hiện tại không đúng");
+        }
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+    }
 
     @Transactional
     @Override

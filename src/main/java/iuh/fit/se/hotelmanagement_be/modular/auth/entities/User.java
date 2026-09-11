@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.time.LocalDate;
 
 @EqualsAndHashCode()
 @Data
@@ -38,6 +39,7 @@ public class User {
 
     String phone;
     String avatarUrl;
+    LocalDate dateOfBirth;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id")

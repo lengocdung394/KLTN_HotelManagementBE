@@ -32,6 +32,7 @@ public class Customer {
     String email;
     String avatarUrl;
     String cccd;
+    java.time.LocalDate dateOfBirth;
 
     @EqualsAndHashCode.Exclude
     @ToString.Exclude

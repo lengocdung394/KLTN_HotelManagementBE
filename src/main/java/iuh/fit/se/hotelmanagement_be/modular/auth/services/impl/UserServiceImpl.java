@@ -1,18 +1,24 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UpdateProfileRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.ProfileResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.UserService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import jakarta.transaction.Transactional;
-
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -28,11 +34,113 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserServiceImpl implements UserService {
     EmployeeRepository employeeRepository;
+    CustomerRepository customerRepository;
     AccountRepository accountRepository;
     RoleRepository roleRepository;
     HotelRepository hotelRepository;
     PasswordEncoder passwordEncoder;
     CloudinaryService cloudinaryService;
+
+    private Account getCurrentAccount() {
+        String email = SecurityUtils.getCurrentUserEmail();
+        if (email == null) {
+            throw new RuntimeException("Bạn chưa đăng nhập");
+        }
+        return accountRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản hiện tại"));
+    }
+
+    private ProfileResponse toProfileResponse(Account account) {
+        if (account.getCustomer() != null) {
+            Customer c = account.getCustomer();
+            return ProfileResponse.builder()
+                    .userId(c.getId())
+                    .accountId(account.getId())
+                    .fullName(c.getFullName())
+                    .email(account.getEmail())
+                    .phone(c.getPhone())
+                    .cccd(c.getCccd())
+                    .dateOfBirth(c.getDateOfBirth())
+                    .avatarUrl(c.getAvatarUrl())
+                    .position("Khách hàng")
+                    .build();
+        } else if (account.getEmployee() != null) {
+            Employee e = account.getEmployee();
+            return ProfileResponse.builder()
+                    .userId(e.getId())
+                    .accountId(account.getId())
+                    .fullName(e.getFullName())
+                    .email(account.getEmail())
+                    .phone(e.getPhone())
+                    .cccd(e.getCccd())
+                    .dateOfBirth(e.getDateOfBirth())
+                    .avatarUrl(e.getAvatarUrl())
+                    .position(e.getPosition())
+                    .build();
+        } else {
+            throw new RuntimeException("Tài khoản hiện tại chưa có hồ sơ người dùng");
+        }
+    }
+
+    @Override
+    @Transactional
+    public ProfileResponse getMyProfile() {
+        return toProfileResponse(getCurrentAccount());
+    }
+
+    @Override
+    @Transactional
+    public ProfileResponse updateMyProfile(UpdateProfileRequest request) {
+        Account account = getCurrentAccount();
+
+        if (account.getCustomer() != null) {
+            Customer customer = account.getCustomer();
+
+            // Kiểm tra trùng SĐT với khách hàng khác
+            if (customer.getPhone() != null && !customer.getPhone().equals(request.getPhone())
+                    && customerRepository.existsByPhone(request.getPhone())) {
+                throw new RuntimeException("Số điện thoại này đã được sử dụng bởi tài khoản khác");
+            }
+
+            // Kiểm tra trùng CCCD với khách hàng khác
+            if (request.getCccd() != null && !request.getCccd().isBlank()
+                    && (customer.getCccd() == null || !customer.getCccd().equals(request.getCccd()))
+                    && customerRepository.existsByCccd(request.getCccd())) {
+                throw new RuntimeException("Số CCCD/CMND này đã được sử dụng bởi tài khoản khác");
+            }
+
+            customer.setFullName(request.getFullName());
+            customer.setPhone(request.getPhone());
+            customer.setCccd(request.getCccd());
+            customer.setDateOfBirth(request.getDateOfBirth());
+            customerRepository.save(customer);
+            return toProfileResponse(account);
+        } else if (account.getEmployee() != null) {
+            Employee employee = account.getEmployee();
+            employee.setFullName(request.getFullName());
+            employee.setPhone(request.getPhone());
+            employee.setCccd(request.getCccd());
+            employee.setDateOfBirth(request.getDateOfBirth());
+            employeeRepository.save(employee);
+            return toProfileResponse(account);
+        } else {
+            throw new RuntimeException("Tài khoản hiện tại chưa có hồ sơ người dùng");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new RuntimeException("Xác nhận mật khẩu mới không khớp");
+        }
+        Account account = getCurrentAccount();
+        if (!passwordEncoder.matches(request.getCurrentPassword(), account.getPassword())) {
+            throw new RuntimeException("Mật khẩu hiện tại không đúng");
+        }
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+    }
 
     @Transactional
     @Override
@@ -45,12 +153,11 @@ public class UserServiceImpl implements UserService {
         boolean isAdmin = creatorRoles.contains("ROLE_ADMIN");
 
         if (isManager && "Quản lý".equalsIgnoreCase(dto.getPosition())) {
-            throw new RuntimeException("Quyen han bi tu choi"); // Hoặc RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
+            throw new RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
         }
 
         if (isManager) {
-            // 💡 SỬA LỖI 1: Lấy hotelId từ Employee hoặc hàm getHotelId() trong Account
-            Long currentHotelId = currentAccount.getHotelId(); // Hàm helper đã định nghĩa ở Account entity
+            Long currentHotelId = currentAccount.getHotelId();
             if (currentHotelId != null) {
                 dto.setHotelId(currentHotelId);
             } else {
@@ -66,7 +173,7 @@ public class UserServiceImpl implements UserService {
 
         // Kiểm tra trùng lặp Email
         if (accountRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Email da ton tai");
+            throw new RuntimeException("Lỗi: Email này đã được đăng ký tài khoản trong hệ thống!");
         }
 
         // Upload avatar lên Cloudinary
@@ -84,14 +191,14 @@ public class UserServiceImpl implements UserService {
         Role assignedRole = roleRepository.findByName(targetRoleName)
                 .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy vai trò " + targetRoleName + " dưới DB!"));
 
-        // 💡 SỬA LỖI 2: Tạo Account trước
+        // Tạo Account trước
         Account newAccount = Account.builder()
                 .email(dto.getEmail())
                 .password(passwordEncoder.encode("1111"))
                 .roles(Set.of(assignedRole))
                 .build();
 
-        // 💡 SỬA LỖI 3: Tạo Employee thay vì User
+        // Tạo Employee
         Employee newEmployee = Employee.builder()
                 .fullName(dto.getFullName())
                 .phone(dto.getPhone())
@@ -99,13 +206,12 @@ public class UserServiceImpl implements UserService {
                 .position(dto.getPosition())
                 .avatarUrl(uploadedUrl)
                 .hotel(hotel)
-                .account(newAccount) // Gán Account cho Employee (sở hữu khóa ngoại account_id)
+                .account(newAccount)
                 .build();
 
-        // 💡 SỬA LỖI 4: Lưu Employee (sẽ tự động Cascade lưu luôn Account)
+        // Lưu Employee (Cascade lưu luôn Account)
         Employee savedEmployee = employeeRepository.save(newEmployee);
 
-        // Trả về DTO kết quả
         return EmployeeCreateResponse.builder()
                 .id(savedEmployee.getId())
                 .fullName(savedEmployee.getFullName())

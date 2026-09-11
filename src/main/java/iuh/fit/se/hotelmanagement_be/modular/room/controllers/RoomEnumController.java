@@ -2,8 +2,8 @@ package iuh.fit.se.hotelmanagement_be.modular.room.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomStatus;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

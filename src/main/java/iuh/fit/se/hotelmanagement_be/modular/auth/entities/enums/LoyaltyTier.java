@@ -1,10 +1,12 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @Getter
 @RequiredArgsConstructor
+@JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public enum LoyaltyTier {
 
     BRONZE("Hạng Đồng", 0.0, 0.0),            // Chi tiêu < 5tr: Không giảm

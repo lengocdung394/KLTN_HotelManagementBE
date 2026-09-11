@@ -84,7 +84,7 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         validateDates(request.getStartDate(), request.getEndDate());
-        validateDiscountValue(request.getType(), request.getDiscountValue());
+//        validateDiscountValue(request.getType(), request.getDiscountValue());
 
         // 3. Xử lý gán Khách sạn (Hotel) dựa theo quyền
         Hotel hotel = null;
@@ -190,7 +190,7 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         validateDates(request.getStartDate(), request.getEndDate());
-        validateDiscountValue(request.getType(), request.getDiscountValue());
+//        validateDiscountValue(request.getType(), request.getDiscountValue());
 
         promotion.setName(request.getName().trim());
         promotion.setDescription(request.getDescription());
@@ -308,11 +308,11 @@ public class PromotionServiceImpl implements PromotionService {
         }
     }
 
-    private void validateDiscountValue(PromotionType type, BigDecimal value) {
-        if (type == PromotionType.PERCENTAGE && value.compareTo(BigDecimal.valueOf(100)) > 0) {
-            throw new IllegalArgumentException("Giá trị giảm theo % không được vượt quá 100%");
-        }
-    }
+//    private void validateDiscountValue(PromotionType type, BigDecimal value) {
+//        if (type == PromotionType.PERCENTAGE && value.compareTo(BigDecimal.valueOf(100)) > 0) {
+//            throw new IllegalArgumentException("Giá trị giảm theo % không được vượt quá 100%");
+//        }
+//    }
 
     private CustomerPromotionResponse toCustomerPromotionResponse(CustomerPromotion cp) {
         Promotion promotion = cp.getPromotion();

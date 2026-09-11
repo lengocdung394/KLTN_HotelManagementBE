@@ -2,8 +2,8 @@ package iuh.fit.se.hotelmanagement_be.modular.room.responses;
 
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomStatus;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 

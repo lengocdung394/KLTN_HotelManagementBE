@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import jakarta.persistence.*;
@@ -13,10 +14,12 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = false)
 @Data
+@SuperBuilder
 @NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
@@ -39,15 +42,16 @@ public class Booking {
 
     BookingChannel bookingChannel;
 
-    LocalDateTime createAt;
-
     @ToString.Exclude
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
-    List<BookingDetail> bookingDetails;
+    List<BookingDetail> bookingDetails = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_promotion_id")
     CustomerPromotion customerPromotion;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    LocalDateTime createdAt;
 
     // 3. Tiền giảm & thời điểm áp dụng (khớp với sơ đồ Class của bạn)
     @Column(name = "apply_amount", precision = 15, scale = 2)
@@ -59,4 +63,28 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     Promotion promotion;
+
+
+    //
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "order_id", referencedColumnName = "order_id")
+    private Order order;
+
+
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        if (this.bookingStatus == null) {
+            this.bookingStatus = BookingStatus.PENDING;
+        }
+    }
+
+    public void addBookingDetail(BookingDetail detail) {
+        if (this.bookingDetails == null) {
+            this.bookingDetails = new ArrayList<>();
+        }
+        this.bookingDetails.add(detail);
+        detail.setBooking(this);
+    }
 }

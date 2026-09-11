@@ -1,11 +1,10 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -35,7 +34,12 @@ public class Room {
     @ManyToOne(fetch = FetchType.LAZY)
     Floor floor;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "room_status")
     RoomStatus roomStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "room_type")
     RoomType roomType;
 
     // Tien ich
@@ -46,6 +50,7 @@ public class Room {
             inverseJoinColumns = @JoinColumn(name = "amenity_id")
     )
     Set<Amenity> amenities;
+
 
     double basePrice;
 

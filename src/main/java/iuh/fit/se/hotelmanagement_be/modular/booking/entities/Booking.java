@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import jakarta.persistence.*;
@@ -41,8 +42,6 @@ public class Booking {
 
     BookingChannel bookingChannel;
 
-    LocalDateTime createAt;
-
     @ToString.Exclude
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingDetail> bookingDetails = new ArrayList<>();
@@ -64,6 +63,14 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     Promotion promotion;
+
+
+    //
+    @OneToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "order_id", referencedColumnName = "order_id")
+    private Order order;
+
+
 
     @PrePersist
     protected void onCreate() {

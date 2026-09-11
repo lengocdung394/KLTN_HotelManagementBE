@@ -23,7 +23,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
     boolean existsByCodeAndDeletedFalse(String code);
 
     boolean existsByCodeAndIdNotAndDeletedFalse(String code, Long id);
-
+    Optional<Promotion> findByCodeAndDeletedFalse(String code);
     @Query("""
             SELECT p FROM Promotion p
             WHERE p.deleted = false

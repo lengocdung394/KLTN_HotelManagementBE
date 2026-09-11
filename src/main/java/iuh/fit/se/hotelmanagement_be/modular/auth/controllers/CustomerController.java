@@ -3,7 +3,6 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

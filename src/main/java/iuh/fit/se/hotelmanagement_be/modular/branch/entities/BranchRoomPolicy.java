@@ -1,6 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.entities;
 
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;

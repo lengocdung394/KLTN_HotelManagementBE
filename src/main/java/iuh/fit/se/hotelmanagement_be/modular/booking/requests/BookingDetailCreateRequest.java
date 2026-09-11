@@ -4,7 +4,10 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,4 +31,6 @@ public class BookingDetailCreateRequest {
 
     @NotNull(message = "Số em bé không được để trống")
     Integer numInfants;
+
+    List<BookingServiceRequest> serviceRequests;
 }

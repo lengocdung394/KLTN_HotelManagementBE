@@ -1,8 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.requests;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomStatus;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;

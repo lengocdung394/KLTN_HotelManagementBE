@@ -8,4 +8,5 @@ import java.util.List;
 public interface RoomRepository extends JpaRepository<Room, Long> {
     // Hoặc lấy các Room thuộc về 1 Floor cụ thể
     List<Room> findByFloorId(Long floorId);
+    List<Room> findByFloor_Building_Hotel_Id(Long hotelId);
 }

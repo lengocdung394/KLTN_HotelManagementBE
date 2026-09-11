@@ -4,6 +4,6 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateReque
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 
 public interface BookingService {
-    BookingResponse createBooking(BookingCreateRequest request);
+    BookingResponse createCustomerBooking(BookingCreateRequest request);
     BookingResponse createCounterBooking(Long employeeId, BookingCreateRequest request);
 }

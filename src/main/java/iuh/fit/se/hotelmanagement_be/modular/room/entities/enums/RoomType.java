@@ -1,4 +1,4 @@
-package iuh.fit.se.hotelmanagement_be.modular.room.entities;
+package iuh.fit.se.hotelmanagement_be.modular.room.entities.enums;
 
 public enum RoomType {
     STANDARD("Phòng Tiêu Chuẩn"),

@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -32,8 +34,12 @@ public class Room {
     @ManyToOne(fetch = FetchType.LAZY)
     Floor floor;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "room_status")
     RoomStatus roomStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "room_type")
     RoomType roomType;
 
     // Tien ich

@@ -4,16 +4,25 @@ import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomTypeBed;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomTypeBedRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomBedResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import jakarta.transaction.Transactional;
@@ -27,11 +36,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -41,6 +48,9 @@ public class RoomServiceImpl implements RoomService {
     FloorRepository floorRepository;
     AmenityRepository amenityRepository;
     CloudinaryService cloudinaryService;
+    RoomTypeBedRepository roomTypeBedRepository;
+    private final BranchRoomPolicyRepository branchRoomPolicyRepository;
+    private final HotelRepository hotelRepository;
 
     @Transactional
     @Override
@@ -151,6 +161,7 @@ public class RoomServiceImpl implements RoomService {
                 .amenities(savedRoom.getAmenities())
                 .build();
     }
+
     @Override
     public List<RoomResponse> getRoomsByFloorId(Long floorId) {
         Floor floor = floorRepository.findById(floorId)
@@ -178,5 +189,96 @@ public class RoomServiceImpl implements RoomService {
                         .amenities(r.getAmenities()).build()
                 )
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<RoomResponse> getRoomsByHotelId(Long hotelId) {
+        List<Room> rooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
+        if (rooms == null || rooms.isEmpty()) {
+            log.warn("⚠ Không tìm thấy phòng nào cho hotelId: {}", hotelId);
+            return Collections.emptyList();
+        }
+
+        return rooms.stream().map(room -> {
+            // 1. Lấy Hotel của phòng thông qua chuỗi quan hệ Floor -> Building -> Hotel
+            Hotel hotel = room.getFloor().getBuilding().getHotel();
+
+            // 2. Tìm BranchRoomPolicy dựa vào Hotel và RoomType của phòng
+            BranchRoomPolicy policy = branchRoomPolicyRepository
+                    .findByHotelAndRoomType(hotel, room.getRoomType())
+                    .orElse(null);
+
+            // 3. Lấy danh sách giường theo RoomType (như phần trước)
+            List<RoomTypeBed> roomTypeBeds = roomTypeBedRepository.findByRoomType(room.getRoomType());
+            List<RoomBedResponse> bedResponses = roomTypeBeds.stream().map(rtb ->
+                    RoomBedResponse.builder()
+                            .bedTypeName(rtb.getBedType().getName())
+                            .description(rtb.getBedType().getDescription())
+                            .quantity(rtb.getQuantity())
+                            .capacity(rtb.getBedType().getCapacity())
+                            .isExtraBed(rtb.getBedType().getIsExtraBed())
+                            .build()
+            ).toList();
+
+            // 4. Build ra RoomResponse đầy đủ thông tin chính sách phòng
+            return RoomResponse.builder()
+                    .id(room.getId())
+                    .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
+                    .floorNumber(room.getFloor().getFloorNumber())
+                    .nameBuilding(room.getFloor().getBuilding().getName())
+                    .basePrice(room.getBasePrice())
+                    .roomStatus(room.getRoomStatus())
+                    .roomType(room.getRoomType())
+                    .avatarUrl(room.getAvatarUrl())
+                    .amenities(room.getAmenities())
+                    .totalPrice(room.calculateTotalPrice())
+                    .defaultImageUrl(room.getDefaultImageUrl())
+                    .beds(bedResponses)
+                    // Đưa thông tin từ BranchRoomPolicy vào Response (nếu có tồn tại)
+                    .standardAdults(policy != null ? policy.getStandardAdults() : null)
+                    .maxAdults(policy != null ? policy.getMaxAdults() : null)
+                    .maxChildren(policy != null ? policy.getMaxChildren() : null)
+                    .maxInfants(policy != null ? policy.getMaxInfants() : null)
+                    .extraAdultFee(policy != null ? policy.getExtraAdultFee() : null)
+                    .extraChildFee(policy != null ? policy.getExtraChildFee() : null)
+                    .build();
+        }).toList();
+    }
+
+    @Override
+    public RoomTypeDetailResponse getRoomTypeDetailByHotelAndType(Long hotelId, RoomType roomType) {
+        // 1. Lấy thông tin Hotel từ hotelId
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
+
+        // 2. Lấy Chính sách quy định của loại phòng tại khách sạn này
+        BranchRoomPolicy policy = branchRoomPolicyRepository
+                .findByHotelAndRoomType(hotel, roomType)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách cho loại phòng này tại chi nhánh."));
+
+        // 3. Lấy Danh sách giường đi kèm của loại phòng này
+        List<RoomTypeBed> roomTypeBeds = roomTypeBedRepository.findByRoomType(roomType);
+
+        List<RoomBedResponse> bedResponses = roomTypeBeds.stream().map(rtb ->
+                RoomBedResponse.builder()
+                        .bedTypeName(rtb.getBedType().getName())
+                        .description(rtb.getBedType().getDescription())
+                        .quantity(rtb.getQuantity())
+                        .capacity(rtb.getBedType().getCapacity())
+                        .isExtraBed(rtb.getBedType().getIsExtraBed())
+                        .build()
+        ).toList();
+
+        // 4. Tổng hợp và trả về DTO
+        return RoomTypeDetailResponse.builder()
+                .roomType(roomType)
+                .standardAdults(policy.getStandardAdults())
+                .maxAdults(policy.getMaxAdults())
+                .maxChildren(policy.getMaxChildren())
+                .maxInfants(policy.getMaxInfants())
+                .extraAdultFee(policy.getExtraAdultFee())
+                .extraChildFee(policy.getExtraChildFee())
+                .beds(bedResponses)
+                .build();
     }
 }

@@ -24,15 +24,6 @@ public class BookingCreateRequest {
     @NotNull(message = "Mã nhân viên không được để trống")
     Long employeeId;
 
-    @NotNull(message = "Tầng/Phòng không được để trống")
-    Long roomId;
-
-    @NotNull(message = "Thời gian nhận phòng không được để trống")
-    LocalDateTime checkinTime;
-
-    @NotNull(message = "Thời gian trả phòng không được để trống")
-    LocalDateTime checkoutTime;
-
     BookingChannel bookingChannel; // WALK_IN hoặc ONLINE
 
     // Giá phòng thời điểm đó

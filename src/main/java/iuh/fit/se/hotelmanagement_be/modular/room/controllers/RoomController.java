@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
@@ -64,5 +65,24 @@ public class RoomController {
                 .message("Lay thanh cong danh sach")
                 .build());
 
+    }
+
+    @GetMapping("/hotel")
+    @Operation(summary = "Lấy danh sách phòng thuộc khách sạn của tài khoản đang đăng nhập")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_STAFF')")
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
+
+        // 💡 Lấy hotelId từ token của nhân viên đang đăng nhập
+        // (Hãy thay thế bằng hàm lấy token thực tế trong dự án của bạn, ví dụ: SecurityUtils.getCurrentHotelId())
+        Long hotelId = SecurityUtils.getCurrentUserHotelId();
+
+        // Gọi Service lấy danh sách phòng
+        List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
+
+        return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
+                .code(200)
+                .message("Lấy danh sách phòng của khách sạn thành công!")
+                .result(roomResponseList)
+                .build());
     }
 }

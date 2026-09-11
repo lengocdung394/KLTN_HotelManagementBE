@@ -15,7 +15,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, Lo
     @Query("""
                 SELECT r FROM Room r
                 WHERE r.floor.building.hotel.id = :hotelId
-                  AND r.roomStatus != iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomStatus.MAINTENANCE
+                  AND r.roomStatus != iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus.MAINTENANCE
                   AND NOT EXISTS (
                       SELECT 1 FROM BookingDetail bd
                       WHERE bd.room.id = r.id

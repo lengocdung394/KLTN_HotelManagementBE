@@ -34,7 +34,6 @@ public class BranchRoomPolicy {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id", nullable = false)
     Hotel hotel;
-
     @NotNull(message = "Loại phòng không được để trống")
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", nullable = false)

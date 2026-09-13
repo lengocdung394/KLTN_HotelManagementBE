@@ -1,13 +1,15 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.OtpVerification;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.OtpRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Random;
 
@@ -29,48 +31,47 @@ public class OtpService {
                 .fullName(request.getFullName())
                 .password(request.getPassword())
                 .phone(request.getPhone())
+                .failedAttempts(0)
                 .expiredAt(LocalDateTime.now().plusMinutes(5))
                 .build();
         otpRepository.save(otp);
     }
-
+    @Autowired
+    private OtpAttemptService otpAttemptService;
 
     public boolean validateOtp(String email, String inputOtp) {
 
         OtpVerification otp = otpRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException(" Khong tim thay thong tin hop le"));
+                .orElseThrow(() -> new AppException(ErrorCode.OTP_NOT_FOUND));
 
-        // TH1 da xac thu thanh cong truoc do
         if (otp.isVerified())
-            throw new RuntimeException(" Tai khoan da duoc xac thuc thanh cong truoc do");
+            throw new AppException(ErrorCode.OTP_ALREADY_VERIFIED);
 
-        // TH2 tai khoan da bi khoa do dang nhap sai qua 3 lan
         if (otp.getFailedAttempts() > 3)
-            throw new RuntimeException(" Ma OTP da nhap sai qua 3 lan. Vui long nhan yeu cau gui lai ma");
+            throw new AppException(ErrorCode.OTP_LOCKED);
 
-        // TH3 Ma OTP het han
-        if(otp.getExpiredAt().isBefore(LocalDateTime.now()))
-            throw new RuntimeException("Ma OTP da het han vui long yeu cau gui lai");
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now()))
+            throw new AppException(ErrorCode.OTP_EXPIRED);
 
-        // TH4: kiem tra khop ma OTP
-        if(otp.getOtpCode().equals(inputOtp)){
+        if (otp.getOtpCode().equals(inputOtp)) {
             otp.setVerified(true);
             otp.setFailedAttempts(0);
             otpRepository.save(otp);
             return true;
-
-        }else{
-            //tang so lan sai len 1
+        } else {
             int newAttempts = otp.getFailedAttempts() + 1;
-            otp.setFailedAttempts(newAttempts);
-            otpRepository.save(otp);
+
+            // Update ngay xuống DB trong transaction riêng, commit độc lập
+            otpAttemptService.incrementFailedAttempt(email);
+
             if (newAttempts >= 3) {
-                throw new RuntimeException("Nhập sai quá 3 lần! Mã OTP đã bị khóa. Vui lòng ấn Gửi lại mã");
+                throw new AppException(ErrorCode.OTP_LOCKED);
+            } else if (newAttempts == 2) {
+                throw new AppException(ErrorCode.OTP_INCORRECT_2_ATTEMPTS);
+            } else {
+                throw new AppException(ErrorCode.OTP_INCORRECT_1_ATTEMPT);
             }
-            throw new RuntimeException("Mã OTP không chính xác. Bạn còn " + (3 - newAttempts) + " lần thử");
-
         }
-
     }
 
     public OtpVerification getPendingRegistration(String email) {

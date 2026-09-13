@@ -43,6 +43,7 @@ public class OtpVerification {
 
     String cccd;
 
-    int failedAttempts;
+    @Column(name = "failed_attempts")
+    Integer failedAttempts=0;
 
 }

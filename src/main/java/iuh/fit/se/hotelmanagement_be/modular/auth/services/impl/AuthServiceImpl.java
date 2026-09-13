@@ -2,11 +2,13 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.*;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.OtpVerification;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
@@ -28,7 +30,7 @@ import java.util.Set;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthServiceImpl implements AuthService {
     EmployeeRepository userRepository;
-    CustomerRepository  customerRepository;
+    CustomerRepository customerRepository;
     PasswordEncoder passwordEncoder;
     AccountRepository accountRepository;
     OtpRepository otpRepository;
@@ -42,25 +44,24 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void customerRegisterRequest(CustomerCreateRequest request) {
         LocalDateTime now = LocalDateTime.now();
-
+        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
+            throw new AppException(ErrorCode.PHONE_OTP_PENDING);
+        }
         if (accountRepository.existsByEmail(request.getEmail())) {
             throw new AppException(ErrorCode.EMAIL_EXISTED);
         }
 
-        if (customerRepository.existsByPhone((request.getPhone()))) {
-            throw new RuntimeException("Số điện thoại này đã được đăng ký tài khoản!");
+        if (customerRepository.existsByPhone(request.getPhone())) {
+            throw new AppException(ErrorCode.PHONE_EXISTED);
         }
 
         if (otpRepository.existsByEmailAndExpiredAtAfter(request.getEmail(), now)) {
-            throw new RuntimeException("Email này đang trong quá trình chờ xác thực OTP.");
+            throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
         }
 
-        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
-            throw new RuntimeException("Số điện thoại này đang chờ xác thực bởi một yêu cầu khác.");
-        }
 
-        if (request.getCccd() != null && customerRepository.existsByCccd((request.getCccd()))) {
-            throw new RuntimeException("Số CCCD này đã được sử dụng trong hệ thống!");
+        if (request.getCccd() != null && customerRepository.existsByCccd(request.getCccd())) {
+            throw new AppException(ErrorCode.CCCD_EXISTED);
         }
 
         String otpCode = otpService.generateOtpCode();

@@ -48,8 +48,20 @@ public enum ErrorCode {
     // --- BOOKING ERRORS (8xxx) ---
     BOOKING_NOT_FOUND(8001, "[8001] Booking not found", HttpStatus.NOT_FOUND),
     MULTIPLE_PROMOTIONS_NOT_ALLOWED(8002, "[8002] Only one promotion or discount can be applied per booking", HttpStatus.BAD_REQUEST),
+//    EMAIL_EXISTED(1001, "Email is already in use", HttpStatus.BAD_REQUEST),
+    PHONE_EXISTED(1002, "This phone number has already been registered!", HttpStatus.BAD_REQUEST),
+    EMAIL_OTP_PENDING(1003, "This email is currently pending OTP verification.", HttpStatus.BAD_REQUEST),
+    PHONE_OTP_PENDING(1004, "This phone number is pending verification by another request.", HttpStatus.BAD_REQUEST),
+    CCCD_EXISTED(1005, "This ID card number (CCCD) is already in use within the system!", HttpStatus.BAD_REQUEST),
 
-
+    //otp
+    OTP_NOT_FOUND(1021, "[1021] Không tìm thấy thông tin hợp lệ", HttpStatus.BAD_REQUEST),
+    OTP_ALREADY_VERIFIED(1022, "[1022] Tài khoản đã được xác thực thành công trước đó", HttpStatus.BAD_REQUEST),
+    OTP_LOCKED(1023, "[1023] Mã OTP đã bị khóa do nhập sai quá 3 lần", HttpStatus.BAD_REQUEST),
+    OTP_EXPIRED(1024, "[1024] Mã OTP đã hết hạn, vui lòng yêu cầu gửi lại", HttpStatus.BAD_REQUEST),
+    OTP_INCORRECT(1025, "[1025] Mã OTP không chính xác", HttpStatus.BAD_REQUEST),
+    OTP_INCORRECT_1_ATTEMPT(1025, "[1025] Mã OTP không chính xác. Bạn còn 2 lần thử", HttpStatus.BAD_REQUEST),
+    OTP_INCORRECT_2_ATTEMPTS(1026, "[1026] Mã OTP không chính xác. Bạn còn 1 lần thử", HttpStatus.BAD_REQUEST),
     //
     INVALID_IMAGE(1020, "[1020]Image list is invalid or empty", HttpStatus.BAD_REQUEST),
     FLOOR_NOT_FOUND(1021, "[1021] Floor not found", HttpStatus.NOT_FOUND),

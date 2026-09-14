@@ -53,6 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/bedTypes/**").permitAll()
                         .requestMatchers("/amenities/**").permitAll()
                         .requestMatchers("/promotions/**").permitAll()
+                        .requestMatchers("/customer/types").permitAll()
                         .requestMatchers("/bookings/**").permitAll()
                         .requestMatchers("/booking2s/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")

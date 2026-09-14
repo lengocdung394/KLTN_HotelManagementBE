@@ -18,6 +18,8 @@ public enum ErrorCode {
     UNAUTHENTICATED(4004, "[4004] Unauthenticated", HttpStatus.UNAUTHORIZED),
     SESSION_EXPIRED(3005, "[3005] Session expired", HttpStatus.UNAUTHORIZED),
     INVALID_CREDENTIALS(3006, "[3006] Invalid credentials", HttpStatus.BAD_REQUEST),
+    PASSWORD_NOT_MATCH(3007, "[3007] Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
+    CURRENT_PASSWORD_INCORRECT(3008, "[3008] Mật khẩu hiện tại không chính xác", HttpStatus.BAD_REQUEST),
     EMPLOYEE_NOT_FOUND(5003, "[5003] Employee not found", HttpStatus.NOT_FOUND),
     // --- HOTEL ERRORS (5xxx) ---
     HOTEL_NOT_FOUND(5001, "[5001] Hotel branch not found", HttpStatus.NOT_FOUND),

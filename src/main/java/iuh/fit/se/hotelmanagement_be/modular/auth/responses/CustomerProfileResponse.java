@@ -1,9 +1,9 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.responses;
-import com.fasterxml.jackson.annotation.JsonFormat;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import java.time.LocalDate;
 
 @Data
 @Builder
@@ -11,15 +11,14 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class ProfileResponse {
-    Long userId;
+public class CustomerProfileResponse {
+    Long id;
     Long accountId;
     String fullName;
     String email;
     String phone;
     String cccd;
-    @JsonFormat(pattern = "dd/MM/yyyy")
-    LocalDate dateOfBirth;
-    String avatarUrl;
-    String position;
+    LoyaltyTier loyaltyTier;
+    Double totalSpent;
+    int totalBookings;
 }

@@ -43,4 +43,6 @@ public class PromotionResponse {
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     LocalDateTime updatedAt;
+
+    String imageUrl;
 }

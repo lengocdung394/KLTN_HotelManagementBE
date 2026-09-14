@@ -96,4 +96,7 @@ public class Promotion {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id", nullable = true) // Nullable = true để hỗ trợ khuyến mãi toàn hệ thống
     Hotel hotel;
+
+    @Column(name = "image_url")
+    String imageUrl;
 }

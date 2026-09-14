@@ -42,23 +42,6 @@ public class PromotionController {
 
 
 
-    @PostMapping("/claim")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Khách hàng lưu mã khuyến mãi vào Ví voucher")
-    public ResponseEntity<ApiResponse<CustomerPromotionResponse>> claimPromotion(
-            @Valid @RequestBody ClaimPromotionRequest request) {
-
-        CustomerPromotionResponse result = promotionService.claimPromotion(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.<CustomerPromotionResponse>builder()
-                        .code(1000)
-                        .message("Lưu mã khuyến mãi vào Ví thành công")
-                        .result(result)
-                        .build());
-    }
-
-
     // ============================================================
     // POST /promotions — Tạo mới
     // ============================================================

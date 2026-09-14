@@ -34,6 +34,6 @@ public interface PromotionService {
     PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request);
 
     PromotionResponse changeStatus(Long id, ChangeStatusRequest request);
-    CustomerPromotionResponse claimPromotion(ClaimPromotionRequest request);
+
     void deletePromotion(Long id);
 }

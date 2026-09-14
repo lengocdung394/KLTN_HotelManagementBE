@@ -267,13 +267,12 @@ public class PromotionServiceImpl implements PromotionService {
         if (alreadyClaimed) {
             throw new IllegalArgumentException("Bạn đã lưu mã khuyến mãi này trước đó rồi!");
         }
-
+        // Khong can phai get ma , vi da co cai @PrePersist
         //4. Tao bang ghi CustomerPromotion
         CustomerPromotion customerPromotion = CustomerPromotion.builder()
                 .customer(customer)
                 .promotion(promotion)
                 .isUsed(false)
-                .uniqueCode(promotion.getCode())
                 .createdAt(now).build();
         customerPromotionRepository.save(customerPromotion);
         log.info("Khách hàng ID {} đã lưu thành công khuyến mãi ID {}", customer.getId(), promotion.getId());

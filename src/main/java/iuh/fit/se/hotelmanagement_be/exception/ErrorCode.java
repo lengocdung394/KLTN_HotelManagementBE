@@ -73,7 +73,7 @@ public enum ErrorCode {
     EXCEEDS_MAX_INFANTS(1050, "Số lượng em bé vượt quá giới hạn tối đa của phòng", HttpStatus.BAD_REQUEST),
     EXCEEDS_MAX_CAPACITY(1051, "Tổng số lượng khách (người lớn và trẻ em) vượt quá sức chứa tối đa của phòng", HttpStatus.BAD_REQUEST),
     SERVICE_NOT_FOUND(5005, "[5005] Service not found", HttpStatus.NOT_FOUND),
-
+    EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type",HttpStatus.BAD_REQUEST ),
     // bookingdetail
     BOOKING_DETAILS_REQUIRED(5004, "[5004] Booking details cannot be empty", HttpStatus.BAD_REQUEST),
     // Ví dụ các lỗi hỗ trợ khác đã nhắc tới trước đó:

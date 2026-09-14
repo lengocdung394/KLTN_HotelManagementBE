@@ -17,6 +17,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreat
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
@@ -44,23 +45,23 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class BookingServiceImpl {
+public class BookingServiceImpl implements BookingService {
 
-
-    private final CustomerRepository customerRepository;
-    private final EmployeeRepository employeeRepository;
-    private final RoomRepository roomRepository;
-    private final BranchRoomPolicyRepository branchRoomPolicyRepository;
-    private final RoomPricingCalculator roomPricingCalculator;
-    private final ServiceRepository serviceRepository;
-    private final BookingRepository bookingRepository;
-    private final CustomerPromotionRepository customerPromotionRepository;
-    private final PromotionRepository promotionRepository;
+    CustomerRepository customerRepository;
+    EmployeeRepository employeeRepository;
+    RoomRepository roomRepository;
+    BranchRoomPolicyRepository branchRoomPolicyRepository;
+    RoomPricingCalculator roomPricingCalculator;
+    ServiceRepository serviceRepository;
+    BookingRepository bookingRepository;
+    CustomerPromotionRepository customerPromotionRepository;
+    PromotionRepository promotionRepository;
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
      */
     @Transactional
+    @Override
     public BookingResponse createCustomerBooking(BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
@@ -68,7 +69,6 @@ public class BookingServiceImpl {
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
         booking.setBookingDetails(details);
 
-        // Gom chung logic tính toán giá và voucher vào helper method bên dưới
         Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
         booking.setOrder(order);
 
@@ -80,6 +80,7 @@ public class BookingServiceImpl {
      * LUỒNG CHÍNH 2: Nhân viên đặt tại quầy
      */
     @Transactional
+    @Override
     public BookingResponse createCounterBooking(Long employeeId, BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Employee employee = validateAndGetEmployee(employeeId);
@@ -88,7 +89,6 @@ public class BookingServiceImpl {
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
         booking.setBookingDetails(details);
 
-        // Sử dụng chung helper method tính tiền và voucher
         Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
         booking.setOrder(order);
 
@@ -97,7 +97,7 @@ public class BookingServiceImpl {
     }
 
     /**
-     * HELPER METHOD: Gom toàn bộ logic tính tiền phòng, dịch vụ, và áp dụng voucher để tránh lặp code
+     * HELPER METHOD: Gom toàn bộ logic tính tiền phòng, dịch vụ, và áp dụng voucher
      */
     private Order calculateAndBuildOrder(Long customerId, BookingCreateRequest request, List<BookingDetail> details, Booking booking) {
         BigDecimal roomTotal = calculateTotalRoomPrice(details);
@@ -105,14 +105,11 @@ public class BookingServiceImpl {
         BigDecimal currentSubTotal = roomTotal.add(serviceTotal);
         BigDecimal discountTotal = BigDecimal.ZERO;
 
-        // 1. Kiểm tra mã khuyến mãi chung của khách sạn
         if (request.getPromotionId() != null) {
             Promotion p = promotionRepository.findById(request.getPromotionId())
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
-            discountTotal = applyPromotion(customerId, p.getCode(), currentSubTotal, roomTotal, serviceTotal, booking); // Truyền booking sau hoặc xử lý tùy ý
-        }
-        // 2. Kiểm tra mã cá nhân trong ví của khách
-        else if (request.getCustomerPromotionId() != null) {
+            discountTotal = applyPromotion(customerId, p.getCode(), currentSubTotal, roomTotal, serviceTotal, booking);
+        } else if (request.getCustomerPromotionId() != null) {
             CustomerPromotion customerPromo = customerPromotionRepository.findById(request.getCustomerPromotionId())
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
@@ -145,13 +142,13 @@ public class BookingServiceImpl {
     private Booking initBookingForEmployee(Customer customer, Employee employee, BookingChannel channel, BookingStatus status) {
         return Booking.builder()
                 .customer(customer)
-                .employee(employee) // Gắn nhân viên lập đơn tại quầy
+                .employee(employee)
                 .bookingChannel(channel)
                 .bookingStatus(status)
                 .build();
     }
-
-    private BookingResponse toBookingResponse(Booking booking) {
+    @Override
+    public BookingResponse toBookingResponse(Booking booking) {
         if (booking == null) {
             return null;
         }
@@ -169,7 +166,6 @@ public class BookingServiceImpl {
                             .checkOutTime(detail.getCheckoutTime())
                             .numAdults(detail.getNumAdults())
                             .numChildren(detail.getNumChildren())
-                            .numInfants(detail.getNumInfants())
                             .price(detail.getPrice())
                             .build()
             ).toList();
@@ -182,7 +178,6 @@ public class BookingServiceImpl {
                 .bookingStatus(booking.getBookingStatus())
                 .bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt())
-
                 .roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null)
@@ -201,8 +196,8 @@ public class BookingServiceImpl {
                 .orderStatus(OrderStatusType.OPEN)
                 .build();
     }
-
-    private List<BookingDetail> processBookingDetails(Booking booking, List<BookingDetailCreateRequest> detailRequests) {
+    @Override
+    public List<BookingDetail> processBookingDetails(Booking booking, List<BookingDetailCreateRequest> detailRequests) {
         if (detailRequests == null || detailRequests.isEmpty()) {
             throw new AppException(ErrorCode.BOOKING_DETAILS_REQUIRED);
         }
@@ -219,12 +214,14 @@ public class BookingServiceImpl {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
             }
 
-            double extraFeePerNight = roomPricingCalculator.calculateExtraFeeWithCapacityWeight(
+            // Gọi Calculator mới (đã loại bỏ infants và dùng cơ chế standardCapacity + maxExtraGuests)
+            iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(
                     policy,
                     detailReq.getNumAdults(),
-                    detailReq.getNumChildren(),
-                    detailReq.getNumInfants()
+                    detailReq.getNumChildren()
             );
+
+            double extraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
 
             long nights = ChronoUnit.DAYS.between(
                     detailReq.getCheckInTime().toLocalDate(),
@@ -234,7 +231,6 @@ public class BookingServiceImpl {
 
             double roomTotalPrice = (room.calculateTotalPrice() + extraFeePerNight) * nights;
 
-            // 1. Khởi tạo BookingDetail trước
             BookingDetail bookingDetail = BookingDetail.builder()
                     .booking(booking)
                     .room(room)
@@ -242,11 +238,9 @@ public class BookingServiceImpl {
                     .checkoutTime(detailReq.getCheckOutTime())
                     .numAdults(detailReq.getNumAdults())
                     .numChildren(detailReq.getNumChildren())
-                    .numInfants(detailReq.getNumInfants())
                     .price(roomTotalPrice)
                     .build();
 
-            // 2. Gọi hàm helper dùng chung để gán dịch vụ (nếu có)
             List<BookingServiceDetail> serviceDetails = processAndAttachServices(bookingDetail, detailReq.getServiceRequests());
             if (!serviceDetails.isEmpty()) {
                 bookingDetail.setBookingServiceDetails(serviceDetails);
@@ -256,7 +250,6 @@ public class BookingServiceImpl {
             return bookingDetail;
         }).toList();
     }
-
 
     private List<BookingServiceDetail> processAndAttachServices(BookingDetail bookingDetail, List<BookingServiceRequest> serviceRequests) {
         if (serviceRequests == null || serviceRequests.isEmpty()) {
@@ -271,7 +264,7 @@ public class BookingServiceImpl {
             LocalDateTime usageTime = servReq.getUsedAt() != null ? servReq.getUsedAt() : LocalDateTime.now();
 
             return BookingServiceDetail.builder()
-                    .bookingDetail(bookingDetail) // Gắn trực tiếp vào BookingDetail tương ứng
+                    .bookingDetail(bookingDetail)
                     .service(service)
                     .quantity(servReq.getQuantity())
                     .price(unitPrice.doubleValue())
@@ -282,44 +275,6 @@ public class BookingServiceImpl {
 
     private BigDecimal calculateTotalRoomPrice(List<BookingDetail> details) {
         return details.stream().map(d -> BigDecimal.valueOf(d.getPrice())).reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-
-    private List<BookingServiceDetail> processBookingServices(List<BookingDetail> createdBookingDetails, List<BookingServiceRequest> serviceRequests) {
-        if (serviceRequests == null || serviceRequests.isEmpty()) {
-            return List.of();
-        }
-
-        // Giả định: Dịch vụ có thể được gắn vào BookingDetail đầu tiên hoặc theo logic riêng của bạn
-        BookingDetail targetBookingDetail = createdBookingDetails.get(0);
-
-        return serviceRequests.stream().map(req -> {
-            // 1. Kiểm tra dịch vụ có tồn tại trong hệ thống hay không
-            iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(req.getServiceId())
-                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
-
-            // 2. Xác định đơn giá
-            BigDecimal unitPrice;
-            if (req.getPrice() != null) {
-                unitPrice = BigDecimal.valueOf(req.getPrice());
-            } else {
-                unitPrice = BigDecimal.valueOf(service.getPrice());
-            }
-
-            // 3. Thời gian sử dụng
-            LocalDateTime usageTime = req.getUsedAt() != null ? req.getUsedAt() : LocalDateTime.now();
-
-            // 4. Tạo đối tượng BookingServiceDetail trỏ đúng vào BookingDetail
-            BookingServiceDetail bookingServiceDetail = BookingServiceDetail.builder()
-                    .bookingDetail(targetBookingDetail) // Truyền BookingDetail vào đây thay vì Booking!
-                    .service(service)
-                    .quantity(req.getQuantity())
-                    .price(unitPrice.doubleValue())
-                    .usedAt(usageTime)
-                    .build();
-
-            return bookingServiceDetail;
-        }).toList();
     }
 
     private BigDecimal calculateTotalServicePrice(List<BookingDetail> bookingDetails) {
@@ -342,12 +297,10 @@ public class BookingServiceImpl {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Luong 1 xu li ma doc quyen
         var customerPromoOtp = customerPromotionRepository.findByUniqueCodeAndCustomerId(promoCode, customerId);
         if (customerPromoOtp.isPresent()) {
             CustomerPromotion customerPromotion = customerPromoOtp.get();
 
-            // kiem tra xem da duoc su dung chua
             if (customerPromotion.isUsed()) {
                 throw new AppException(ErrorCode.PROMOTION_ALREADY_USED);
             }
@@ -355,71 +308,55 @@ public class BookingServiceImpl {
             Promotion promotion = customerPromotion.getPromotion();
             validatePromotionRules(promotion, currentTotalAmount, now);
 
-            // Đánh dấu mã cá nhân này đã được sử dụng và khóa vào Booking
             customerPromotion.setUsed(true);
             customerPromotion.setUsedAt(now);
             customerPromotion.setBooking(booking);
 
-            // Truyền đầy đủ roomTotal và serviceTotal vào hàm tính toán mới
             return calculateDiscountAmount(promotion, roomTotal, serviceTotal);
         }
 
-        // Luong 2: Xử lý mã chung của khách sạn
         Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode)
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
         validatePromotionRules(promotion, currentTotalAmount, now);
-
-        // Tăng số lượng đã sử dụng của mã chung lên
         promotion.setUsedCount(promotion.getUsedCount() + 1);
 
-        // Truyền đầy đủ roomTotal và serviceTotal vào hàm tính toán mới
         return calculateDiscountAmount(promotion, roomTotal, serviceTotal);
     }
 
     private void validatePromotionRules(Promotion promotion, BigDecimal currentTotalAmount, LocalDateTime now) {
-        // Kiểm tra trạng thái ACTIVE
-        if (promotion.getStatus() != PromotionStatus.ACTIVE) { // Đảm bảo bạn đã có enum PromotionStatus
+        if (promotion.getStatus() != PromotionStatus.ACTIVE) {
             throw new AppException(ErrorCode.PROMOTION_INACTIVE);
         }
 
-        // Kiểm tra thời hạn
         if (now.isBefore(promotion.getStartDate()) || now.isAfter(promotion.getEndDate())) {
             throw new AppException(ErrorCode.PROMOTION_EXPIRED);
         }
 
-        // Kiểm tra số lượng lượt dùng tối đa (usageLimit)
         if (promotion.getUsageLimit() != null && promotion.getUsedCount() >= promotion.getUsageLimit()) {
             throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
         }
 
-        // Kiểm tra giá trị đơn tối thiểu (minBookingValue)
         if (promotion.getMinBookingValue() != null && currentTotalAmount.compareTo(promotion.getMinBookingValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
         }
     }
 
-    /**
-     * Hàm tính toán số tiền giảm dựa trên phạm vi áp dụng (Phòng, Dịch vụ hoặc Cả hai)
-     */
     private BigDecimal calculateDiscountAmount(Promotion promotion, BigDecimal roomTotal, BigDecimal serviceTotal) {
-        BigDecimal discountAmount = BigDecimal.ZERO;
+        BigDecimal discountAmount;
 
         switch (promotion.getType()) {
             case ROOM_PERCENTAGE:
-                // Chỉ giảm trên tổng tiền phòng
                 discountAmount = roomTotal.multiply(promotion.getDiscountValue())
                         .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 break;
 
             case SERVICE_PERCENTAGE:
-                // Chỉ giảm trên tổng tiền dịch vụ
                 discountAmount = serviceTotal.multiply(promotion.getDiscountValue())
                         .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 break;
 
             case TOTAL_PERCENTAGE:
-                // Giảm trên tổng cả phòng và dịch vụ
                 BigDecimal currentTotalAmount = roomTotal.add(serviceTotal);
                 discountAmount = currentTotalAmount.multiply(promotion.getDiscountValue())
                         .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
@@ -430,14 +367,11 @@ public class BookingServiceImpl {
                 break;
         }
 
-        // Kiểm tra trần giảm giá tối đa (maxDiscountAmount) nếu nhà quản lý có cấu hình giới hạn
         if (promotion.getMaxDiscountAmount() != null && discountAmount.compareTo(promotion.getMaxDiscountAmount()) > 0) {
             discountAmount = promotion.getMaxDiscountAmount();
         }
 
-        // Đảm bảo số tiền giảm không vượt quá tổng tiền thực tế của đơn hàng (Phòng + Dịch vụ)
         BigDecimal absoluteTotal = roomTotal.add(serviceTotal);
         return discountAmount.min(absoluteTotal);
     }
-
 }

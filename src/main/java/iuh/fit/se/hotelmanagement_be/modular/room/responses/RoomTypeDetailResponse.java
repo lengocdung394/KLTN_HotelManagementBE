@@ -14,10 +14,8 @@ public class RoomTypeDetailResponse {
     RoomType roomType; // Loại phòng (STANDARD, DELUXE,...)
 
     // --- 1. CHÍNH SÁCH QUY ĐỊNH (BranchRoomPolicy) ---
-    Integer standardAdults;
-    Integer maxAdults;
-    Integer maxChildren;
-    Integer maxInfants;
+    Integer maxExtraGuests;
+    Integer standardCapacity;
     Double extraAdultFee;
     Double extraChildFee;
 

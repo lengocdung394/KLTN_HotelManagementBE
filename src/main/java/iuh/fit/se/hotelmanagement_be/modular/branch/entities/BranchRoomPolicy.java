@@ -34,12 +34,13 @@ public class BranchRoomPolicy {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id", nullable = false)
     Hotel hotel;
+
     @NotNull(message = "Loại phòng không được để trống")
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type", nullable = false)
     RoomType roomType;
 
-    // --- RÀNG BUỘC PHÍ PHỤ THU ---
+    // --- ĐƠN GIÁ PHỤ THU ---
     @NotNull(message = "Phí phụ thu người lớn không được để trống")
     @DecimalMin(value = "0.0", message = "Phí phụ thu người lớn không được âm")
     @Column(name = "extra_adult_fee", nullable = false)
@@ -50,24 +51,20 @@ public class BranchRoomPolicy {
     @Column(name = "extra_child_fee", nullable = false)
     Double extraChildFee;
 
-    // --- RÀNG BUỘC SỨC CHỨA ---
-    @NotNull(message = "Số người lớn tiêu chuẩn không được để trống")
-    @Min(value = 1, message = "Số người lớn tiêu chuẩn tối thiểu là 1")
-    @Column(name = "standard_adults", nullable = false)
-    Integer standardAdults;
+    // --- QUY ĐỊNH SỨC CHỨA ---
+    @NotNull(message = "Sức chứa tiêu chuẩn không được để trống")
+    @Min(value = 1, message = "Sức chứa tiêu chuẩn tối thiểu là 1")
+    @Column(name = "standard_capacity", nullable = false)
+    Integer standardCapacity; // Số người cơ bản không mất phí (VD: 2)
 
-    @NotNull(message = "Sức chứa người lớn tối đa không được để trống")
-    @Min(value = 1, message = "Sức chứa người lớn tối đa phải ít nhất là 1")
-    @Column(name = "max_adults", nullable = false)
-    Integer maxAdults;
+    @NotNull(message = "Sức chứa phụ thu tối đa không được để trống")
+    @Min(value = 0, message = "Sức chứa phụ thu tối đa không được âm")
+    @Column(name = "max_extra_guests", nullable = false)
+    Integer maxExtraGuests; // Số lượng người tối đa được phép phụ thu thêm (VD: 2)
 
-    @NotNull(message = "Số trẻ em tối đa không được để trống")
-    @Min(value = 0, message = "Số trẻ em không được âm")
-    @Column(name = "max_children", nullable = false)
-    Integer maxChildren;
-
-    @NotNull(message = "Số em bé tối đa không được để trống")
-    @Min(value = 0, message = "Số em bé không được âm")
-    @Column(name = "max_infants", nullable = false)
-    Integer maxInfants;
+    // --- HÀM TIỆN ÍCH TỰ TÍNH SỨC CHỨA TỐI ĐA ---
+    @Transient
+    public int getMaxCapacity() {
+        return this.standardCapacity + this.maxExtraGuests;
+    }
 }

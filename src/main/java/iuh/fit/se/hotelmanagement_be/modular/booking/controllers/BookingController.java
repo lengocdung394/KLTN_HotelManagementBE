@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.controllers;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingServiceImpl;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class BookingController {
 
-    BookingServiceImpl bookingService;
+    BookingService  bookingService;
 
     /**
      * Endpoint 1: Khách hàng tự đặt phòng trực tuyến (Online)

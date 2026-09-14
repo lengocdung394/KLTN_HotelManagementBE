@@ -62,6 +62,10 @@ public class BranchRoomPolicy {
     @Column(name = "max_extra_guests", nullable = false)
     Integer maxExtraGuests; // Số lượng người tối đa được phép phụ thu thêm (VD: 2)
 
+    @NotNull(message = "Giá cơ bản không được để trống")
+    @DecimalMin(value = "0.0", message = "Giá cơ bản không được âm")
+    @Column(name = "base_price", nullable = false)
+    Double basePrice;
     // --- HÀM TIỆN ÍCH TỰ TÍNH SỨC CHỨA TỐI ĐA ---
     @Transient
     public int getMaxCapacity() {

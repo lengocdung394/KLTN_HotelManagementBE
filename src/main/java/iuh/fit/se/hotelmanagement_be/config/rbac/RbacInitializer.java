@@ -107,9 +107,10 @@ public class RbacInitializer implements CommandLineRunner {
                             .hotel(hotel1)
                             .roomType(RoomType.STANDARD)
                             .standardCapacity(2)    // Sức chứa tiêu chuẩn (VD: 2 người)
-                            .maxExtraGuests(2)      // Sức chứa phụ thu tối đa (VD: tối đa thêm 2 người)// Số em bé tối đa
+                            .maxExtraGuests(2)// Sức chứa phụ thu tối đa (VD: tối đa thêm 2 người)// Số em bé tối đa
                             .extraAdultFee(250000.0)
                             .extraChildFee(120000.0)
+                            .basePrice(1000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
@@ -118,6 +119,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(3)
                             .extraAdultFee(180000.0)
                             .extraChildFee(90000.0)
+                            .basePrice(2000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
@@ -126,6 +128,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(3)
                             .extraAdultFee(350000.0)
                             .extraChildFee(180000.0)
+                            .basePrice(3000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
@@ -134,6 +137,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(4)
                             .extraAdultFee(280000.0)
                             .extraChildFee(140000.0)
+                            .basePrice(4000000.0)
                             .build()
             ));
             // Admin Chi nhánh 1
@@ -176,6 +180,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(2)      // Sức chứa phụ thu tối đa (VD: tối đa thêm 2 người)// Số em bé tối đa
                             .extraAdultFee(250000.0)
                             .extraChildFee(120000.0)
+                            .basePrice(1000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
@@ -184,6 +189,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(3)
                             .extraAdultFee(180000.0)
                             .extraChildFee(90000.0)
+                            .basePrice(2000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
@@ -192,6 +198,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(3)
                             .extraAdultFee(350000.0)
                             .extraChildFee(180000.0)
+                            .basePrice(3000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
@@ -200,6 +207,7 @@ public class RbacInitializer implements CommandLineRunner {
                             .maxExtraGuests(4)
                             .extraAdultFee(280000.0)
                             .extraChildFee(140000.0)
+                            .basePrice(4000000.0)
                             .build()
             ));
             // Admin Chi nhánh 2

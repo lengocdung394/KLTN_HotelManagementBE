@@ -66,7 +66,8 @@ public enum ErrorCode {
     INVALID_IMAGE(1020, "[1020]Image list is invalid or empty", HttpStatus.BAD_REQUEST),
     FLOOR_NOT_FOUND(1021, "[1021] Floor not found", HttpStatus.NOT_FOUND),
     INVALID_IMAGE_COUNT(1022, "[1022]Room must have between 4 and 8 images", HttpStatus.BAD_REQUEST),
-
+    // Bên trong enum ErrorCode của bạn
+    INVALID_CHECKOUT_DATE(1099, "Check-out date must be after check-in date", HttpStatus.BAD_REQUEST),
     // Nhóm lỗi về Khách hàng (4000 - 4099)
     CUSTOMER_NOT_FOUND(4001, "[4001] Customer not found", HttpStatus.NOT_FOUND),
     // --- LỖI LIÊN QUAN ĐẾN SỨC CHỨA PHÒNG ---

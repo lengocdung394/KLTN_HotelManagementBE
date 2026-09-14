@@ -32,11 +32,11 @@ public class BookingDetailCreateRequest {
     @NotNull(message = "Số em bé không được để trống")
     Integer numInfants;
     // --- CÁC KHOẢN CHI TIẾT ---
-    double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
-    double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm
-    double extraChildFeePerNight;       // Tiền phụ thu trẻ em mỗi đêm
-    double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
-    double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
-    double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
+    Double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
+    Double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm
+    Double extraChildFeePerNight;       // Tiền phụ thu trẻ em mỗi đêm
+    Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
+    Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
+    Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
     List<BookingServiceRequest> serviceRequests;
 }

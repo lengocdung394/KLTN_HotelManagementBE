@@ -17,6 +17,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreat
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -28,7 +29,9 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
@@ -37,9 +40,11 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,6 +61,7 @@ public class BookingServiceImpl implements BookingService {
     BookingRepository bookingRepository;
     CustomerPromotionRepository customerPromotionRepository;
     PromotionRepository promotionRepository;
+    private final RoomSeasonalRateRepository roomSeasonalRateRepository;
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -166,7 +172,13 @@ public class BookingServiceImpl implements BookingService {
                             .checkOutTime(detail.getCheckoutTime())
                             .numAdults(detail.getNumAdults())
                             .numChildren(detail.getNumChildren())
-                            .price(detail.getPrice())
+                            // Map thẳng các khoản chi tiết vào Response
+                            .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
+                            .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
+                            .extraChildFeePerNight(detail.getExtraChildFeePerNight())
+                            .roomSubTotal(detail.getRoomSubTotal())
+                            .serviceSubTotal(detail.getServiceSubTotal())
+                            .totalPrice(detail.getTotalPrice())
                             .build()
             ).toList();
         }
@@ -214,23 +226,67 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
             }
 
-            // Gọi Calculator mới (đã loại bỏ infants và dùng cơ chế standardCapacity + maxExtraGuests)
-            iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(
+            // 1. Tính tiền phụ thu (người lớn/trẻ em) cho 1 đêm từ Policy
+            ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(
                     policy,
                     detailReq.getNumAdults(),
                     detailReq.getNumChildren()
             );
 
-            double extraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
+            double extraAdultFeePerNight = extraFeeBreakdown.getAdultExtraFee();
+            double extraChildFeePerNight = extraFeeBreakdown.getChildExtraFee();
+            double totalExtraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
 
-            long nights = ChronoUnit.DAYS.between(
-                    detailReq.getCheckInTime().toLocalDate(),
-                    detailReq.getCheckOutTime().toLocalDate()
-            );
-            if (nights == 0) nights = 1;
+            // 2. Xác định ngày check-in, check-out và số đêm
+            LocalDate checkInDate = detailReq.getCheckInTime().toLocalDate();
+            LocalDate checkOutDate = detailReq.getCheckOutTime().toLocalDate();
 
-            double roomTotalPrice = (room.calculateTotalPrice() + extraFeePerNight) * nights;
+            if (!checkOutDate.isAfter(checkInDate)) {
+                throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
+            }
 
+            long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
+            if (nights <= 0) nights = 1;
+
+            // 3. Vòng lặp quét từng ngày (Daily Rate) để cộng dồn tiền phòng
+            double totalRoomAmountForStay = 0.0;
+            double accumulatedBasePrice = 0.0; // Dùng để tính giá gốc trung bình mỗi đêm
+            LocalDate currentDate = checkInDate;
+
+            while (currentDate.isBefore(checkOutDate)) {
+                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository
+                        .findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+
+                double dailyRoomPrice;
+                if (seasonalRateOpt.isPresent()) {
+                    dailyRoomPrice = seasonalRateOpt.get().getPrice();
+                } else {
+                    double basePrice = policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
+                    double amenitiesPrice = room.getTotalAmenitiesPrice();
+                    dailyRoomPrice = basePrice + amenitiesPrice;
+                }
+
+                accumulatedBasePrice += dailyRoomPrice;
+                // Tiền phòng ngày đó + phụ thu đêm đó
+                totalRoomAmountForStay += (dailyRoomPrice + totalExtraFeePerNight);
+
+                currentDate = currentDate.plusDays(1);
+            }
+
+            // Tính giá phòng gốc trung bình 1 đêm
+            double baseRoomPricePerNight = accumulatedBasePrice / nights;
+            double roomSubTotal = totalRoomAmountForStay; // Tổng tiền phòng + phụ thu toàn kỳ
+
+            // 4. Xử lý dịch vụ đi kèm và tính tổng tiền dịch vụ
+            List<BookingServiceDetail> serviceDetails = processAndAttachServices(null, detailReq.getServiceRequests());
+            double serviceSubTotal = serviceDetails.stream()
+                    .mapToDouble(sd -> sd.getPrice() * sd.getQuantity())
+                    .sum();
+
+            // 5. Tổng cộng cuối cùng của phòng này (Phòng + Dịch vụ)
+            double totalPrice = roomSubTotal + serviceSubTotal;
+
+            // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
             BookingDetail bookingDetail = BookingDetail.builder()
                     .booking(booking)
                     .room(room)
@@ -238,11 +294,16 @@ public class BookingServiceImpl implements BookingService {
                     .checkoutTime(detailReq.getCheckOutTime())
                     .numAdults(detailReq.getNumAdults())
                     .numChildren(detailReq.getNumChildren())
-                    .price(roomTotalPrice)
+                    .baseRoomPricePerNight(baseRoomPricePerNight)
+                    .extraAdultFeePerNight(extraAdultFeePerNight)
+                    .extraChildFeePerNight(extraChildFeePerNight)
+                    .roomSubTotal(roomSubTotal)
+                    .serviceSubTotal(serviceSubTotal)
+                    .totalPrice(totalPrice)
                     .build();
 
-            List<BookingServiceDetail> serviceDetails = processAndAttachServices(bookingDetail, detailReq.getServiceRequests());
             if (!serviceDetails.isEmpty()) {
+                serviceDetails.forEach(sd -> sd.setBookingDetail(bookingDetail));
                 bookingDetail.setBookingServiceDetails(serviceDetails);
             }
 
@@ -250,7 +311,6 @@ public class BookingServiceImpl implements BookingService {
             return bookingDetail;
         }).toList();
     }
-
     private List<BookingServiceDetail> processAndAttachServices(BookingDetail bookingDetail, List<BookingServiceRequest> serviceRequests) {
         if (serviceRequests == null || serviceRequests.isEmpty()) {
             return List.of();
@@ -274,7 +334,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private BigDecimal calculateTotalRoomPrice(List<BookingDetail> details) {
-        return details.stream().map(d -> BigDecimal.valueOf(d.getPrice())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return details.stream().map(d -> BigDecimal.valueOf(d.getRoomSubTotal())).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private BigDecimal calculateTotalServicePrice(List<BookingDetail> bookingDetails) {

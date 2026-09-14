@@ -28,11 +28,6 @@ public class RoomCreateRequest {
     @Schema(description = "Loại phòng khách sạn", example = "DELUXE")
     RoomType roomType;
 
-    @NotNull(message = "Giá gốc của phòng không được để trống!")
-    @Min(value = 0, message = "Giá gốc của phòng phải lớn hơn hoặc bằng 0!")
-    @Schema(description = "Giá gốc của phòng chưa tính tiện ích", example = "500000.00")
-    Double basePrice;
-
     @Min(value = 0, message = "Vị trí ảnh đại diện phải lớn hơn hoặc bằng 0!")
     @Builder.Default
     @Schema(description = "Vị trí ảnh làm đại diện trong mảng upload (bắt đầu từ 0)", example = "0", defaultValue = "0")

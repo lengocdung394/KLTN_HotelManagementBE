@@ -25,17 +25,19 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
     boolean existsByCodeAndIdNotAndDeletedFalse(String code, Long id);
     Optional<Promotion> findByCodeAndDeletedFalse(String code);
     @Query("""
-            SELECT p FROM Promotion p
-            WHERE p.deleted = false
-              AND (:status IS NULL OR p.status = :status)
-              AND (:type IS NULL OR p.type = :type)
-              AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                                   OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
-              AND (:startDate IS NULL OR p.startDate >= :startDate)
-              AND (:endDate IS NULL OR p.endDate <= :endDate)
-            ORDER BY p.createdAt DESC
-            """)
+        SELECT p FROM Promotion p
+        WHERE p.deleted = false
+          AND (:hotelId IS NULL OR p.hotel.id = :hotelId)
+          AND (:status IS NULL OR p.status = :status)
+          AND (:type IS NULL OR p.type = :type)
+          AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                               OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND (:startDate IS NULL OR p.startDate >= :startDate)
+          AND (:endDate IS NULL OR p.endDate <= :endDate)
+        ORDER BY p.createdAt DESC
+        """)
     Page<Promotion> findAllWithFilters(
+            @Param("hotelId") Long hotelId,
             @Param("status") PromotionStatus status,
             @Param("type") PromotionType type,
             @Param("keyword") String keyword,

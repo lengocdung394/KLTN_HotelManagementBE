@@ -21,7 +21,6 @@ public class RoomCreateResponse {
     String floorName;
     RoomStatus roomStatus;
     RoomType roomType;
-    Double basePrice;
     Double totalAmenitiesPrice;
     Double totalPrice;
 

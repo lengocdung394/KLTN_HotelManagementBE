@@ -31,10 +31,9 @@ public class RoomResponse {
     Set<Amenity> amenities;
 
     //Thêm các thông tin chính sách phòng (Policy)
-    Integer standardAdults;
-    Integer maxAdults;
-    Integer maxChildren;
-    Integer maxInfants;
+
+    Integer maxExtraGuests;
+    Integer standardCapacity;
     Double extraAdultFee;
     Double extraChildFee;
 }

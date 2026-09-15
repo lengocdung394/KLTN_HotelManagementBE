@@ -42,23 +42,6 @@ public class PromotionController {
 
 
 
-    @PostMapping("/claim")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Khách hàng lưu mã khuyến mãi vào Ví voucher")
-    public ResponseEntity<ApiResponse<CustomerPromotionResponse>> claimPromotion(
-            @Valid @RequestBody ClaimPromotionRequest request) {
-
-        CustomerPromotionResponse result = promotionService.claimPromotion(request);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.<CustomerPromotionResponse>builder()
-                        .code(1000)
-                        .message("Lưu mã khuyến mãi vào Ví thành công")
-                        .result(result)
-                        .build());
-    }
-
-
     // ============================================================
     // POST /promotions — Tạo mới
     // ============================================================
@@ -96,8 +79,9 @@ public class PromotionController {
     // ============================================================
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả khuyến mãi",
-               description = "Hỗ trợ filter: status, type, keyword, startDate, endDate, page, size, sortBy, sortDir")
+            description = "Hỗ trợ filter: hotelId, status, type, keyword, startDate, endDate, page, size, sortBy, sortDir")
     public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getAll(
+            @RequestParam(required = false) Long hotelId, // Thêm tham số lọc theo chi nhánh
             @RequestParam(required = false) PromotionStatus status,
             @RequestParam(required = false) PromotionType type,
             @RequestParam(required = false) String keyword,
@@ -114,7 +98,8 @@ public class PromotionController {
 
         return ResponseEntity.ok(ApiResponse.<PageResponse<PromotionResponse>>builder()
                 .code(1000)
-                .result(promotionService.getAllPromotions(status, type, keyword, startDate, endDate,
+                .result(promotionService.getAllPromotions(
+                        hotelId, status, type, keyword, startDate, endDate, // Truyền thêm hotelId xuống Service
                         PageRequest.of(page, size, sort)))
                 .message("Lấy danh sách thành công")
                 .build());

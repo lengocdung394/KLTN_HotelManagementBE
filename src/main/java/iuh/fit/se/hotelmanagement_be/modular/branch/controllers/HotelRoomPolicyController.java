@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.controllers;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/hotels")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Tag(name = "Hotel", description = "APIs liên quan đến quản lý khách sạn")
 public class HotelRoomPolicyController {
 
     private final RoomService roomService; // Hoặc Service tương ứng của bạn

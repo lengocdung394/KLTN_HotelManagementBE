@@ -102,50 +102,44 @@ public class RbacInitializer implements CommandLineRunner {
             floorRepository.save(Floor.builder().floorNumber(1).building(b1).build());
             floorRepository.save(Floor.builder().floorNumber(2).building(b1).build());
 
-            // 👉 KHỞI TẠO CHÍNH SÁCH PHÒNG CHO CHI NHÁNH 1 (Sài Gòn)
             branchRoomPolicyRepository.saveAll(List.of(
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
                             .roomType(RoomType.STANDARD)
-                            .standardAdults(1)
-                            .maxAdults(2)
-                            .maxChildren(2)
-                            .maxInfants(1)
+                            .standardCapacity(2)    // Sức chứa tiêu chuẩn (VD: 2 người)
+                            .maxExtraGuests(2)// Sức chứa phụ thu tối đa (VD: tối đa thêm 2 người)// Số em bé tối đa
                             .extraAdultFee(250000.0)
                             .extraChildFee(120000.0)
+                            .basePrice(1000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
                             .roomType(RoomType.DELUXE)
-                            .standardAdults(2)
-                            .maxAdults(3)
-                            .maxChildren(2)
-                            .maxInfants(1)
+                            .standardCapacity(2)
+                            .maxExtraGuests(3)
                             .extraAdultFee(180000.0)
                             .extraChildFee(90000.0)
+                            .basePrice(2000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
                             .roomType(RoomType.SUITE)
-                            .standardAdults(2)
-                            .maxAdults(4)
-                            .maxChildren(3)
-                            .maxInfants(2)
+                            .standardCapacity(3)
+                            .maxExtraGuests(3)
                             .extraAdultFee(350000.0)
                             .extraChildFee(180000.0)
+                            .basePrice(3000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel1)
                             .roomType(RoomType.FAMILY)
-                            .standardAdults(4)
-                            .maxAdults(6)
-                            .maxChildren(4)
-                            .maxInfants(2)
+                            .standardCapacity(4)
+                            .maxExtraGuests(4)
                             .extraAdultFee(280000.0)
                             .extraChildFee(140000.0)
+                            .basePrice(4000000.0)
                             .build()
             ));
-
             // Admin Chi nhánh 1
             createBranchAdmin(
                     "admin.saigon@senviet.vn",
@@ -178,50 +172,44 @@ public class RbacInitializer implements CommandLineRunner {
             floorRepository.save(Floor.builder().floorNumber(1).building(b2).build());
             floorRepository.save(Floor.builder().floorNumber(2).building(b2).build());
 
-            // 👉 KHỞI TẠO CHÍNH SÁCH PHÒNG CHO CHI NHÁNH 2 (Hà Nội)
             branchRoomPolicyRepository.saveAll(List.of(
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
                             .roomType(RoomType.STANDARD)
-                            .standardAdults(1)
-                            .maxAdults(2)
-                            .maxChildren(2)
-                            .maxInfants(1)
+                            .standardCapacity(2)    // Sức chứa tiêu chuẩn (VD: 2 người)
+                            .maxExtraGuests(2)      // Sức chứa phụ thu tối đa (VD: tối đa thêm 2 người)// Số em bé tối đa
                             .extraAdultFee(250000.0)
                             .extraChildFee(120000.0)
+                            .basePrice(1000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
                             .roomType(RoomType.DELUXE)
-                            .standardAdults(2)
-                            .maxAdults(3)
-                            .maxChildren(2)
-                            .maxInfants(1)
+                            .standardCapacity(2)
+                            .maxExtraGuests(3)
                             .extraAdultFee(180000.0)
                             .extraChildFee(90000.0)
+                            .basePrice(2000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
                             .roomType(RoomType.SUITE)
-                            .standardAdults(2)
-                            .maxAdults(4)
-                            .maxChildren(3)
-                            .maxInfants(2)
+                            .standardCapacity(3)
+                            .maxExtraGuests(3)
                             .extraAdultFee(350000.0)
                             .extraChildFee(180000.0)
+                            .basePrice(3000000.0)
                             .build(),
                     BranchRoomPolicy.builder()
                             .hotel(hotel2)
                             .roomType(RoomType.FAMILY)
-                            .standardAdults(4)
-                            .maxAdults(6)
-                            .maxChildren(4)
-                            .maxInfants(2)
+                            .standardCapacity(4)
+                            .maxExtraGuests(4)
                             .extraAdultFee(280000.0)
                             .extraChildFee(140000.0)
+                            .basePrice(4000000.0)
                             .build()
             ));
-
             // Admin Chi nhánh 2
             createBranchAdmin(
                     "admin.hanoi@senviet.vn",

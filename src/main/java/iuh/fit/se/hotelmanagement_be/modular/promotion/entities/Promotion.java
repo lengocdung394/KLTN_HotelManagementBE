@@ -46,10 +46,10 @@ public class Promotion {
 
     @Column(name = "discount_value", nullable = false, precision = 15, scale = 2)
     BigDecimal discountValue;
-
+    //(Giá trị đơn hàng tối thiểu)
     @Column(name = "max_discount_amount", precision = 15, scale = 2)
     BigDecimal maxDiscountAmount;
-
+    //(Số tiền giảm giá tối đa)
     @Column(name = "min_booking_value", precision = 15, scale = 2)
     BigDecimal minBookingValue;
 

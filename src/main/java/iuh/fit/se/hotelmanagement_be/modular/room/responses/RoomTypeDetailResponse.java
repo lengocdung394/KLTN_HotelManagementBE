@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -12,12 +13,10 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomTypeDetailResponse {
     RoomType roomType; // Loại phòng (STANDARD, DELUXE,...)
-
+    Double priceBase;
     // --- 1. CHÍNH SÁCH QUY ĐỊNH (BranchRoomPolicy) ---
-    Integer standardAdults;
-    Integer maxAdults;
-    Integer maxChildren;
-    Integer maxInfants;
+    Integer maxExtraGuests;
+    Integer standardCapacity;
     Double extraAdultFee;
     Double extraChildFee;
 

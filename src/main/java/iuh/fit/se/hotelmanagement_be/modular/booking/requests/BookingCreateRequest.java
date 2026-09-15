@@ -21,7 +21,7 @@ public class BookingCreateRequest {
     Long customerId;
 
     // Thông tin nhân viên (Nếu như là đặt tài quầy)
-    @NotNull(message = "Mã nhân viên không được để trống")
+//    @NotNull(message = "Mã nhân viên không được để trống")
     Long employeeId;
 
     BookingChannel bookingChannel; // WALK_IN hoặc ONLINE

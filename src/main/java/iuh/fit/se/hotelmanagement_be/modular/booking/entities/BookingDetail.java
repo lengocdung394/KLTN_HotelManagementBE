@@ -25,8 +25,6 @@ public class BookingDetail {
 
     LocalDateTime checkinTime;
     LocalDateTime checkoutTime;
-    // Lưu giá tiền phòng
-    Double price;
 
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,4 +47,11 @@ public class BookingDetail {
 
 
     Integer numInfants;
+
+    Double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
+    Double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm
+    Double extraChildFeePerNight;       // Tiền phụ thu trẻ em mỗi đêm
+    Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
+    Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
+    Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
 }

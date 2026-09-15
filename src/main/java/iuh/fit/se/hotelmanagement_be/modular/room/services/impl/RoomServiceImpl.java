@@ -140,12 +140,12 @@ public class RoomServiceImpl implements RoomService {
                 .floor(floor)
                 .roomStatus(dto.getRoomStatus())
                 .roomType(dto.getRoomType())
-                .basePrice(dto.getBasePrice())
                 .avatarUrl(roomImages)
                 .amenities(amenities)
                 .build();
 
         Room savedRoom = roomRepository.save(newRoom);
+        BranchRoomPolicy branchRoomPolicy = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, savedRoom.getRoomType());
 
         // 8. Chuyển đổi sang Response
         return RoomCreateResponse.builder()
@@ -153,9 +153,9 @@ public class RoomServiceImpl implements RoomService {
                 .floorId(savedRoom.getFloor().getId())
                 .roomStatus(savedRoom.getRoomStatus())
                 .roomType(savedRoom.getRoomType())
-                .basePrice(savedRoom.getBasePrice())
                 .totalAmenitiesPrice(savedRoom.getTotalAmenitiesPrice())
-                .totalPrice(savedRoom.calculateTotalPrice())
+                // Gia final ca tien phong + tien ich
+                .totalPrice(savedRoom.calculateRoomTotalPrice(savedRoom, branchRoomPolicy)+ savedRoom.getTotalAmenitiesPrice())
                 .defaultImageUrl(savedRoom.getDefaultImageUrl())
                 .avatarUrl(savedRoom.getAvatarUrl())
                 .amenities(savedRoom.getAmenities())
@@ -181,9 +181,9 @@ public class RoomServiceImpl implements RoomService {
                         .floorId(r.getFloor().getId())
                         .roomStatus(r.getRoomStatus())
                         .roomType(r.getRoomType())
-                        .basePrice(r.getBasePrice())
                         .totalAmenitiesPrice(r.getTotalAmenitiesPrice())
-                        .totalPrice(r.calculateTotalPrice())
+                        // gia final ca tien phong + tien ich
+                        .totalPrice(r.calculateRoomTotalPrice(r, branchRoomPolicyRepository.findByHotelIdAndRoomType(currentHotelId, r.getRoomType())) + r.getTotalAmenitiesPrice())
                         .defaultImageUrl(r.getDefaultImageUrl())
                         .avatarUrl(r.getAvatarUrl())
                         .amenities(r.getAmenities()).build()
@@ -226,19 +226,17 @@ public class RoomServiceImpl implements RoomService {
                     .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
                     .floorNumber(room.getFloor().getFloorNumber())
                     .nameBuilding(room.getFloor().getBuilding().getName())
-                    .basePrice(room.getBasePrice())
                     .roomStatus(room.getRoomStatus())
                     .roomType(room.getRoomType())
                     .avatarUrl(room.getAvatarUrl())
                     .amenities(room.getAmenities())
-                    .totalPrice(room.calculateTotalPrice())
+                    .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
+                    // gia phong final tien phong + dich vu
+                    .totalPrice(room.calculateRoomTotalPrice(room, policy) + room.getTotalAmenitiesPrice())
                     .defaultImageUrl(room.getDefaultImageUrl())
                     .beds(bedResponses)
-                    // Đưa thông tin từ BranchRoomPolicy vào Response (nếu có tồn tại)
-                    .standardAdults(policy != null ? policy.getStandardAdults() : null)
-                    .maxAdults(policy != null ? policy.getMaxAdults() : null)
-                    .maxChildren(policy != null ? policy.getMaxChildren() : null)
-                    .maxInfants(policy != null ? policy.getMaxInfants() : null)
+                    .standardCapacity(policy.getStandardCapacity())
+                    .maxExtraGuests(policy.getMaxExtraGuests())
                     .extraAdultFee(policy != null ? policy.getExtraAdultFee() : null)
                     .extraChildFee(policy != null ? policy.getExtraChildFee() : null)
                     .build();
@@ -272,12 +270,12 @@ public class RoomServiceImpl implements RoomService {
         // 4. Tổng hợp và trả về DTO
         return RoomTypeDetailResponse.builder()
                 .roomType(roomType)
-                .standardAdults(policy.getStandardAdults())
-                .maxAdults(policy.getMaxAdults())
-                .maxChildren(policy.getMaxChildren())
-                .maxInfants(policy.getMaxInfants())
+                .standardCapacity(policy.getStandardCapacity())
+                .maxExtraGuests(policy.getMaxExtraGuests())
                 .extraAdultFee(policy.getExtraAdultFee())
                 .extraChildFee(policy.getExtraChildFee())
+                // gia cua phong
+                .priceBase(policy.getBasePrice())
                 .beds(bedResponses)
                 .build();
     }

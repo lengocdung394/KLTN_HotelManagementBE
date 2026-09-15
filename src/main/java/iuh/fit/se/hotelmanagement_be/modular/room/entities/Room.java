@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
@@ -52,8 +53,6 @@ public class Room {
     Set<Amenity> amenities;
 
 
-    double basePrice;
-
     // 💡 Hàm Helper tự động tính tổng tiền tất cả tiện ích có trong phòng
     public Double getTotalAmenitiesPrice() {
         if (amenities == null || amenities.isEmpty()) {
@@ -75,8 +74,13 @@ public class Room {
                 .orElse(avatarUrl.get(0).getUrl()); // Nếu không có cái nào isDefault=true thì lấy ảnh đầu tiên
     }
 
-    // 💡 Hàm Helper tính Tổng giá phòng thực tế (Giá gốc + Tiện ích)
-    public Double calculateTotalPrice() {
-        return (basePrice != 0 ? basePrice : 0.0) + getTotalAmenitiesPrice();
+    public Double calculateRoomTotalPrice(Room room, BranchRoomPolicy policy) {
+        // 1. Lấy giá cơ bản của loại phòng từ chính sách chi nhánh
+        double basePrice = (policy != null && policy.getBasePrice() != null) ? policy.getBasePrice() : 0.0;
+
+        // 2. Cộng thêm tổng tiền tiện ích riêng của căn phòng đó (nếu có)
+        double amenitiesPrice = room.getTotalAmenitiesPrice();
+
+        return basePrice + amenitiesPrice;
     }
 }

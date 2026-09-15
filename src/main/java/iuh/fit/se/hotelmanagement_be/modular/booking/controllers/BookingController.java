@@ -1,7 +1,9 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.controllers;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingServiceImpl;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -12,12 +14,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/booking2s")
+@RequestMapping("/bookings")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
 public class BookingController {
 
-    BookingServiceImpl bookingService;
+    BookingService  bookingService;
 
     /**
      * Endpoint 1: Khách hàng tự đặt phòng trực tuyến (Online)

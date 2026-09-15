@@ -66,14 +66,15 @@ public enum ErrorCode {
     INVALID_IMAGE(1020, "[1020]Image list is invalid or empty", HttpStatus.BAD_REQUEST),
     FLOOR_NOT_FOUND(1021, "[1021] Floor not found", HttpStatus.NOT_FOUND),
     INVALID_IMAGE_COUNT(1022, "[1022]Room must have between 4 and 8 images", HttpStatus.BAD_REQUEST),
-
+    // Bên trong enum ErrorCode của bạn
+    INVALID_CHECKOUT_DATE(1099, "Check-out date must be after check-in date", HttpStatus.BAD_REQUEST),
     // Nhóm lỗi về Khách hàng (4000 - 4099)
     CUSTOMER_NOT_FOUND(4001, "[4001] Customer not found", HttpStatus.NOT_FOUND),
     // --- LỖI LIÊN QUAN ĐẾN SỨC CHỨA PHÒNG ---
     EXCEEDS_MAX_INFANTS(1050, "Số lượng em bé vượt quá giới hạn tối đa của phòng", HttpStatus.BAD_REQUEST),
     EXCEEDS_MAX_CAPACITY(1051, "Tổng số lượng khách (người lớn và trẻ em) vượt quá sức chứa tối đa của phòng", HttpStatus.BAD_REQUEST),
     SERVICE_NOT_FOUND(5005, "[5005] Service not found", HttpStatus.NOT_FOUND),
-
+    EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type",HttpStatus.BAD_REQUEST ),
     // bookingdetail
     BOOKING_DETAILS_REQUIRED(5004, "[5004] Booking details cannot be empty", HttpStatus.BAD_REQUEST),
     // Ví dụ các lỗi hỗ trợ khác đã nhắc tới trước đó:

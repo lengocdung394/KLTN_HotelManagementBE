@@ -21,6 +21,7 @@ public interface PromotionService {
     PromotionResponse getPromotionById(Long id);
 
     PageResponse<PromotionResponse> getAllPromotions(
+            Long hotelId,
             PromotionStatus status,
             PromotionType type,
             String keyword,
@@ -34,6 +35,6 @@ public interface PromotionService {
     PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request);
 
     PromotionResponse changeStatus(Long id, ChangeStatusRequest request);
-    CustomerPromotionResponse claimPromotion(ClaimPromotionRequest request);
+
     void deletePromotion(Long id);
 }

@@ -56,8 +56,10 @@ public class SecurityConfig {
                         .requestMatchers("/bedTypes/**").permitAll()
                         .requestMatchers("/amenities/**").permitAll()
                         .requestMatchers("/promotions/**").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/services/**").permitAll()
                         .requestMatchers("/customer/types").permitAll()
                         .requestMatchers("/bookings/**").permitAll()
+
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

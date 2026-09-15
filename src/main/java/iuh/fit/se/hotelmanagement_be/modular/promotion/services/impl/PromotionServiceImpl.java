@@ -175,7 +175,9 @@ public class PromotionServiceImpl implements PromotionService {
             LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
 
         String kw = (keyword != null && keyword.isBlank()) ? null : keyword;
-        Page<Promotion> page = promotionRepository.findAllWithFilters(hotelId,status, type, kw, startDate, endDate, pageable);
+        String statusStr = (status != null) ? status.name() : null;
+        String typeStr = (type != null) ? type.name() : null;
+        Page<Promotion> page = promotionRepository.findAllWithFilters(hotelId, statusStr, typeStr, kw, startDate, endDate, pageable);
         return PageResponse.of(page.map(this::toResponse));
     }
 

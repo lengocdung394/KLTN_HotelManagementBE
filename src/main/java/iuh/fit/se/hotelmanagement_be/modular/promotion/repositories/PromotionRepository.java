@@ -24,22 +24,33 @@ public interface PromotionRepository extends JpaRepository<Promotion, Long> {
 
     boolean existsByCodeAndIdNotAndDeletedFalse(String code, Long id);
     Optional<Promotion> findByCodeAndDeletedFalse(String code);
-    @Query("""
-        SELECT p FROM Promotion p
+    @Query(value = """
+        SELECT p.* FROM promotions p
         WHERE p.deleted = false
-          AND (:hotelId IS NULL OR p.hotel.id = :hotelId)
-          AND (:status IS NULL OR p.status = :status)
-          AND (:type IS NULL OR p.type = :type)
-          AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                               OR LOWER(p.code) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:startDate IS NULL OR p.startDate >= :startDate)
-          AND (:endDate IS NULL OR p.endDate <= :endDate)
-        ORDER BY p.createdAt DESC
-        """)
+          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint))
+          AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+          AND (CAST(:type AS varchar) IS NULL OR p.type = CAST(:type AS varchar))
+          AND (CAST(:keyword AS varchar) IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS varchar), '%'))
+               OR LOWER(p.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS varchar), '%')))
+          AND (CAST(:startDate AS timestamp) IS NULL OR p.start_date >= CAST(:startDate AS timestamp))
+          AND (CAST(:endDate AS timestamp) IS NULL OR p.end_date <= CAST(:endDate AS timestamp))
+        """, countQuery = """
+        SELECT COUNT(p.id) FROM promotions p
+        WHERE p.deleted = false
+          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint))
+          AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
+          AND (CAST(:type AS varchar) IS NULL OR p.type = CAST(:type AS varchar))
+          AND (CAST(:keyword AS varchar) IS NULL
+               OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS varchar), '%'))
+               OR LOWER(p.code) LIKE LOWER(CONCAT('%', CAST(:keyword AS varchar), '%')))
+          AND (CAST(:startDate AS timestamp) IS NULL OR p.start_date >= CAST(:startDate AS timestamp))
+          AND (CAST(:endDate AS timestamp) IS NULL OR p.end_date <= CAST(:endDate AS timestamp))
+        """, nativeQuery = true)
     Page<Promotion> findAllWithFilters(
             @Param("hotelId") Long hotelId,
-            @Param("status") PromotionStatus status,
-            @Param("type") PromotionType type,
+            @Param("status") String status,
+            @Param("type") String type,
             @Param("keyword") String keyword,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,

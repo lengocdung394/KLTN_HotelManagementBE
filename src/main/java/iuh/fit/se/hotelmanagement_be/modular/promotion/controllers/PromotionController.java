@@ -101,9 +101,17 @@ public class PromotionController {
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
 
+        // Map Java field name -> DB column name cho native query
+        String sortColumn = switch (sortBy) {
+            case "createdAt" -> "created_at";
+            case "updatedAt" -> "updated_at";
+            case "startDate" -> "start_date";
+            case "endDate"   -> "end_date";
+            default          -> sortBy;
+        };
         Sort sort = sortDir.equalsIgnoreCase("asc")
-                ? Sort.by(sortBy).ascending()
-                : Sort.by(sortBy).descending();
+                ? Sort.by(sortColumn).ascending()
+                : Sort.by(sortColumn).descending();
 
         return ResponseEntity.ok(ApiResponse.<PageResponse<PromotionResponse>>builder()
                 .code(1000)

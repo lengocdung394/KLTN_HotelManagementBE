@@ -10,13 +10,14 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromoti
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface PromotionService {
 
-    PromotionResponse createPromotion(CreatePromotionRequest request);
+    PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile);
 
     PromotionResponse getPromotionById(Long id);
 
@@ -32,7 +33,7 @@ public interface PromotionService {
 
     List<PromotionResponse> getActivePromotions();
 
-    PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request);
+    PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request, MultipartFile imageFile);
 
     PromotionResponse changeStatus(Long id, ChangeStatusRequest request);
 

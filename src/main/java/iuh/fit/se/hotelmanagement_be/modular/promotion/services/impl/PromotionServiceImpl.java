@@ -5,6 +5,7 @@ import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
@@ -13,9 +14,11 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRep
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
+import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -26,6 +29,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -42,6 +46,9 @@ import java.util.stream.Collectors;
 public class PromotionServiceImpl implements PromotionService {
 
     PromotionRepository promotionRepository;
+    HotelRepository hotelRepository;
+    CustomerPromotionRepository customerPromotionRepository;
+    CloudinaryService cloudinaryService;
 
     // State machine: trạng thái hiện tại → các trạng thái được phép chuyển
     static final Map<PromotionStatus, Set<PromotionStatus>> ALLOWED_TRANSITIONS = Map.of(
@@ -50,13 +57,12 @@ public class PromotionServiceImpl implements PromotionService {
             PromotionStatus.INACTIVE, Set.of(PromotionStatus.ACTIVE, PromotionStatus.EXPIRED),
             PromotionStatus.EXPIRED, Set.of()
     );
-    private final HotelRepository hotelRepository;
-    private final CustomerPromotionRepository customerPromotionRepository;
+
 
     // ==================== CREATE ====================
     @Override
     @Transactional
-    public PromotionResponse createPromotion(CreatePromotionRequest request) {
+    public PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile) {
         log.info("Tạo mới khuyến mãi, mã: {}", request.getCode());
 
         // 1. Kiem tra xac thuc & Lay role tu SecurityContextHolder
@@ -117,6 +123,12 @@ public class PromotionServiceImpl implements PromotionService {
             hotel = hotelRepository.findById(targetHotelId)
                     .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         }
+        // Upload banner ảnh nếu có
+        String imageUrl = null;
+        if (imageFile != null && !imageFile.isEmpty()) {
+            imageUrl = cloudinaryService.uploadImage(imageFile, "promotions");
+        }
+
         // 4. Khởi tạo đối tượng Promotion
         Promotion promotion = Promotion.builder()
                 .code(code)
@@ -132,6 +144,7 @@ public class PromotionServiceImpl implements PromotionService {
                 .status(request.getStatus() != null ? request.getStatus() : PromotionStatus.DRAFT)
                 .isExclusive(request.isExclusive())
                 .hotel(hotel)
+                .imageUrl(imageUrl)
                 .usedCount(0)
                 .deleted(false)
                 .build();
@@ -176,7 +189,7 @@ public class PromotionServiceImpl implements PromotionService {
     // ==================== UPDATE ====================
     @Override
     @Transactional
-    public PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request) {
+    public PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request, MultipartFile imageFile) {
         log.info("Cập nhật khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
 
@@ -187,6 +200,11 @@ public class PromotionServiceImpl implements PromotionService {
 
         validateDates(request.getStartDate(), request.getEndDate());
 //        validateDiscountValue(request.getType(), request.getDiscountValue());
+
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String imageUrl = cloudinaryService.uploadImage(imageFile, "promotions");
+            promotion.setImageUrl(imageUrl);
+        }
 
         promotion.setName(request.getName().trim());
         promotion.setDescription(request.getDescription());
@@ -258,6 +276,31 @@ public class PromotionServiceImpl implements PromotionService {
 //        }
 //    }
 
+    private CustomerPromotionResponse toCustomerPromotionResponse(CustomerPromotion cp) {
+        Promotion promotion = cp.getPromotion();
+
+        return CustomerPromotionResponse.builder()
+                .id(cp.getId())
+                .voucherCode(cp.getUniqueCode())
+                .isUsed(cp.isUsed())
+                .savedAt(cp.getCreatedAt())
+                .usedAt(cp.getUsedAt())
+                // Information from Promotion
+                .promotionId(promotion.getId())
+                .name(promotion.getName())
+                .description(promotion.getDescription())
+                .type(promotion.getType())
+                .discountValue(promotion.getDiscountValue())
+                .maxDiscountAmount(promotion.getMaxDiscountAmount())
+                .minBookingValue(promotion.getMinBookingValue())
+                .startDate(promotion.getStartDate())
+                .endDate(promotion.getEndDate())
+                .hotelId(promotion.getHotel() != null ? promotion.getHotel().getId() : null)
+                .hotelName(promotion.getHotel() != null ? promotion.getHotel().getName() : "Toàn hệ thống")
+                .imageUrl(promotion.getImageUrl())
+                .build();
+    }
+
     private PromotionResponse toResponse(Promotion p) {
         LocalDateTime now = LocalDateTime.now();
         boolean available = p.getStatus() == PromotionStatus.ACTIVE
@@ -280,6 +323,7 @@ public class PromotionServiceImpl implements PromotionService {
                 .usedCount(p.getUsedCount())
                 .status(p.getStatus())
                 .available(available)
+                .imageUrl(p.getImageUrl())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .build();

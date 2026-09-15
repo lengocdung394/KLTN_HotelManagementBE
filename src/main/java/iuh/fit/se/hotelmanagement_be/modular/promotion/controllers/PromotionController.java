@@ -18,14 +18,18 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,16 +49,21 @@ public class PromotionController {
     // ============================================================
     // POST /promotions — Tạo mới
     // ============================================================
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo mới khuyến mãi")
     @PreAuthorize("hasAuthority('MANAGE_PROMOTION') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<PromotionResponse>> createPromotion(
-            @Valid @RequestBody CreatePromotionRequest request) {
+            @Parameter(
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = CreatePromotionRequest.class))
+            )
+            @RequestPart("promotionInfo") @Valid CreatePromotionRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<PromotionResponse>builder()
                         .code(1000)
-                        .result(promotionService.createPromotion(request))
+                        .result(promotionService.createPromotion(request, imageFile))
                         .message("Tạo khuyến mãi thành công")
                         .build());
     }
@@ -121,15 +130,20 @@ public class PromotionController {
     // ============================================================
     // PUT /promotions/{id} — Cập nhật thông tin
     // ============================================================
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật thông tin khuyến mãi")
     public ResponseEntity<ApiResponse<PromotionResponse>> update(
             @PathVariable Long id,
-            @Valid @RequestBody UpdatePromotionRequest request) {
+            @Parameter(
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = UpdatePromotionRequest.class))
+            )
+            @RequestPart("promotionInfo") @Valid UpdatePromotionRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
 
         return ResponseEntity.ok(ApiResponse.<PromotionResponse>builder()
                 .code(1000)
-                .result(promotionService.updatePromotion(id, request))
+                .result(promotionService.updatePromotion(id, request, imageFile))
                 .message("Cập nhật thành công")
                 .build());
     }

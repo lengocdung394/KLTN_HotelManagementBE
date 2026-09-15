@@ -66,4 +66,7 @@ public class CustomerPromotionResponse {
 
     @Schema(description = "Tên Khách sạn áp dụng", example = "Chi nhánh Đà Nẵng")
     String hotelName;
+
+    @Schema(description = "URL hình ảnh khuyến mãi", example = "https://res.cloudinary.com/.../promotions/banner.jpg")
+    String imageUrl;
 }

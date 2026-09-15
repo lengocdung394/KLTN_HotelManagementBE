@@ -157,12 +157,12 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     @Override
-    public PageResponse<PromotionResponse> getAllPromotions(
+    public PageResponse<PromotionResponse> getAllPromotions(Long hotelId,
             PromotionStatus status, PromotionType type, String keyword,
             LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
 
         String kw = (keyword != null && keyword.isBlank()) ? null : keyword;
-        Page<Promotion> page = promotionRepository.findAllWithFilters(status, type, kw, startDate, endDate, pageable);
+        Page<Promotion> page = promotionRepository.findAllWithFilters(hotelId,status, type, kw, startDate, endDate, pageable);
         return PageResponse.of(page.map(this::toResponse));
     }
 

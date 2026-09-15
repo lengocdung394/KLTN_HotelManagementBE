@@ -21,6 +21,7 @@ public interface PromotionService {
     PromotionResponse getPromotionById(Long id);
 
     PageResponse<PromotionResponse> getAllPromotions(
+            Long hotelId,
             PromotionStatus status,
             PromotionType type,
             String keyword,

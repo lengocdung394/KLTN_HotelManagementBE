@@ -1,10 +1,11 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.UserService;
@@ -12,7 +13,6 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import jakarta.transaction.Transactional;
-
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -45,12 +45,11 @@ public class UserServiceImpl implements UserService {
         boolean isAdmin = creatorRoles.contains("ROLE_ADMIN");
 
         if (isManager && "Quản lý".equalsIgnoreCase(dto.getPosition())) {
-            throw new RuntimeException("Quyen han bi tu choi"); // Hoặc RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
+            throw new RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
         }
 
         if (isManager) {
-            // 💡 SỬA LỖI 1: Lấy hotelId từ Employee hoặc hàm getHotelId() trong Account
-            Long currentHotelId = currentAccount.getHotelId(); // Hàm helper đã định nghĩa ở Account entity
+            Long currentHotelId = currentAccount.getHotelId();
             if (currentHotelId != null) {
                 dto.setHotelId(currentHotelId);
             } else {
@@ -66,7 +65,7 @@ public class UserServiceImpl implements UserService {
 
         // Kiểm tra trùng lặp Email
         if (accountRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Email da ton tai");
+            throw new RuntimeException("Lỗi: Email này đã được đăng ký tài khoản trong hệ thống!");
         }
 
         // Upload avatar lên Cloudinary
@@ -84,14 +83,14 @@ public class UserServiceImpl implements UserService {
         Role assignedRole = roleRepository.findByName(targetRoleName)
                 .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy vai trò " + targetRoleName + " dưới DB!"));
 
-        // 💡 SỬA LỖI 2: Tạo Account trước
+        // Tạo Account trước
         Account newAccount = Account.builder()
                 .email(dto.getEmail())
                 .password(passwordEncoder.encode("1111"))
                 .roles(Set.of(assignedRole))
                 .build();
 
-        // 💡 SỬA LỖI 3: Tạo Employee thay vì User
+        // Tạo Employee
         Employee newEmployee = Employee.builder()
                 .fullName(dto.getFullName())
                 .phone(dto.getPhone())
@@ -99,13 +98,12 @@ public class UserServiceImpl implements UserService {
                 .position(dto.getPosition())
                 .avatarUrl(uploadedUrl)
                 .hotel(hotel)
-                .account(newAccount) // Gán Account cho Employee (sở hữu khóa ngoại account_id)
+                .account(newAccount)
                 .build();
 
-        // 💡 SỬA LỖI 4: Lưu Employee (sẽ tự động Cascade lưu luôn Account)
+        // Lưu Employee (Cascade lưu luôn Account)
         Employee savedEmployee = employeeRepository.save(newEmployee);
 
-        // Trả về DTO kết quả
         return EmployeeCreateResponse.builder()
                 .id(savedEmployee.getId())
                 .fullName(savedEmployee.getFullName())

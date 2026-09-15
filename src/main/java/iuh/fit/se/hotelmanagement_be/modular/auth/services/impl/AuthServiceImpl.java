@@ -148,4 +148,82 @@ public class AuthServiceImpl implements AuthService {
                 .position(position)
                 .build();
     }
+
+    private Account getCurrentAccount() {
+        String email = iuh.fit.se.hotelmanagement_be.config.SecurityUtils.getCurrentUserEmail();
+        if (email == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        return accountRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    private Customer getCurrentCustomer() {
+        Account account = getCurrentAccount();
+        if (account.getCustomer() == null) {
+            throw new AppException(ErrorCode.CUSTOMER_NOT_FOUND);
+        }
+        return account.getCustomer();
+    }
+
+    private iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse toCustomerProfileResponse(Customer customer) {
+        return iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse.builder()
+                .id(customer.getId())
+                .accountId(customer.getAccount() != null ? customer.getAccount().getId() : null)
+                .fullName(customer.getFullName())
+                .email(customer.getEmail())
+                .phone(customer.getPhone())
+                .cccd(customer.getCccd())
+                .loyaltyTier(customer.getLoyaltyTier())
+                .totalSpent(customer.getTotalSpent())
+                .totalBookings(customer.getTotalBookings())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse getMyCustomerProfile() {
+        return toCustomerProfileResponse(getCurrentCustomer());
+    }
+
+    @Override
+    @Transactional
+    public iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse updateMyCustomerProfile(
+            iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateProfileRequest request) {
+        Customer customer = getCurrentCustomer();
+
+        if (customer.getPhone() != null && !customer.getPhone().equals(request.getPhone())
+                && customerRepository.existsByPhone(request.getPhone())) {
+            throw new AppException(ErrorCode.PHONE_EXISTED);
+        }
+
+        if (request.getCccd() != null && !request.getCccd().isBlank()
+                && (customer.getCccd() == null || !customer.getCccd().equals(request.getCccd()))
+                && customerRepository.existsByCccd(request.getCccd())) {
+            throw new AppException(ErrorCode.CCCD_EXISTED);
+        }
+
+        customer.setFullName(request.getFullName().trim());
+        customer.setPhone(request.getPhone().trim());
+        customer.setCccd(request.getCccd() != null ? request.getCccd().trim() : null);
+
+        return toCustomerProfileResponse(customerRepository.save(customer));
+    }
+
+    @Override
+    @Transactional
+    public void changeCustomerPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        Account account = getCurrentAccount();
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), account.getPassword())) {
+            throw new AppException(ErrorCode.CURRENT_PASSWORD_INCORRECT);
+        }
+
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+    }
 }

@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
+import java.time.LocalDate;
 
 @EqualsAndHashCode()
 @Data
@@ -33,6 +34,7 @@ public class Employee {
     String phone;
 
     String avatarUrl;
+    LocalDate dateOfBirth;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id")

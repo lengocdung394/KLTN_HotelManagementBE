@@ -1,7 +1,9 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -44,7 +46,8 @@ public class Order {
     BigDecimal paidAmount;
 
     OrderStatusType orderStatus;
-
+    @Column(name = "payment_order_code", unique = true)
+    private Long paymentOrderCode;
 
     @OneToOne(mappedBy = "order")
     Booking booking;
@@ -80,5 +83,26 @@ public class Order {
             this.orderStatus = OrderStatusType.CLOSED;
             this.closeDate = LocalDateTime.now();
         }
+    }
+
+    public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .amount(amountPaid)
+                .transactionDate(LocalDateTime.now())
+                .paymentType(paymentType)
+                .cashFlowType(CashFlowType.RECEIPT)
+                .note("PayOS Webhook Ref: " + paymentLinkId)
+                .order(this)
+                .build();
+
+        if (this.paymentTransactions == null) {
+            this.paymentTransactions = new java.util.ArrayList<>();
+        }
+        this.paymentTransactions.add(transaction);
+
+        BigDecimal currentPaid = this.paidAmount != null ? this.paidAmount : BigDecimal.ZERO;
+        this.setPaidAmount(currentPaid.add(amountPaid));
+
+        this.operation(); // Kích hoạt logic đóng phòng/đóng đơn của bạn
     }
 }

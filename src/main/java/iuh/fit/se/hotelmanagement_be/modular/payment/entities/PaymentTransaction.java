@@ -11,6 +11,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @EqualsAndHashCode(callSuper = false)
 @Data
@@ -37,4 +38,5 @@ public class PaymentTransaction {
     CashFlowType cashFlowType;
 
     String note;
+    LocalDateTime transactionDate;
 }

@@ -38,10 +38,21 @@ public class BookingServiceDetail {
     @JoinColumn(name = "service_id", nullable = false)
     Service service;
 
+
+    @Builder.Default
+    @Column(name = "is_paid", nullable = false)
+    Boolean isPaid = false; // Mặc định dịch vụ mới thêm là chưa thanh toán
+
+    @Column(name = "paid_at")
+    LocalDateTime paidAt;   // Thời điểm dịch vụ này được thanh toán (lúc checkout)
+
     @PrePersist
     protected void onCreate() {
         if (this.usedAt == null) {
             this.usedAt = LocalDateTime.now();
+        }
+        if (this.isPaid == null) {
+            this.isPaid = false;
         }
     }
 }

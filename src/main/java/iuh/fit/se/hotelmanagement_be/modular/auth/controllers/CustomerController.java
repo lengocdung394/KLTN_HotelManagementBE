@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateProfileRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
@@ -39,6 +40,9 @@ public class CustomerController {
                 .result(loyaltyTier)
                 .build());
     }
+
+
+
 
     @Operation(summary = "Lấy thông tin hồ sơ của khách hàng đang đăng nhập")
     @SecurityRequirement(name = "bearerAuth")

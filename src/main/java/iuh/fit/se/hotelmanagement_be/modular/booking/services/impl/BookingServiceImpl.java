@@ -15,9 +15,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -43,6 +41,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -311,6 +310,41 @@ public class BookingServiceImpl implements BookingService {
             return bookingDetail;
         }).toList();
     }
+
+    // Ham nay sử dụng khi checkout tính tiền phần dịch vụ chưa được tính tiền
+    @Override
+    public CheckoutSummaryResponse getCheckoutSummary(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId).get();
+        Order order = booking.getOrder();
+
+        // Lọc ra tất cả các dịch vụ CHƯA thanh toán (isPaid = false)
+        List<BookingServiceDetail> unpaidServices = booking.getBookingDetails().stream()
+                .flatMap(detail -> detail.getBookingServiceDetails().stream())
+                .filter(service -> !service.getIsPaid())
+                .toList();
+
+        List<UnpaidServiceItemResponse> unpaidServiceItemResponseList = unpaidServices.stream()
+                .map(v -> UnpaidServiceItemResponse.builder()
+                        .bookingServiceId(v.getId())
+                        .serviceName(v.getService() != null ? v.getService().getName() : null) // Thay tên hàm get tùy theo Entity Service của bạn (ví dụ: getName())
+                        .quantity(v.getQuantity())
+                        .price(v.getPrice())
+                        .subTotal(v.getPrice() != null ? v.getPrice() * v.getQuantity() : 0.0)
+                        .usedAt(v.getUsedAt())
+                        .build()
+                )
+                .toList();
+        BigDecimal unpaidServiceTotal = unpaidServices.stream()
+                .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return CheckoutSummaryResponse.builder()
+                .orderId(order.getId())
+                .unpaidServices(unpaidServiceItemResponseList)
+                .remainingAmountToPay(unpaidServiceTotal) // Số tiền thực tế cần trả lúc checkout
+                .build();
+    }
+
     private List<BookingServiceDetail> processAndAttachServices(BookingDetail bookingDetail, List<BookingServiceRequest> serviceRequests) {
         if (serviceRequests == null || serviceRequests.isEmpty()) {
             return List.of();
@@ -329,6 +363,7 @@ public class BookingServiceImpl implements BookingService {
                     .quantity(servReq.getQuantity())
                     .price(unitPrice.doubleValue())
                     .usedAt(usageTime)
+                    .isPaid(false)
                     .build();
         }).collect(Collectors.toList());
     }
@@ -433,5 +468,35 @@ public class BookingServiceImpl implements BookingService {
 
         BigDecimal absoluteTotal = roomTotal.add(serviceTotal);
         return discountAmount.min(absoluteTotal);
+    }
+
+
+
+    @Transactional
+    @Override
+    public BookingResponse addServiceToExistingBooking(Long bookingId, List<BookingServiceRequest> serviceRequests) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        // Lấy BookingDetail đầu tiên (hoặc xử lý theo phòng cụ thể nếu nhiều phòng)
+        BookingDetail targetDetail = booking.getBookingDetails().get(0);
+        List<BookingServiceDetail> newServices = processAndAttachServices(targetDetail, serviceRequests);
+
+        if (targetDetail.getBookingServiceDetails() == null) {
+            targetDetail.setBookingServiceDetails(new ArrayList<>());
+        }
+        targetDetail.getBookingServiceDetails().addAll(newServices);
+
+        // Tính tiền dịch vụ phát sinh mới thêm
+        BigDecimal addedServiceTotal = newServices.stream()
+                .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Cập nhật lại tổng tiền dịch vụ và tổng tiền của Order (Order vẫn giữ nguyên trạng thái OPEN)
+        Order order = booking.getOrder();
+        order.setServiceTotalAmount(order.getServiceTotalAmount().add(addedServiceTotal));
+
+        Booking saved = bookingRepository.save(booking);
+        return toBookingResponse(saved);
     }
 }

@@ -83,7 +83,16 @@ public enum ErrorCode {
     INVALID_BOOKING_DATE(1052, "Thời gian nhận phòng phải trước thời gian trả phòng", HttpStatus.BAD_REQUEST),
     ROOM_NOT_FOUND(1053, "Không tìm thấy thông tin phòng", HttpStatus.NOT_FOUND),
     ROOM_ALREADY_BOOKED(1054, "Phòng đã có người đặt trong khoảng thời gian này", HttpStatus.CONFLICT),
-    BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND);
+    BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND),
+
+
+    //
+    ORDER_NOT_FOUND(1001, "Hotel order profile could not be found!", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),
+    ORDER_ALREADY_PAID(1003, "This room order has already been completely paid for!", HttpStatus.BAD_REQUEST),
+    WEBHOOK_VERIFICATION_FAILED(1004, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST),
+    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST );
+
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

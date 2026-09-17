@@ -33,27 +33,42 @@ import java.util.List;
 public class CustomerPromotionServiceImpl implements CustomerPromotionService {
      PromotionRepository promotionRepository;
      CustomerPromotionRepository customerPromotionRepository;
-
+     // Đảm bảo class của bạn đã có annotation này để sử dụng biến `log`
     @Override
     public List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(Long customerId) {
+        log.info("==> [API] Đang lấy danh sách mã khuyến mãi cho khách hàng có ID: {}...", customerId);
+
         List<CustomerPromotion> customerPromotions = customerPromotionRepository.findByCustomerId(customerId);
+        log.info("==> [SUCCESS] Tìm thấy tổng cộng {} mã khuyến mãi cho khách hàng [ID: {}].", customerPromotions.size(), customerId);
 
         return customerPromotions.stream().map(cp -> {
-            Promotion p = cp.getPromotion();
-            return PromotionGetListByCustomerResponse.builder()
-                    .id(cp.getId())
-                    .code(cp.getUniqueCode()) // mã riêng biệt nè
-                    .name(p.getName())
-                    .description(p.getDescription()) // Đảm bảo truyền mô tả ở đây
-                    .type(p.getType().name())
-                    .discountValue(p.getDiscountValue())
-                    .maxDiscountAmount(p.getMaxDiscountAmount())
-                    .minBookingValue(p.getMinBookingValue())
-                    .startDate(p.getStartDate())
-                    .endDate(p.getEndDate())
-                    .exclusive(p.isExclusive())
-                    .build();
-        }).toList();
+                    Promotion p = cp.getPromotion();
+
+                    // Kiểm tra an toàn tránh lỗi NullPointerException nếu Promotion bị null
+                    if (p == null) {
+                        log.warn("Cảnh báo: CustomerPromotion [ID: {}] có liên kết đến Promotion bị null!", cp.getId());
+                        return null;
+                    }
+
+                    log.debug("Mapping khuyến mãi [ID: {}, Code riêng biệt: {}, Tên: {}] cho khách hàng ID: {}",
+                            p.getId(), cp.getUniqueCode(), p.getName(), customerId);
+
+                    return PromotionGetListByCustomerResponse.builder()
+                            .id(cp.getId())
+                            .code(cp.getUniqueCode()) // mã riêng biệt nè
+                            .name(p.getName())
+                            .description(p.getDescription()) // Đảm bảo truyền mô tả ở đây
+                            .type(p.getType().name())
+                            .discountValue(p.getDiscountValue())
+                            .maxDiscountAmount(p.getMaxDiscountAmount())
+                            .minBookingValue(p.getMinBookingValue())
+                            .startDate(p.getStartDate())
+                            .endDate(p.getEndDate())
+                            .exclusive(p.isExclusive())
+                            .build();
+                })
+                .filter(response -> response != null) // Lọc bỏ các phần tử null nếu có cảnh báo trên
+                .toList();
     }
 
     @Override

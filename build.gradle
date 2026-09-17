@@ -16,6 +16,7 @@ java {
 
 repositories {
     mavenCentral()
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -50,6 +51,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     // Cloudinary
     implementation("com.cloudinary:cloudinary-http44:1.36.0")
+    // Thay thế bản 1.0.2 bằng phiên bản mới hơn
+    implementation 'vn.payos:payos-java:2.0.1'
+
 }
 
 tasks.named('test') {

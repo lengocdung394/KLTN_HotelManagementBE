@@ -11,23 +11,29 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class AuthServiceImpl implements AuthService {
     EmployeeRepository userRepository;
     CustomerRepository customerRepository;
@@ -225,5 +231,61 @@ public class AuthServiceImpl implements AuthService {
 
         account.setPassword(passwordEncoder.encode(request.getNewPassword()));
         accountRepository.save(account);
+    }
+
+
+    @Override
+    public List<CustomerGetOneResponse> getAllCustomers() {
+        log.info("==> [API] Đang lấy danh sách tất cả khách hàng trong hệ thống...");
+        List<Customer> customers = customerRepository.findAll();
+        log.info("==> [SUCCESS] Tìm thấy tổng cộng {} khách hàng.", customers.size());
+
+        return customers.stream()
+                .map(this::mapToCustomerResponse)
+                .toList();
+    }
+
+    @Override
+    public List<CustomerGetOneResponse> getCustomersByHotelId(Long hotelId) {
+        log.info("==> [API] Đang lấy danh sách khách hàng theo chi nhánh hotelId: {}...", hotelId);
+        List<Customer> customers = customerRepository.findCustomersByHotelId(hotelId);
+        log.info("==> [SUCCESS] Tìm thấy {} khách hàng cho chi nhánh hotelId: {}.", customers.size(), hotelId);
+
+        return customers.stream()
+                .map(this::mapToCustomerResponse)
+                .toList();
+    }
+
+    private CustomerGetOneResponse mapToCustomerResponse(Customer customer) {
+        log.debug("Đang map dữ liệu cho khách hàng ID: {}", customer.getId());
+
+        // 1. Tính tổng số lần đặt phòng dựa trên danh sách bookings có sẵn của customer
+        int totalBookings = (customer.getBookings() != null) ? customer.getBookings().size() : 0;
+
+        // 2. Khởi tạo tổng tiền chi tiêu bằng BigDecimal.ZERO
+        BigDecimal totalSpent = BigDecimal.ZERO;
+
+        if (customer.getBookings() != null) {
+            for (Booking booking : customer.getBookings()) {
+                if (booking.getOrder() != null && booking.getOrder().getTotalAmount() != null) {
+                    // Cộng dồn bằng hàm add() của BigDecimal
+                    totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
+                }
+            }
+        }
+
+        log.debug("Khách hàng [ID: {}, Name: {}] -> Tổng bookings: {}, Tổng tiền chi tiêu: {}",
+                customer.getId(), customer.getFullName(), totalBookings, totalSpent);
+
+        return CustomerGetOneResponse.builder()
+                .id(customer.getId())
+                .fullName(customer.getFullName())
+                .phone(customer.getPhone())
+                .email(customer.getEmail())
+                .cccd(customer.getCccd())
+                .loyaltyTier(customer.getLoyaltyTier())
+                .totalSpent(totalSpent)
+                .totalBookings(totalBookings)
+                .build();
     }
 }

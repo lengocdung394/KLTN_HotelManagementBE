@@ -35,6 +35,7 @@ import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -46,6 +47,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static java.rmi.server.LogStream.log;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -110,6 +114,7 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal currentSubTotal = roomTotal.add(serviceTotal);
         BigDecimal discountTotal = BigDecimal.ZERO;
 
+        // truong hop xu dung khuyen mai cua chi nhanh / truong hop xu dung khuyen mai cua rieng minh
         if (request.getPromotionId() != null) {
             Promotion p = promotionRepository.findById(request.getPromotionId())
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
@@ -152,6 +157,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingStatus(status)
                 .build();
     }
+
     @Override
     public BookingResponse toBookingResponse(Booking booking) {
         if (booking == null) {
@@ -183,6 +189,7 @@ public class BookingServiceImpl implements BookingService {
         }
         Order order = booking.getOrder();
         return BookingResponse.builder()
+                .orderId(order.getId())
                 .bookingId(booking.getId())
                 .customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null)
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
@@ -207,6 +214,7 @@ public class BookingServiceImpl implements BookingService {
                 .orderStatus(OrderStatusType.OPEN)
                 .build();
     }
+
     @Override
     public List<BookingDetail> processBookingDetails(Booking booking, List<BookingDetailCreateRequest> detailRequests) {
         if (detailRequests == null || detailRequests.isEmpty()) {
@@ -257,11 +265,11 @@ public class BookingServiceImpl implements BookingService {
                         .findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
 
                 double dailyRoomPrice;
+                double amenitiesPrice = room.getTotalAmenitiesPrice();
                 if (seasonalRateOpt.isPresent()) {
-                    dailyRoomPrice = seasonalRateOpt.get().getPrice();
+                    dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
                 } else {
                     double basePrice = policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
-                    double amenitiesPrice = room.getTotalAmenitiesPrice();
                     dailyRoomPrice = basePrice + amenitiesPrice;
                 }
 
@@ -279,9 +287,12 @@ public class BookingServiceImpl implements BookingService {
             // 4. Xử lý dịch vụ đi kèm và tính tổng tiền dịch vụ
             List<BookingServiceDetail> serviceDetails = processAndAttachServices(null, detailReq.getServiceRequests());
             double serviceSubTotal = serviceDetails.stream()
+                    .filter(sd -> !Boolean.TRUE.equals(sd.getIsPaid()))
                     .mapToDouble(sd -> sd.getPrice() * sd.getQuantity())
-                    .sum();
+                    .sum(); //
 
+            // cap nhat trang thai dich vu da duoc cong tien
+            markServicesAsProcessedOrPaid(serviceDetails);
             // 5. Tổng cộng cuối cùng của phòng này (Phòng + Dịch vụ)
             double totalPrice = roomSubTotal + serviceSubTotal;
 
@@ -311,6 +322,20 @@ public class BookingServiceImpl implements BookingService {
         }).toList();
     }
 
+    // Hàm cập nhật những dịch vụ đã được tính tiền
+    private void markServicesAsProcessedOrPaid(List<BookingServiceDetail> serviceDetails) {
+        if (serviceDetails == null || serviceDetails.isEmpty()) {
+            return;
+        }
+        for (BookingServiceDetail sd : serviceDetails) {
+            // Chỉ cập nhật những món chưa thanh toán
+            if (!Boolean.TRUE.equals(sd.getIsPaid())) {
+                sd.setIsPaid(true);
+            }
+        }
+        log("Đã cập nhật xong nhung dich vu da duoc tinh tien");
+    }
+
     // Ham nay sử dụng khi checkout tính tiền phần dịch vụ chưa được tính tiền
     @Override
     public CheckoutSummaryResponse getCheckoutSummary(Long bookingId) {
@@ -338,6 +363,7 @@ public class BookingServiceImpl implements BookingService {
                 .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+
         return CheckoutSummaryResponse.builder()
                 .orderId(order.getId())
                 .unpaidServices(unpaidServiceItemResponseList)
@@ -345,6 +371,7 @@ public class BookingServiceImpl implements BookingService {
                 .build();
     }
 
+    // ham add dich vu vao booking
     private List<BookingServiceDetail> processAndAttachServices(BookingDetail bookingDetail, List<BookingServiceRequest> serviceRequests) {
         if (serviceRequests == null || serviceRequests.isEmpty()) {
             return List.of();
@@ -439,6 +466,7 @@ public class BookingServiceImpl implements BookingService {
 
     private BigDecimal calculateDiscountAmount(Promotion promotion, BigDecimal roomTotal, BigDecimal serviceTotal) {
         BigDecimal discountAmount;
+        // ap dung khuyen mai phai kiem tra xem don hang co duoc
 
         switch (promotion.getType()) {
             case ROOM_PERCENTAGE:
@@ -471,7 +499,6 @@ public class BookingServiceImpl implements BookingService {
     }
 
 
-
     @Transactional
     @Override
     public BookingResponse addServiceToExistingBooking(Long bookingId, List<BookingServiceRequest> serviceRequests) {
@@ -492,6 +519,8 @@ public class BookingServiceImpl implements BookingService {
                 .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // tien dich vu duoc cong vao dong nghia la cap nhat lai trang thai
+        markServicesAsProcessedOrPaid(targetDetail.getBookingServiceDetails());
         // Cập nhật lại tổng tiền dịch vụ và tổng tiền của Order (Order vẫn giữ nguyên trạng thái OPEN)
         Order order = booking.getOrder();
         order.setServiceTotalAmount(order.getServiceTotalAmount().add(addedServiceTotal));

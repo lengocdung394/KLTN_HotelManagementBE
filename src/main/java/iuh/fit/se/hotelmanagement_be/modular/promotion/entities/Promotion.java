@@ -59,11 +59,11 @@ public class Promotion {
     @Column(name = "end_date", nullable = false)
     LocalDateTime endDate;
 
-    @Column(name = "usage_limit")
+    @Column(name = "usage_limit") // so luong  khuyen mai duoc tung ra
     Integer usageLimit;
 
     @Builder.Default
-    @Column(name = "used_count", nullable = false)
+    @Column(name = "used_count", nullable = false) // so luot khuyen mai da duoc dung
     Integer usedCount = 0;
 
     @Enumerated(EnumType.STRING)

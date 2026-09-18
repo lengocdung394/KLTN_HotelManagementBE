@@ -47,28 +47,32 @@ public class Order {
 
     OrderStatusType orderStatus;
     @Column(name = "payment_order_code", unique = true)
-    private Long paymentOrderCode;
+    Long paymentOrderCode;
 
     @OneToOne(mappedBy = "order")
     Booking booking;
 
-
+    BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
 
     public BigDecimal getTotalAmount() {
         BigDecimal roomTotal = roomTotalAmount != null ? roomTotalAmount : BigDecimal.ZERO;
         BigDecimal serviceTotal = serviceTotalAmount != null ? serviceTotalAmount : BigDecimal.ZERO;
+        BigDecimal surchargeTotal = surchargeTotalAmount != null ? surchargeTotalAmount : BigDecimal.ZERO; // Thêm dòng này
         BigDecimal discRoom = discountRoomAmount != null ? discountRoomAmount : BigDecimal.ZERO;
         BigDecimal discService = discountServiceAmount != null ? discountServiceAmount : BigDecimal.ZERO;
         BigDecimal discTotal = discountAmountTotal != null ? discountAmountTotal : BigDecimal.ZERO;
 
         BigDecimal finalRoom = roomTotal.subtract(discRoom);
         BigDecimal finalService = serviceTotal.subtract(discService);
-        BigDecimal subTotal = finalRoom.add(finalService);
+
+        // Gộp thêm phụ thu vào tổng tiền
+        BigDecimal subTotal = finalRoom.add(finalService).add(surchargeTotal);
 
         // Đảm bảo tổng tiền không bị âm
         return subTotal.subtract(discTotal).max(BigDecimal.ZERO);
+        // Đảm bảo tổng tiền không bị âm
     }
 
     public BigDecimal getRemainingAmount() {

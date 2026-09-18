@@ -135,19 +135,27 @@ public class AuthServiceImpl implements AuthService {
 
         String jwtToken = jwtService.generateToken(account);
 
-        // Xác định thông tin hiển thị (Employee hay Customer)
         String fullName = "";
         String position = "";
+        Long id = null;
 
         if (account.getEmployee() != null) {
             fullName = account.getEmployee().getFullName();
             position = account.getEmployee().getPosition();
+            id = account.getEmployee().getId();
         } else if (account.getCustomer() != null) {
             fullName = account.getCustomer().getFullName();
+            id = account.getCustomer().getId();
             position = "Khách hàng";
+        } else {
+            // Trường hợp tài khoản là Admin thuần túy (không có Employee, không có Customer)
+            fullName = "Quản trị hệ thống"; // Hoặc lấy từ đâu đó
+            position = "Admin";
+            id = account.getId(); // Lấy ID của chính Account luôn
         }
 
         return AuthenticationResponse.builder()
+                .id(id)
                 .token(jwtToken)
                 .email(account.getEmail())
                 .fullName(fullName)

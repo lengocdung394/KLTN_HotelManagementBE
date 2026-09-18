@@ -13,4 +13,5 @@ public class AuthenticationResponse {
     String email;
     String fullName;
     String position;
+    Long id;
 }

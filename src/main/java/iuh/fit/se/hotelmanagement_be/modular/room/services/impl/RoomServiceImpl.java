@@ -232,7 +232,7 @@ public class RoomServiceImpl implements RoomService {
                     .amenities(room.getAmenities())
                     .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
                     // gia phong final tien phong + dich vu
-                    .totalPrice(room.calculateRoomTotalPrice(room, policy) + room.getTotalAmenitiesPrice())
+                    .totalPrice(room.calculateRoomTotalPrice(room, policy))
                     .defaultImageUrl(room.getDefaultImageUrl())
                     .beds(bedResponses)
                     .standardCapacity(policy.getStandardCapacity())

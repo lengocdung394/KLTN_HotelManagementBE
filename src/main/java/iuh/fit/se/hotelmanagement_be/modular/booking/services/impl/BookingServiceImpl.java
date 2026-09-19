@@ -11,6 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
@@ -102,6 +103,7 @@ public class BookingServiceImpl implements BookingService {
         booking.setOrder(order);
 
         Booking savedBooking = bookingRepository.save(booking);
+        log("Nhan vien Tao booking " + order);
         return toBookingResponse(savedBooking);
     }
 
@@ -116,12 +118,10 @@ public class BookingServiceImpl implements BookingService {
 
         // truong hop xu dung khuyen mai cua chi nhanh / truong hop xu dung khuyen mai cua rieng minh
         if (request.getPromotionId() != null) {
-            Promotion p = promotionRepository.findById(request.getPromotionId())
-                    .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+            Promotion p = promotionRepository.findById(request.getPromotionId()).orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
             discountTotal = applyPromotion(customerId, p.getCode(), currentSubTotal, roomTotal, serviceTotal, booking);
         } else if (request.getCustomerPromotionId() != null) {
-            CustomerPromotion customerPromo = customerPromotionRepository.findById(request.getCustomerPromotionId())
-                    .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+            CustomerPromotion customerPromo = customerPromotionRepository.findById(request.getCustomerPromotionId()).orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
             if (!customerPromo.getCustomer().getId().equals(customerId)) {
                 throw new AppException(ErrorCode.UNAUTHORIZED_PROMOTION);
@@ -137,25 +137,15 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private Employee validateAndGetEmployee(Long employeeId) {
-        return employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
+        return employeeRepository.findById(employeeId).orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
     }
 
     private Booking initBookingForCustomer(Customer customer, BookingChannel channel, BookingStatus status) {
-        return Booking.builder()
-                .customer(customer)
-                .bookingChannel(channel)
-                .bookingStatus(status)
-                .build();
+        return Booking.builder().customer(customer).bookingChannel(channel).bookingStatus(status).build();
     }
 
     private Booking initBookingForEmployee(Customer customer, Employee employee, BookingChannel channel, BookingStatus status) {
-        return Booking.builder()
-                .customer(customer)
-                .employee(employee)
-                .bookingChannel(channel)
-                .bookingStatus(status)
-                .build();
+        return Booking.builder().customer(customer).employee(employee).bookingChannel(channel).bookingStatus(status).build();
     }
 
     @Override
@@ -167,52 +157,16 @@ public class BookingServiceImpl implements BookingService {
         List<BookingDetailResponse> detailResponses = null;
 
         if (booking.getBookingDetails() != null) {
-            detailResponses = booking.getBookingDetails().stream().map(detail ->
-                    BookingDetailResponse.builder()
-                            .bookingDetailId(detail.getId())
-                            .roomId(detail.getRoom() != null ? detail.getRoom().getId() : null)
-                            .roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null)
-                            .roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null)
-                            .checkInTime(detail.getCheckinTime())
-                            .checkOutTime(detail.getCheckoutTime())
-                            .numAdults(detail.getNumAdults())
-                            .numChildren(detail.getNumChildren())
-                            // Map thẳng các khoản chi tiết vào Response
-                            .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
-                            .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
-                            .extraChildFeePerNight(detail.getExtraChildFeePerNight())
-                            .roomSubTotal(detail.getRoomSubTotal())
-                            .serviceSubTotal(detail.getServiceSubTotal())
-                            .totalPrice(detail.getTotalPrice())
-                            .build()
-            ).toList();
+            detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponse.builder().bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+                    // Map thẳng các khoản chi tiết vào Response
+                    .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice()).build()).toList();
         }
         Order order = booking.getOrder();
-        return BookingResponse.builder()
-                .orderId(order.getId())
-                .bookingId(booking.getId())
-                .customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null)
-                .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
-                .bookingStatus(booking.getBookingStatus())
-                .bookingChannel(booking.getBookingChannel())
-                .createdAt(booking.getCreatedAt())
-                .roomTotal(order != null ? order.getRoomTotalAmount() : null)
-                .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
-                .discountTotal(order != null ? order.getDiscountAmountTotal() : null)
-                .finalAmount(order != null ? order.getTotalAmount() : null)
-                .bookingDetails(detailResponses)
-                .build();
+        return BookingResponse.builder().orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();
     }
 
     private Order createAndLinkOrder(BigDecimal roomTotal, BigDecimal serviceTotal, BigDecimal discountTotal) {
-        return Order.builder()
-                .issueDate(LocalDateTime.now())
-                .roomTotalAmount(roomTotal)
-                .serviceTotalAmount(serviceTotal)
-                .discountAmountTotal(discountTotal)
-                .paidAmount(BigDecimal.ZERO)
-                .orderStatus(OrderStatusType.OPEN)
-                .build();
+        return Order.builder().issueDate(LocalDateTime.now()).roomTotalAmount(roomTotal).serviceTotalAmount(serviceTotal).discountAmountTotal(discountTotal).paidAmount(BigDecimal.ZERO).orderStatus(OrderStatusType.OPEN).build();
     }
 
     @Override
@@ -222,23 +176,17 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return detailRequests.stream().map(detailReq -> {
-            Room room = roomRepository.findById(detailReq.getRoomId())
-                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+            Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-            BranchRoomPolicy policy = branchRoomPolicyRepository
-                    .findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
 
             if (policy == null) {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
             }
 
             // 1. Tính tiền phụ thu (người lớn/trẻ em) cho 1 đêm từ Policy
-            ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(
-                    policy,
-                    detailReq.getNumAdults(),
-                    detailReq.getNumChildren()
-            );
+            ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(policy, detailReq.getNumAdults(), detailReq.getNumChildren());
 
             double extraAdultFeePerNight = extraFeeBreakdown.getAdultExtraFee();
             double extraChildFeePerNight = extraFeeBreakdown.getChildExtraFee();
@@ -261,8 +209,7 @@ public class BookingServiceImpl implements BookingService {
             LocalDate currentDate = checkInDate;
 
             while (currentDate.isBefore(checkOutDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository
-                        .findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
 
                 double dailyRoomPrice;
                 double amenitiesPrice = room.getTotalAmenitiesPrice();
@@ -286,10 +233,7 @@ public class BookingServiceImpl implements BookingService {
 
             // 4. Xử lý dịch vụ đi kèm và tính tổng tiền dịch vụ
             List<BookingServiceDetail> serviceDetails = processAndAttachServices(null, detailReq.getServiceRequests());
-            double serviceSubTotal = serviceDetails.stream()
-                    .filter(sd -> !Boolean.TRUE.equals(sd.getIsPaid()))
-                    .mapToDouble(sd -> sd.getPrice() * sd.getQuantity())
-                    .sum(); //
+            double serviceSubTotal = serviceDetails.stream().filter(sd -> !Boolean.TRUE.equals(sd.getIsPaid())).mapToDouble(sd -> sd.getPrice() * sd.getQuantity()).sum(); //
 
             // cap nhat trang thai dich vu da duoc cong tien
             markServicesAsProcessedOrPaid(serviceDetails);
@@ -297,20 +241,7 @@ public class BookingServiceImpl implements BookingService {
             double totalPrice = roomSubTotal + serviceSubTotal;
 
             // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
-            BookingDetail bookingDetail = BookingDetail.builder()
-                    .booking(booking)
-                    .room(room)
-                    .checkinTime(detailReq.getCheckInTime())
-                    .checkoutTime(detailReq.getCheckOutTime())
-                    .numAdults(detailReq.getNumAdults())
-                    .numChildren(detailReq.getNumChildren())
-                    .baseRoomPricePerNight(baseRoomPricePerNight)
-                    .extraAdultFeePerNight(extraAdultFeePerNight)
-                    .extraChildFeePerNight(extraChildFeePerNight)
-                    .roomSubTotal(roomSubTotal)
-                    .serviceSubTotal(serviceSubTotal)
-                    .totalPrice(totalPrice)
-                    .build();
+            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).build();
 
             if (!serviceDetails.isEmpty()) {
                 serviceDetails.forEach(sd -> sd.setBookingDetail(bookingDetail));
@@ -343,31 +274,14 @@ public class BookingServiceImpl implements BookingService {
         Order order = booking.getOrder();
 
         // Lọc ra tất cả các dịch vụ CHƯA thanh toán (isPaid = false)
-        List<BookingServiceDetail> unpaidServices = booking.getBookingDetails().stream()
-                .flatMap(detail -> detail.getBookingServiceDetails().stream())
-                .filter(service -> !service.getIsPaid())
-                .toList();
+        List<BookingServiceDetail> unpaidServices = booking.getBookingDetails().stream().flatMap(detail -> detail.getBookingServiceDetails().stream()).filter(service -> !service.getIsPaid()).toList();
 
-        List<UnpaidServiceItemResponse> unpaidServiceItemResponseList = unpaidServices.stream()
-                .map(v -> UnpaidServiceItemResponse.builder()
-                        .bookingServiceId(v.getId())
-                        .serviceName(v.getService() != null ? v.getService().getName() : null) // Thay tên hàm get tùy theo Entity Service của bạn (ví dụ: getName())
-                        .quantity(v.getQuantity())
-                        .price(v.getPrice())
-                        .subTotal(v.getPrice() != null ? v.getPrice() * v.getQuantity() : 0.0)
-                        .usedAt(v.getUsedAt())
-                        .build()
-                )
-                .toList();
-        BigDecimal unpaidServiceTotal = unpaidServices.stream()
-                .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<UnpaidServiceItemResponse> unpaidServiceItemResponseList = unpaidServices.stream().map(v -> UnpaidServiceItemResponse.builder().bookingServiceId(v.getId()).serviceName(v.getService() != null ? v.getService().getName() : null) // Thay tên hàm get tùy theo Entity Service của bạn (ví dụ: getName())
+                .quantity(v.getQuantity()).price(v.getPrice()).subTotal(v.getPrice() != null ? v.getPrice() * v.getQuantity() : 0.0).usedAt(v.getUsedAt()).build()).toList();
+        BigDecimal unpaidServiceTotal = unpaidServices.stream().map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
 
 
-        return CheckoutSummaryResponse.builder()
-                .orderId(order.getId())
-                .unpaidServices(unpaidServiceItemResponseList)
-                .remainingAmountToPay(unpaidServiceTotal) // Số tiền thực tế cần trả lúc checkout
+        return CheckoutSummaryResponse.builder().orderId(order.getId()).unpaidServices(unpaidServiceItemResponseList).remainingAmountToPay(unpaidServiceTotal) // Số tiền thực tế cần trả lúc checkout
                 .build();
     }
 
@@ -378,20 +292,12 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return serviceRequests.stream().map(servReq -> {
-            iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(servReq.getServiceId())
-                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+            iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(servReq.getServiceId()).orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
             BigDecimal unitPrice = servReq.getPrice() != null ? BigDecimal.valueOf(servReq.getPrice()) : BigDecimal.valueOf(service.getPrice());
             LocalDateTime usageTime = servReq.getUsedAt() != null ? servReq.getUsedAt() : LocalDateTime.now();
 
-            return BookingServiceDetail.builder()
-                    .bookingDetail(bookingDetail)
-                    .service(service)
-                    .quantity(servReq.getQuantity())
-                    .price(unitPrice.doubleValue())
-                    .usedAt(usageTime)
-                    .isPaid(false)
-                    .build();
+            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).usedAt(usageTime).isPaid(false).build();
         }).collect(Collectors.toList());
     }
 
@@ -402,16 +308,10 @@ public class BookingServiceImpl implements BookingService {
     private BigDecimal calculateTotalServicePrice(List<BookingDetail> bookingDetails) {
         if (bookingDetails == null) return BigDecimal.ZERO;
 
-        return bookingDetails.stream()
-                .filter(detail -> detail.getBookingServiceDetails() != null)
-                .flatMap(detail -> detail.getBookingServiceDetails().stream())
-                .map(serviceDetail -> BigDecimal.valueOf(serviceDetail.getPrice())
-                        .multiply(BigDecimal.valueOf(serviceDetail.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return bookingDetails.stream().filter(detail -> detail.getBookingServiceDetails() != null).flatMap(detail -> detail.getBookingServiceDetails().stream()).map(serviceDetail -> BigDecimal.valueOf(serviceDetail.getPrice()).multiply(BigDecimal.valueOf(serviceDetail.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal applyPromotion(Long customerId, String promoCode, BigDecimal currentTotalAmount,
-                                      BigDecimal roomTotal, BigDecimal serviceTotal, Booking booking) {
+    private BigDecimal applyPromotion(Long customerId, String promoCode, BigDecimal currentTotalAmount, BigDecimal roomTotal, BigDecimal serviceTotal, Booking booking) {
 
         if (promoCode == null || promoCode.isEmpty()) {
             return BigDecimal.ZERO;
@@ -437,8 +337,7 @@ public class BookingServiceImpl implements BookingService {
             return calculateDiscountAmount(promotion, roomTotal, serviceTotal);
         }
 
-        Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode)
-                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+        Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode).orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
         validatePromotionRules(promotion, currentTotalAmount, now);
         promotion.setUsedCount(promotion.getUsedCount() + 1);
@@ -470,19 +369,16 @@ public class BookingServiceImpl implements BookingService {
 
         switch (promotion.getType()) {
             case ROOM_PERCENTAGE:
-                discountAmount = roomTotal.multiply(promotion.getDiscountValue())
-                        .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                discountAmount = roomTotal.multiply(promotion.getDiscountValue()).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 break;
 
             case SERVICE_PERCENTAGE:
-                discountAmount = serviceTotal.multiply(promotion.getDiscountValue())
-                        .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                discountAmount = serviceTotal.multiply(promotion.getDiscountValue()).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 break;
 
             case TOTAL_PERCENTAGE:
                 BigDecimal currentTotalAmount = roomTotal.add(serviceTotal);
-                discountAmount = currentTotalAmount.multiply(promotion.getDiscountValue())
-                        .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+                discountAmount = currentTotalAmount.multiply(promotion.getDiscountValue()).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
                 break;
 
             default:
@@ -502,8 +398,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     @Override
     public BookingResponse addServiceToExistingBooking(Long bookingId, List<BookingServiceRequest> serviceRequests) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
         // Lấy BookingDetail đầu tiên (hoặc xử lý theo phòng cụ thể nếu nhiều phòng)
         BookingDetail targetDetail = booking.getBookingDetails().get(0);
@@ -515,9 +410,7 @@ public class BookingServiceImpl implements BookingService {
         targetDetail.getBookingServiceDetails().addAll(newServices);
 
         // Tính tiền dịch vụ phát sinh mới thêm
-        BigDecimal addedServiceTotal = newServices.stream()
-                .map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal addedServiceTotal = newServices.stream().map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // tien dich vu duoc cong vao dong nghia la cap nhat lai trang thai
         markServicesAsProcessedOrPaid(targetDetail.getBookingServiceDetails());
@@ -528,4 +421,256 @@ public class BookingServiceImpl implements BookingService {
         Booking saved = bookingRepository.save(booking);
         return toBookingResponse(saved);
     }
+
+    /**
+     * 1. NGHIỆP VỤ HỦY PHÒNG (Dùng chung cho cả Hủy 1 phòng hoặc Hủy nhiều phòng cùng lúc)
+     * Đã xóa hoàn toàn dòng lệnh .setTotalAmount() lỗi cú pháp.
+     */
+    @Transactional
+    @Override
+    public BookingResponse cancelRooms(Long bookingId, List<Long> bookingDetailIds, Long employeeId) {
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+
+        Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
+        String operatorName = employee.getFullName();
+
+        Order order = booking.getOrder();
+        BigDecimal totalRoomPriceSaved = BigDecimal.ZERO;
+        BigDecimal totalServicePriceSaved = BigDecimal.ZERO;
+
+        for (Long detailId : bookingDetailIds) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream().filter(d -> d.getId().equals(detailId)).findFirst().orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+
+            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                continue;
+            }
+
+            targetDetail.setStatus(BookingStatusType.CANCELLED);
+            targetDetail.setCancelledAt(LocalDateTime.now());
+            targetDetail.setCancelledBy(operatorName);
+
+            totalRoomPriceSaved = totalRoomPriceSaved.add(BigDecimal.valueOf(targetDetail.getRoomSubTotal()));
+
+            if (targetDetail.getBookingServiceDetails() != null) {
+                for (BookingServiceDetail sd : targetDetail.getBookingServiceDetails()) {
+                    if (!Boolean.TRUE.equals(sd.getIsPaid()) && !Boolean.TRUE.equals(sd.getCancelled())) {
+                        sd.setCancelled(true);
+                        sd.setCancelledAt(LocalDateTime.now());
+                        totalServicePriceSaved = totalServicePriceSaved.add(BigDecimal.valueOf(sd.getPrice() * sd.getQuantity()));
+                    }
+                }
+            }
+        }
+
+        // Cập nhật các khoản thành phần. Giá tổng tự tính toán qua hàm `@PreUpdate` của Entity Order
+        order.setRoomTotalAmount(order.getRoomTotalAmount().subtract(totalRoomPriceSaved));
+        order.setServiceTotalAmount(order.getServiceTotalAmount().subtract(totalServicePriceSaved));
+
+        long activeRoomsCount = booking.getBookingDetails().stream().filter(d -> d.getStatus() != BookingStatusType.CANCELLED).count();
+
+        if (activeRoomsCount == 0) {
+            booking.setBookingStatus(BookingStatus.CANCELLED);
+            order.setOrderStatus(OrderStatusType.CANCELLED);
+        } else {
+            // Đối soát dòng tiền còn lại tự động thông qua hàm computed property getRemainingAmount()
+            if (order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+                order.setOrderStatus(OrderStatusType.PAID);
+            } else {
+                order.setOrderStatus(OrderStatusType.OPEN);
+            }
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        return toBookingResponse(saved);
+    }
+
+    /**
+     * 2. NGHIỆP VỤ HỦY LUÔN CẢ CÁI BOOKING LỚN (Hủy toàn bộ đơn đặt phòng)
+     */
+    @Transactional
+    @Override
+    public BookingResponse cancelEntireBooking(Long bookingId, Long employeeId) {
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+
+        List<Long> allDetailIds = booking.getBookingDetails().stream().map(BookingDetail::getId).toList();
+
+        return cancelRooms(bookingId, allDetailIds, employeeId);
+    }
+
+    /**
+     * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - Tính tiền nốt lúc Checkout)
+     */
+    @Transactional
+    @Override
+    public BookingResponse addServicesToRoom(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> serviceRequests) {
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        BookingDetail targetDetail = booking.getBookingDetails().stream().filter(d -> d.getId().equals(bookingDetailId)).findFirst().orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+
+        List<BookingServiceDetail> newServices = processAndAttachServices(targetDetail, serviceRequests);
+
+        if (targetDetail.getBookingServiceDetails() == null) {
+            targetDetail.setBookingServiceDetails(new ArrayList<>());
+        }
+        targetDetail.getBookingServiceDetails().addAll(newServices);
+
+        BigDecimal addedServiceTotal = newServices.stream().map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Order order = booking.getOrder();
+        order.setServiceTotalAmount(order.getServiceTotalAmount().add(addedServiceTotal));
+
+        // Cập nhật trạng thái thông minh dựa trên số dư còn thiếu thực tế
+        if (order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+            order.setOrderStatus(OrderStatusType.PAID);
+        } else {
+            order.setOrderStatus(OrderStatusType.OPEN);
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        return toBookingResponse(saved);
+    }
+
+    /**
+     * 4. NGHIỆP VỤ BỔ SUNG: ĐẶT THÊM PHÒNG PHÁT SINH (Khóa cứng voucher ban đầu)
+     */
+    @Transactional
+    @Override
+    public BookingResponse addRoomToExistingBooking(Long bookingId, List<BookingDetailCreateRequest> additionalRoomRequests) {
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+
+        Order order = booking.getOrder();
+
+        // Quét qua danh sách phòng đặt thêm và tính giá gốc dựa theo chính sách mùa vụ
+        List<BookingDetail> newAttachedDetails = processBookingDetails(booking, additionalRoomRequests);
+
+        BigDecimal addedRoomTotal = newAttachedDetails.stream().map(d -> BigDecimal.valueOf(d.getRoomSubTotal())).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Cộng dồn vào quỹ tiền phòng gốc của Order. Tổng mới tự động trừ đi số tiền giảm giá cũ cố định ban đầu
+        order.setRoomTotalAmount(order.getRoomTotalAmount().add(addedRoomTotal));
+
+        if (order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+            order.setOrderStatus(OrderStatusType.PAID);
+        } else {
+            order.setOrderStatus(OrderStatusType.OPEN);
+        }
+
+        Booking saved = bookingRepository.save(booking);
+        return toBookingResponse(saved);
+    }
+
+    /**
+     * 5. NGHIỆP VỤ CHỈNH SỬA / HỦY BỚT DỊCH VỤ CỦA PHÒNG
+     */
+    @Transactional
+    @Override
+    public BookingResponse updateOrCancelServices(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> updatedServiceRequests, Long employeeId) {
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        BookingDetail bookingDetail = booking.getBookingDetails().stream().filter(d -> d.getId().equals(bookingDetailId)).findFirst().orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+
+        Employee employee = employeeRepository.findById(employeeId).orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
+
+        List<BookingServiceDetail> currentServices = bookingDetail.getBookingServiceDetails();
+        if (currentServices == null) currentServices = new ArrayList<>();
+
+        List<BookingServiceDetail> finalServiceList = new ArrayList<>();
+        BigDecimal serviceTotalChange = BigDecimal.ZERO;
+
+        for (BookingServiceRequest req : updatedServiceRequests) {
+            Optional<BookingServiceDetail> existingOpt = currentServices.stream().filter(sd -> sd.getService().getId().equals(req.getServiceId()) && !Boolean.TRUE.equals(sd.getCancelled())).findFirst();
+
+            if (existingOpt.isPresent()) {
+                BookingServiceDetail existingService = existingOpt.get();
+
+                if (!Boolean.TRUE.equals(existingService.getIsPaid())) {
+                    double oldSubTotal = existingService.getPrice() * existingService.getQuantity();
+                    existingService.setQuantity(req.getQuantity());
+                    double newSubTotal = existingService.getPrice() * existingService.getQuantity();
+
+                    serviceTotalChange = serviceTotalChange.add(BigDecimal.valueOf(newSubTotal - oldSubTotal));
+                } else {
+                    if (existingService.getQuantity() != req.getQuantity()) {
+                        throw new AppException(ErrorCode.PAID_SERVICE_CANNOT_BE_MODIFIED);
+                    }
+                }
+                finalServiceList.add(existingService);
+            } else {
+                List<BookingServiceDetail> newAttached = processAndAttachServices(bookingDetail, List.of(req));
+                for (BookingServiceDetail ns : newAttached) {
+                    serviceTotalChange = serviceTotalChange.add(BigDecimal.valueOf(ns.getPrice() * ns.getQuantity()));
+                    finalServiceList.add(ns);
+                }
+            }
+        }
+        for (BookingServiceDetail oldService : currentServices) {
+            boolean stillExists = updatedServiceRequests.stream().anyMatch(req -> req.getServiceId().equals(oldService.getService().getId()));
+            if (!stillExists && !Boolean.TRUE.equals(oldService.getCancelled())) {
+                if (!Boolean.TRUE.equals(oldService.getIsPaid())) {
+                    double subTotalRemoved = oldService.getPrice() * oldService.getQuantity();
+                    serviceTotalChange = serviceTotalChange.subtract(BigDecimal.valueOf(subTotalRemoved));
+                } else {
+                    oldService.setCancelled(true);
+                    oldService.setCancelledAt(LocalDateTime.now());
+                    double refundAmount = oldService.getPrice() * oldService.getQuantity();
+                    serviceTotalChange = serviceTotalChange.subtract(BigDecimal.valueOf(refundAmount));
+                    finalServiceList.add(oldService);
+                }
+            }
+        }
+        bookingDetail.getBookingServiceDetails().clear();
+        bookingDetail.getBookingServiceDetails().addAll(finalServiceList);
+        double newServiceSubTotal = finalServiceList.stream().filter(sd -> !Boolean.TRUE.equals(sd.getCancelled())).mapToDouble(sd -> sd.getPrice() * sd.getQuantity()).sum();
+        bookingDetail.setServiceSubTotal(newServiceSubTotal);
+        bookingDetail.setTotalPrice(bookingDetail.getRoomSubTotal() + newServiceSubTotal);
+        Order order = booking.getOrder();
+        order.setServiceTotalAmount(order.getServiceTotalAmount().add(serviceTotalChange));
+        if (order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
+            order.setOrderStatus(OrderStatusType.PAID);
+        } else {
+            order.setOrderStatus(OrderStatusType.OPEN);
+        }
+        Booking saved = bookingRepository.save(booking);
+        return toBookingResponse(saved);
+    }
+
+    @Override
+    public BookingResponseForHotel toBookingForHotelResponse(Booking booking) {
+        if (booking == null) {
+            return null;
+        }
+
+        List<BookingDetailResponseForHotel> detailResponses = null;
+
+        if (booking.getBookingDetails() != null) {
+            detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponseForHotel.builder().bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+                    // Map thẳng các khoản chi tiết vào Response
+                    .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
+                    // map danh sach dich vu
+                    .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).quantity(serviceDetail.getQuantity()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
+        }
+        Order order = booking.getOrder();
+        return BookingResponseForHotel.builder().orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();
+    }
+
+    @Override
+    public List<BookingResponseForHotel> getBookingsByHotel(Long hotelId) {
+        // Gọi repository lấy danh sách booking theo hotelId
+        List<Booking> bookings = bookingRepository.findAllByHotelId(hotelId);
+
+        // Chuyển đổi sang danh sách BookingResponse
+        return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
+    }
+
 }

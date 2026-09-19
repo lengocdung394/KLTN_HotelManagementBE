@@ -20,7 +20,9 @@ import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Optional;
+
 @Slf4j
 @Service
 public class PaymentServiceImpl implements PaymentService {
@@ -77,8 +79,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         var checkoutData = payOS.paymentRequests().create(paymentRequest);
 
-        // Lưu lại mã để lúc webhook về tra ngược chính xác, không cần đoán
-        order.setPaymentOrderCode(uniqueOrderCode);
+        // Khởi tạo danh sách nếu chưa có
+        if (order.getPaymentOrderCodes() == null) {
+            order.setPaymentOrderCodes(new ArrayList<>());
+        }
+
+        // Thêm mã mới vào danh sách
+        order.getPaymentOrderCodes().add(uniqueOrderCode);
         orderRepository.save(order);
 
         return PaymentResponse.builder()
@@ -125,7 +132,7 @@ public class PaymentServiceImpl implements PaymentService {
         long uniqueOrderCode = dataNode.get("orderCode").asLong();
         log.info("[Webhook] orderCode nhận từ PayOS={}", uniqueOrderCode);
 
-        Optional<Order> orderOpt = orderRepository.findByPaymentOrderCode(uniqueOrderCode);
+        Optional<Order> orderOpt = orderRepository.findByPaymentOrderCodesContaining(uniqueOrderCode);
         if (orderOpt.isEmpty()) {
             log.warn("[Webhook] KHÔNG TÌM THẤY order với paymentOrderCode={}", uniqueOrderCode);
             return WebhookResponse.builder().error(4).message("Dữ liệu webhook không hợp lệ hoặc không tìm thấy đơn hàng tương ứng trong hệ thống").build();

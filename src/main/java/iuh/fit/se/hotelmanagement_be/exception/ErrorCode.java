@@ -91,7 +91,14 @@ public enum ErrorCode {
     ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),
     ORDER_ALREADY_PAID(1003, "This room order has already been completely paid for!", HttpStatus.BAD_REQUEST),
     WEBHOOK_VERIFICATION_FAILED(1004, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST),
-    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST );
+    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST ),
+    // --- ĐỊNH NGHĨA THEO PHONG CÁCH CỦA BẠN ---
+
+    BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
+
+    BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
+
+    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

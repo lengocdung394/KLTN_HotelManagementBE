@@ -46,6 +46,15 @@ public class BookingServiceDetail {
     @Column(name = "paid_at")
     LocalDateTime paidAt;   // Thời điểm dịch vụ này được thanh toán (lúc checkout)
 
+
+    // MỚI THÊM:
+    @Builder.Default
+    @Column(name = "cancelled", nullable = false)
+    Boolean cancelled = false;   // dịch vụ đã thanh toán nhưng bị hủy sau đó -> true
+
+    @Column(name = "cancelled_at")
+    LocalDateTime cancelledAt;
+
     @PrePersist
     protected void onCreate() {
         if (this.usedAt == null) {
@@ -53,6 +62,9 @@ public class BookingServiceDetail {
         }
         if (this.isPaid == null) {
             this.isPaid = false;
+        }
+        if (this.cancelled == null) {
+            this.cancelled = false;
         }
     }
 }

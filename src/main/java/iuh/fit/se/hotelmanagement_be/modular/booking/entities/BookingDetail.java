@@ -68,4 +68,13 @@ public class BookingDetail {
     BigDecimal earlyCheckInFee = BigDecimal.ZERO;  // Phí check-in sớm
     BigDecimal lateCheckOutFee = BigDecimal.ZERO; // Phí check-out muộn
     BigDecimal otherSurcharges = BigDecimal.ZERO;  // Các phụ thu khác (nếu có)
+
+    //
+    // MỚI THÊM: Lưu lại chính xác thời điểm phòng này bị bấm hủy
+    @Column(name = "cancelled_at")
+    LocalDateTime cancelledAt;
+
+    // MỚI THÊM: Ai là người thực hiện hủy phòng này (Nhân viên nào)
+    @Column(name = "cancelled_by")
+    String cancelledBy;
 }

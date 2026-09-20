@@ -5,7 +5,6 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckoutSummaryResponse;
@@ -27,17 +26,10 @@ public interface BookingService {
 
     CheckoutSummaryResponse getCheckoutSummary(Long bookingId);
 
-    BookingResponse addServiceToExistingBooking(Long bookingId, List<BookingServiceRequest> serviceRequests);
-
-    BookingResponse cancelRooms(Long bookingId, List<Long> bookingDetailIds, Long employeeId);
-
-    BookingResponse cancelEntireBooking(Long bookingId, Long employeeId);
 
     BookingResponse addServicesToRoom(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> serviceRequests);
 
-    BookingResponse addRoomToExistingBooking(Long bookingId, List<BookingDetailCreateRequest> additionalRoomRequests);
 
-    BookingResponse updateOrCancelServices(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> updatedServiceRequests, Long customerId);
 
     // Hàm chuyen đổi và Lay danh sach booking cua khách sạn
     BookingResponseForHotel toBookingForHotelResponse(Booking booking);

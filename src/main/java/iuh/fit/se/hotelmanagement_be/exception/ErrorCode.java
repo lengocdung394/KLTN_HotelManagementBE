@@ -84,8 +84,11 @@ public enum ErrorCode {
     ROOM_NOT_FOUND(1053, "Không tìm thấy thông tin phòng", HttpStatus.NOT_FOUND),
     ROOM_ALREADY_BOOKED(1054, "Phòng đã có người đặt trong khoảng thời gian này", HttpStatus.CONFLICT),
     BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND),
+    CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM(1002, "Cannot cancel service because the room booking has already been cancelled!", HttpStatus.BAD_REQUEST),
+    BOOKING_SERVICE_DETAIL_NOT_FOUND(1003, "Booking service detail profile could not be found within this room!", HttpStatus.BAD_REQUEST),
 
-
+    CANNOT_CHANGE_CANCELLED_ROOM(1004, "Cannot change a room that has already been cancelled", HttpStatus.BAD_REQUEST),
+    CANNOT_UPDATE_DATE_FOR_CANCELLED_ROOM(1005, "Cannot update dates for a room that has already been cancelled", HttpStatus.BAD_REQUEST),
     //
     ORDER_NOT_FOUND(1001, "Hotel order profile could not be found!", HttpStatus.BAD_REQUEST),
     ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),

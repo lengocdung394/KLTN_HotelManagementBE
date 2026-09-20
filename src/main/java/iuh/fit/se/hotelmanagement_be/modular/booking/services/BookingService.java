@@ -26,11 +26,6 @@ public interface BookingService {
 
     CheckoutSummaryResponse getCheckoutSummary(Long bookingId);
 
-
-    BookingResponse addServicesToRoom(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> serviceRequests);
-
-
-
     // Hàm chuyen đổi và Lay danh sach booking cua khách sạn
     BookingResponseForHotel toBookingForHotelResponse(Booking booking);
 

@@ -6,11 +6,13 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.SurchargeCalculator;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.CheckInOutRepository;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,38 +42,52 @@ import java.util.Optional;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CheckInOutServiceImpl implements CheckInOutService {
     CheckInOutRepository checkInOutRepository;
-
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingRepository bookingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     BookingService bookingService;
 
-    // Lay danh sach checkin
+    // 💡 LUỒNG XỬ LÝ LINH HOẠT CHO DANH SÁCH CHECK-IN
     @Override
-    public List<BookingDetailResponse> getTodayCheckInList(Long hotelId) {
-        LocalDate today = LocalDate.now();
-        // Lọc ra các phòng có lịch check-in hôm nay và trạng thái vẫn đang chờ (PENDING)
+    public List<BookingDetailForCheckInOutResponse> getTodayCheckInList(Long hotelId, LocalDate date, BookingStatusType status, BookingStatus bookingStatus) {
+        // 1. Nếu Ngày truyền vào bị null -> Mặc định lấy ngày hôm nay
+        LocalDate finalDate = (date != null) ? date : LocalDate.now();
+
+        // 2. Nếu Trạng thái truyền vào bị null -> Mặc định lấy phòng đang chờ nhận (PENDING)
+        BookingStatusType finalStatus = (status != null) ? status : BookingStatusType.PENDING;
+        //
+        BookingStatus finalBookingStatus = (bookingStatus != null) ? bookingStatus : BookingStatus.CONFIRMED;
         List<BookingDetail> checkInDetails = checkInOutRepository
-                .findArrivalsByHotelAndDateAndStatus(hotelId, today, BookingStatusType.PENDING);
+                .findArrivalsByHotelAndDateAndStatus(hotelId, finalDate, finalBookingStatus, finalStatus);
 
         return mapToBookingDetailResponseList(checkInDetails);
     }
 
-    // Lay danh sach checkout
+    // 💡 LUỒNG XỬ LÝ LINH HOẠT CHO DANH SÁCH CHECK-OUT
     @Override
-    public List<BookingDetailResponse> getTodayCheckOutList(Long hotelId) {
-        LocalDate today = LocalDate.now();
-        // Lọc ra các phòng có lịch trả phòng hôm nay và khách đang ở trong phòng (CHECKED_IN)
+    public List<BookingDetailForCheckInOutResponse> getTodayCheckOutList(Long hotelId, LocalDate date, BookingStatusType status, BookingStatus bookingStatus) {
+        // 1. Nếu Ngày truyền vào bị null -> Mặc định lấy ngày hôm nay
+        LocalDate finalDate = (date != null) ? date : LocalDate.now();
+
+        // 2. Nếu Trạng thái truyền vào bị null -> Mặc định lấy phòng đang lưu trú (CHECKED_IN)
+        BookingStatusType finalStatus = (status != null) ? status : BookingStatusType.CHECKED_IN;
+
+        //
+        BookingStatus finalBookingStatus = (bookingStatus != null) ? bookingStatus : BookingStatus.CONFIRMED;
         List<BookingDetail> checkOutDetails = checkInOutRepository
-                .findDeparturesByHotelAndDateAndStatus(hotelId, today, BookingStatusType.CHECKED_IN);
+                .findDeparturesByHotelAndDateAndStatus(hotelId, finalDate, finalBookingStatus, finalStatus);
 
         return mapToBookingDetailResponseList(checkOutDetails);
     }
 
     @Override
-    public List<BookingDetailResponse> mapToBookingDetailResponseList(List<BookingDetail> details) {
+    public List<BookingDetailForCheckInOutResponse> mapToBookingDetailResponseList(List<BookingDetail> details) {
         return details.stream().map(detail ->
-                BookingDetailResponse.builder()
+                BookingDetailForCheckInOutResponse.builder()
+                        // Thong tin khach hang
+                        .cccd(detail.getBooking().getCustomer().getCccd())
+                        .nameCustomer(detail.getBooking().getCustomer().getFullName())
+                        .bookingId(detail.getBooking().getId())
                         .bookingDetailId(detail.getId())
                         .roomId(detail.getRoom() != null ? detail.getRoom().getId() : null)
                         .roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null)
@@ -85,7 +102,18 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                         .roomSubTotal(detail.getRoomSubTotal())
                         .serviceSubTotal(detail.getServiceSubTotal())
                         .totalPrice(detail.getTotalPrice())
-                        .build()
+                        // Moc noi phan dich vu
+                        .bookingServiceResponseForHotel(detail.getBookingServiceDetails() != null ?
+                                detail.getBookingServiceDetails().stream()
+                                        .map(v -> BookingServiceResponseForHotel.builder()
+                                                .serviceId(v.getService() != null ? v.getService().getId() : null)
+                                                .price(v.getPrice())
+                                                .name(v.getName())
+                                                .quantity(v.getQuantity())
+                                                .usedAt(v.getUsedAt()).build()).toList() : Collections.emptyList()
+                        ).build()
+
+
         ).toList();
     }
 

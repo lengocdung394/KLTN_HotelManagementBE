@@ -24,6 +24,7 @@ public class BookingServiceDetail {
 
     int quantity;
 
+    String name;
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "booking_detail_id", nullable = false)

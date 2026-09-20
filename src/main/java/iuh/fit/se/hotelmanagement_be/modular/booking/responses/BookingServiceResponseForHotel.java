@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 public class BookingServiceResponseForHotel {
 
     Long serviceId;
+    String name;
     Integer quantity;
     Double price;
-
     LocalDateTime usedAt;
 }

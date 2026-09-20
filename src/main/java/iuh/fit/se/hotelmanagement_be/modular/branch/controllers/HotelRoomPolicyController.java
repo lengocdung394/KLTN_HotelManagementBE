@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
@@ -18,6 +21,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -65,18 +69,28 @@ public class HotelRoomPolicyController {
      * GET: /bookings/today-checkins
      */
     @GetMapping("/today-checkins")
-    @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-in trong ngày hôm nay")
-    public ResponseEntity<List<BookingDetailResponse>> getTodayCheckInList(@RequestParam Long hotelId) {
-        return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId));
+    @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-in (Mặc định lấy ngày hôm nay và trạng thái PENDING nếu để trống)")
+    public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckInList(
+            @RequestParam Long hotelId,
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(required = false) BookingStatusType status,
+            @RequestParam(required = false) BookingStatus bookingStatus
+    ) {
+
+        return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId, date, status, bookingStatus));
     }
 
-    /**
-     * GET: /bookings/today-checkouts
-     */
+
     @GetMapping("/today-checkouts")
-    @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-out trong ngày hôm nay")
-    public ResponseEntity<List<BookingDetailResponse>> getTodayCheckOutList(@RequestParam Long hotelId) {
-        return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId));
+    @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-out (Mặc định lấy ngày hôm nay và trạng thái CHECKED_IN nếu để trống)")
+    public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckOutList(
+            @RequestParam Long hotelId,
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(required = false) BookingStatusType status,
+            @RequestParam(required = false) BookingStatus bookingStatus
+    ) {
+
+        return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, status, bookingStatus));
     }
 
 

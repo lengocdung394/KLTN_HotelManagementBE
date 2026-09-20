@@ -94,7 +94,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse createCounterBooking(Long employeeId, BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Employee employee = validateAndGetEmployee(employeeId);
-        Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.CONFIRMED);
+        Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
 
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
         booking.setBookingDetails(details);
@@ -241,7 +241,7 @@ public class BookingServiceImpl implements BookingService {
             double totalPrice = roomSubTotal + serviceSubTotal;
 
             // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
-            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).build();
+            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
 
             if (!serviceDetails.isEmpty()) {
                 serviceDetails.forEach(sd -> sd.setBookingDetail(bookingDetail));
@@ -297,7 +297,7 @@ public class BookingServiceImpl implements BookingService {
             BigDecimal unitPrice = servReq.getPrice() != null ? BigDecimal.valueOf(servReq.getPrice()) : BigDecimal.valueOf(service.getPrice());
             LocalDateTime usageTime = servReq.getUsedAt() != null ? servReq.getUsedAt() : LocalDateTime.now();
 
-            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).usedAt(usageTime).isPaid(false).build();
+            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName()).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).usedAt(usageTime).isPaid(false).build();
         }).collect(Collectors.toList());
     }
 
@@ -658,7 +658,7 @@ public class BookingServiceImpl implements BookingService {
                     // Map thẳng các khoản chi tiết vào Response
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
                     // map danh sach dich vu
-                    .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).quantity(serviceDetail.getQuantity()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
+                    .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).name(serviceDetail.getName()).quantity(serviceDetail.getQuantity()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
         }
         Order order = booking.getOrder();
         return BookingResponseForHotel.builder().orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();

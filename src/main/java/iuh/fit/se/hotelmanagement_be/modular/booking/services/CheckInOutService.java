@@ -1,18 +1,25 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CheckInOutService {
     // lây danh sach check in checkout
-    List<BookingDetailResponse> getTodayCheckInList(Long hotelId);
+    List<BookingDetailForCheckInOutResponse> getTodayCheckInList(Long hotelId, LocalDate date, BookingStatusType status, BookingStatus bookingStatus);
 
-    List<BookingDetailResponse> getTodayCheckOutList(Long hotelId);
+    List<BookingDetailForCheckInOutResponse> getTodayCheckOutList(Long hotelId, LocalDate date, BookingStatusType status, BookingStatus bookingStatus);
 
-    List<BookingDetailResponse> mapToBookingDetailResponseList(List<BookingDetail> details);
+
+    List<BookingDetailForCheckInOutResponse> mapToBookingDetailResponseList(List<BookingDetail> details);
 
     // ham checkin checkout
 

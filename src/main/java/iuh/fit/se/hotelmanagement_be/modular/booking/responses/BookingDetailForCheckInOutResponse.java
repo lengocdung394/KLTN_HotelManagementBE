@@ -4,13 +4,15 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class BookingDetailResponse {
+public class BookingDetailForCheckInOutResponse {
+
     String cccd;
     String nameCustomer;
     Long bookingId;
@@ -30,4 +32,5 @@ public class BookingDetailResponse {
     Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
     Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
+    List<BookingServiceResponseForHotel>  bookingServiceResponseForHotel;
 }

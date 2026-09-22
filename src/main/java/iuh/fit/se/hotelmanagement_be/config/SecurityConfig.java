@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/rooms/public/**").permitAll()
                         // TODO: Xóa dòng này sau khi hoàn thiện Auth cho module KM
+                        .requestMatchers("/management-rooms/**").permitAll()
                         .requestMatchers("/management-bookings/**").permitAll()
                         .requestMatchers("/payment/**").permitAll()
                         .requestMatchers("/customer-promotions/**").permitAll()

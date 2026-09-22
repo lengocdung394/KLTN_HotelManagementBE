@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 public interface RoomSeasonalRateRepository extends JpaRepository<RoomSeasonalRate,Long> {
@@ -15,5 +16,15 @@ public interface RoomSeasonalRateRepository extends JpaRepository<RoomSeasonalRa
             @Param("hotelId") Long hotelId,
             @Param("roomType") RoomType roomType,
             @Param("currentDate") LocalDate currentDate
+    );
+
+
+    // Lọc khung giá theo chi nhánh và khoảng thời gian giao nhau
+    @Query("SELECT r FROM RoomSeasonalRate r WHERE r.hotelId = :hotelId " +
+            "AND r.startDate <= :endDate AND r.endDate >= :startDate")
+    List<RoomSeasonalRate> findRatesByBranchAndDateRange(
+            @Param("hotelId") Long hotelId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
     );
 }

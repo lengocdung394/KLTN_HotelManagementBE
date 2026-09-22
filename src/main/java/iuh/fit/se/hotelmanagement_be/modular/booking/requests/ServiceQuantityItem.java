@@ -9,7 +9,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ServiceQuantityItem {
-    Long serviceId; // Hoặc bookingServiceDetailId tùy vào việc bạn quản lý theo loại dịch vụ hay dòng dịch vụ chi tiết
+    String serviceId; // Hoặc bookingServiceDetailId tùy vào việc bạn quản lý theo loại dịch vụ hay dòng dịch vụ chi tiết
     int quantity;   // Số lượng thực tế mới (nếu = 0 thì hiểu là hủy dịch vụ này)
 
 }

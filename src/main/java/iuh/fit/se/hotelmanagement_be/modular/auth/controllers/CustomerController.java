@@ -3,17 +3,21 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateProfileRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.WalkInCustomerRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerFindByIdResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.CustomerService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -29,6 +33,7 @@ import java.util.List;
 public class CustomerController {
 
     AuthService authService;
+    CustomerService customerService;
 
     @Operation(summary = "Lấy danh sách tất cả loại khách hàng (LoyaltyTier)")
     @GetMapping("/types")
@@ -40,8 +45,6 @@ public class CustomerController {
                 .result(loyaltyTier)
                 .build());
     }
-
-
 
 
     @Operation(summary = "Lấy thông tin hồ sơ của khách hàng đang đăng nhập")
@@ -83,4 +86,19 @@ public class CustomerController {
                 .message("Đổi mật khẩu thành công")
                 .build());
     }
+
+    // Luong tao khach hang tai quay
+    @PostMapping("/walk-in")
+    public ResponseEntity<Customer> createWalkInCustomer(@RequestBody @Valid WalkInCustomerRequest request) {
+        Customer newCustomer = customerService.createWalkInCustomer(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(newCustomer);
+    }
+
+    // Tìm kiếm khách hàng thông qua mã khách hàng
+    @GetMapping("/findByIdCustomer/{id}")
+    public ResponseEntity<CustomerFindByIdResponse> getCustomerById(@PathVariable String id) {
+        CustomerFindByIdResponse customer = customerService.getCustomerById(id);
+        return ResponseEntity.ok(customer);
+    }
+
 }

@@ -1,5 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.responses;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import jakarta.persistence.Column;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -14,6 +16,7 @@ import java.util.List;
 public class BookingDetailResponseForHotel {
     Long bookingDetailId;
     String roomId;
+    String roomNumber;
     String roomName;
     String roomTypeName;
     LocalDateTime checkInTime;
@@ -21,6 +24,14 @@ public class BookingDetailResponseForHotel {
     int numAdults;
     int numChildren;
     int numInfants;
+    //
+    // MỚI THÊM: Lưu lại chính xác thời điểm phòng này bị bấm hủy
+    @Column(name = "cancelled_at")
+    LocalDateTime cancelledAt;
+   BookingStatusType bookingStatusType;
+    // MỚI THÊM: Ai là người thực hiện hủy phòng này (Nhân viên nào)
+    @Column(name = "cancelled_by")
+    String cancelledBy;
 
     Double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
     Double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm

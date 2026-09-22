@@ -24,8 +24,7 @@ public enum ErrorCode {
     // --- HOTEL ERRORS (5xxx) ---
     HOTEL_NOT_FOUND(5001, "[5001] Hotel branch not found", HttpStatus.NOT_FOUND),
     MANAGER_HOTEL_NOT_ASSIGNED(5002, "[5002] Manager account is not assigned to any hotel branch", HttpStatus.BAD_REQUEST),
-
-    // --- PROMOTION ERRORS (6xxx) ---
+    //--- PROMOTION ERRORS (6xxx) ---
     PROMOTION_NOT_FOUND(6001, "[6001] Promotion program not found", HttpStatus.NOT_FOUND),
     PROMOTION_CODE_EXISTED(6002, "[6002] Promotion code already exists", HttpStatus.BAD_REQUEST),
     PROMOTION_EXPIRED(6003, "[6003] Promotion program has expired or not started yet", HttpStatus.BAD_REQUEST),

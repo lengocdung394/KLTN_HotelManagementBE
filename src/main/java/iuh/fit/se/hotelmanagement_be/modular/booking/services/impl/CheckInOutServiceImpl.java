@@ -84,6 +84,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     public List<BookingDetailForCheckInOutResponse> mapToBookingDetailResponseList(List<BookingDetail> details) {
         return details.stream().map(detail ->
                 BookingDetailForCheckInOutResponse.builder()
+                        .roomNumber(detail.getRoom().getRoomNumber())
                         // Thong tin khach hang
                         .cccd(detail.getBooking().getCustomer().getCccd())
                         .nameCustomer(detail.getBooking().getCustomer().getFullName())

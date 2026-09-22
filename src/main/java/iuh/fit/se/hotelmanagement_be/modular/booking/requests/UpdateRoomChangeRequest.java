@@ -10,5 +10,5 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UpdateRoomChangeRequest {
     Long bookingDetailId; // Phòng hiện tại trong booking đang ở
-    Long newRoomId;       // ID của phòng mới muốn đổi sang
+    String newRoomId;       // ID của phòng mới muốn đổi sang
 }

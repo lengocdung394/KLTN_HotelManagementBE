@@ -43,7 +43,7 @@ public class BookingController {
     @PostMapping("/counter/{employeeId}")
     @Operation(summary = "Nhân viên hỗ trợ đặt phòng tại quầy (Offline / Counter)")
     public ResponseEntity<BookingResponse> createCounterBooking(
-            @PathVariable Long employeeId,
+            @PathVariable String employeeId,
             @RequestBody @Valid BookingCreateRequest request) {
         BookingResponse response = bookingService.createCounterBooking(employeeId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -55,7 +55,7 @@ public class BookingController {
      */
     @GetMapping("/{bookingId}/checkout-summary")
     @Operation(summary = "Lấy thông tin tổng quan hóa đơn lúc Checkout (Đối soát tiền còn thiếu)")
-    public ResponseEntity<CheckoutSummaryResponse> getCheckoutSummary(@PathVariable Long bookingId) {
+    public ResponseEntity<CheckoutSummaryResponse> getCheckoutSummary(@PathVariable String bookingId) {
         return ResponseEntity.ok(bookingService.getCheckoutSummary(bookingId));
     }
 

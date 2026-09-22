@@ -11,7 +11,9 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomPriceCalculationResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -38,7 +40,7 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class BookingServiceManagementService implements BookingManagementService {
+public class BookingServiceManagementServiceImpl implements BookingManagementService {
     ServiceRepository serviceRepository;
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
@@ -156,93 +158,81 @@ public class BookingServiceManagementService implements BookingManagementService
         return totalRoomAndServiceAdded;
     }
 
-    // Đổi ngày checkin checkout
+    // Đổi ngày checkin checkout + thêm số lượng người
+
     @Override
-    public BigDecimal processRoomDateUpdates(Booking booking, List<RoomDateUpdateRequest> dateUpdates) {
-        if (dateUpdates == null || dateUpdates.isEmpty()) {
-            log.debug("No room date updates for booking ID: {}", booking.getId());
+    public BigDecimal processRoomDateUpdates(Booking booking, List<RoomDateUpdateRequest> updates) {
+        if (updates == null || updates.isEmpty()) {
             return BigDecimal.ZERO;
         }
 
-        log.info("Processing room date updates. Total items: {} for booking ID: {}", dateUpdates.size(), booking.getId());
-        BigDecimal roomPriceChange = BigDecimal.ZERO;
-        Long hotelId = booking.getOrder().getBooking().getEmployee().getHotel().getId();
+        BigDecimal totalRoomPriceChange = BigDecimal.ZERO;
+        Long hotelId = booking.getEmployee().getHotel().getId();
 
-        for (RoomDateUpdateRequest updateReq : dateUpdates) {
-            log.info("Updating dates for BookingDetail ID: {} to new Check-in: {}, Check-out: {}",
-                    updateReq.getBookingDetailId(), updateReq.getNewCheckInTime(), updateReq.getNewCheckoutTime());
-
-            BookingDetail detail = booking.getBookingDetails().stream()
-                    .filter(d -> d.getId().equals(updateReq.getBookingDetailId()))
+        for (RoomDateUpdateRequest req : updates) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(d -> d.getId().equals(req.getBookingDetailId()))
                     .findFirst()
-                    .orElseThrow(() -> {
-                        log.error("BookingDetail not found with ID: {}", updateReq.getBookingDetailId());
-                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
-                    });
+                    .orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
 
-            if (detail.getStatus() == BookingStatusType.CANCELLED) {
-                log.warn("Attempted to update dates for a cancelled BookingDetail ID: {}", detail.getId());
-                throw new AppException(ErrorCode.CANNOT_UPDATE_DATE_FOR_CANCELLED_ROOM);
+            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                throw new AppException(ErrorCode.CANNOT_UPDATE_CANCELLED_ROOM);
             }
 
-            double oldSubTotal = detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0;
-            roomPriceChange = roomPriceChange.subtract(BigDecimal.valueOf(oldSubTotal));
-            log.debug("Deducted old room subtotal: {} for BookingDetail ID: {}", oldSubTotal, detail.getId());
+            LocalDateTime newCheckIn = req.getNewCheckInTime() != null ? req.getNewCheckInTime() : targetDetail.getCheckinTime();
+            LocalDateTime newCheckOut = req.getNewCheckoutTime() != null ? req.getNewCheckoutTime() : targetDetail.getCheckoutTime();
 
-            Room room = detail.getRoom();
+            targetDetail.setCheckinTime(newCheckIn);
+            targetDetail.setCheckoutTime(newCheckOut);
+
+            if (req.getNumAdults() != null) {
+                targetDetail.setNumAdults(req.getNumAdults());
+            }
+            if (req.getNumChildren() != null) {
+                targetDetail.setNumChildren(req.getNumChildren());
+            }
+            if (req.getNumInfants() != null) {
+                targetDetail.setNumInfants(req.getNumInfants());
+            }
+
+            Room room = targetDetail.getRoom();
             BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
-            ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(policy, detail.getNumAdults(), detail.getNumChildren());
-            double totalExtraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
 
-            LocalDate startDate = updateReq.getNewCheckInTime().toLocalDate();
-            LocalDate endDate = updateReq.getNewCheckoutTime().toLocalDate();
+            // Gọi hàm tính tiền sử dụng Class
+            RoomPriceCalculationResult calcResult = calculateRoomTotalAndFees(
+                    hotelId, room, newCheckIn, newCheckOut,
+                    targetDetail.getNumAdults(), targetDetail.getNumChildren(), policy
+            );
 
-            BigDecimal newRoomSubTotal = BigDecimal.ZERO;
-            double sampleBasePricePerNight = 0.0;
+            // Gán dữ liệu thông qua getter của class
+            targetDetail.setBaseRoomPricePerNight(calcResult.getBasePricePerNight());
+            // Nếu entity của bạn lưu chung một trường tổng phụ thu hoặc chia tách, bạn điều chỉnh dòng này cho khớp
+            targetDetail.setExtraAdultFeePerNight(calcResult.getTotalExtraFeePerNight());
 
-            LocalDate currentDate = startDate;
-            while (currentDate.isBefore(endDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+            double oldRoomSub = targetDetail.getRoomSubTotal() != null ? targetDetail.getRoomSubTotal() : 0.0;
+            double newRoomSubDouble = calcResult.getRoomSubTotal().doubleValue();
 
-                double dailyRoomPrice;
-                double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
+            double priceDiff = newRoomSubDouble - oldRoomSub;
 
-                if (seasonalRateOpt.isPresent()) {
-                    dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
-                } else {
-                    double basePrice = policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
-                    dailyRoomPrice = basePrice + amenitiesPrice;
-                }
+            targetDetail.setRoomSubTotal(newRoomSubDouble);
 
-                sampleBasePricePerNight = dailyRoomPrice;
-                BigDecimal dailyTotal = BigDecimal.valueOf(dailyRoomPrice + totalExtraFeePerNight);
-                newRoomSubTotal = newRoomSubTotal.add(dailyTotal);
-
-                currentDate = currentDate.plusDays(1);
-            }
-
-            detail.setCheckinTime(updateReq.getNewCheckInTime());
-            detail.setCheckoutTime(updateReq.getNewCheckoutTime());
-            detail.setBaseRoomPricePerNight(sampleBasePricePerNight);
-            detail.setRoomSubTotal(newRoomSubTotal.doubleValue());
-
-            double currentServiceTotal = detail.getBookingServiceDetails() == null ? 0.0 :
-                    detail.getBookingServiceDetails().stream()
+            double currentServiceSub = targetDetail.getBookingServiceDetails() == null ? 0.0 :
+                    targetDetail.getBookingServiceDetails().stream()
                             .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
-                            .mapToDouble(sd -> sd.getPrice() * sd.getQuantity())
+                            .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
                             .sum();
 
-            detail.setTotalPrice(newRoomSubTotal.add(BigDecimal.valueOf(currentServiceTotal)).doubleValue());
-            roomPriceChange = roomPriceChange.add(newRoomSubTotal);
-            log.info("Successfully updated dates for BookingDetail ID: {}. New room subtotal: {}", detail.getId(), newRoomSubTotal);
+            targetDetail.setTotalPrice(newRoomSubDouble + currentServiceSub);
+
+            totalRoomPriceChange = totalRoomPriceChange.add(BigDecimal.valueOf(priceDiff));
         }
 
-        return roomPriceChange;
+        return totalRoomPriceChange;
     }
 
     // Hàm Nhạc Trưởng
     @Override
-    public BookingModificationRequest modifyBooking(Long bookingId, BookingModificationRequest request) {
+    public BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request) {
         log.info("==> START modifying booking ID: {} by Employee ID: {}", bookingId, request.getEmployeeId());
 
         Booking booking = bookingManagementRepository.findById(bookingId)
@@ -280,23 +270,65 @@ public class BookingServiceManagementService implements BookingManagementService
         // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt
         roomPriceChange = roomPriceChange.add(processRoomDateUpdates(booking, request.getRoomsToUpdateDates()));
 
-        // 5. Xử lý hủy dịch vụ lẻ hàng loạt
-        servicePriceChange = servicePriceChange.add(processServiceCancellations(booking, request.getServicesToCancel()));
+        // 5. Xử lý thêm dịch vụ phát sinh cho phòng cũ
+        servicePriceChange = servicePriceChange.add(processServicesForExistingRooms(booking, request.getServicesToAddForExistingRooms()));
 
-        // 6. Cập nhật lại tổng tiền vào Order chung
-        BigDecimal totalOrderChange = roomPriceChange.add(servicePriceChange);
+        // 6. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng
+        servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
+
+        // ==========================================
+        // 7. TÍNH TOÁN & CẬP NHẬT CHUẨN XÁC TỪNG PHÒNG VÀ ORDER
+        // ==========================================
+        BigDecimal totalRoom = BigDecimal.ZERO;
+        BigDecimal totalService = BigDecimal.ZERO;
+
+        for (BookingDetail detail : booking.getBookingDetails()) {
+            if (detail.getStatus() == BookingStatusType.CANCELLED) {
+                detail.setTotalPrice(0.0);
+                continue;
+            }
+
+            double roomSub = detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0;
+
+            // Tính tổng tiền dịch vụ KHÔNG BỊ HỦY của phòng này
+            double serviceSub = 0.0;
+            if (detail.getBookingServiceDetails() != null) {
+                serviceSub = detail.getBookingServiceDetails().stream()
+                        .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
+                        .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
+                        .sum();
+            }
+
+            // Cập nhật totalPrice cho từng BookingDetail (Tiền phòng + Tiền dịch vụ phòng đó)
+            detail.setTotalPrice(roomSub + serviceSub);
+
+            // Cộng dồn vào tổng chung của Order
+            totalRoom = totalRoom.add(BigDecimal.valueOf(roomSub));
+            totalService = totalService.add(BigDecimal.valueOf(serviceSub));
+        }
+
+        BigDecimal discount = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
+        BigDecimal newTotalAmount = totalRoom.add(totalService).subtract(discount);
         BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-        BigDecimal newTotalAmount = oldTotalAmount.add(totalOrderChange);
+        BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
 
+        // Gán lại các giá trị tổng cho Order
+        order.setRoomTotalAmount(totalRoom);
+        order.setServiceTotalAmount(totalService);
         order.setTotalAmount(newTotalAmount);
 
-        log.info("Booking modification summary for Booking ID: {} -> Room price change: {}, Service price change: {}, Old total: {}, New total: {}",
-                bookingId, roomPriceChange, servicePriceChange, oldTotalAmount, newTotalAmount);
+        log.info("Booking modification summary for Booking ID: {} -> Total Room: {}, Total Service: {}, Old total: {}, New total: {}",
+                bookingId, totalRoom, totalService, oldTotalAmount, newTotalAmount);
 
         bookingManagementRepository.save(booking);
         log.info("<== FINISHED modifying booking ID: {} successfully.", bookingId);
 
-        return request;
+        return BookingModificationResponse.builder()
+                .bookingId(bookingId)
+                .oldTotalAmount(oldTotalAmount)
+                .newTotalAmount(newTotalAmount)
+                .totalChange(totalOrderChange)
+                .build();
     }
 
     // Đổi phòng
@@ -499,5 +531,243 @@ public class BookingServiceManagementService implements BookingManagementService
 
         log.info("Total room price reduced from cancellations: {}", roomPriceReduced);
         return roomPriceReduced;
+    }
+
+    @Override
+    public BigDecimal processServicesForExistingRooms(Booking booking, List<RoomServiceAdditionRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            log.debug("No additional services to add for existing rooms in booking ID: {}", booking.getId());
+            return BigDecimal.ZERO;
+        }
+
+        log.info("Processing additional services for existing rooms. Total items: {} for booking ID: {}", requests.size(), booking.getId());
+        BigDecimal totalServicePriceAdded = BigDecimal.ZERO;
+
+        for (RoomServiceAdditionRequest req : requests) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(d -> d.getId().equals(req.getBookingDetailId()))
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        log.error("BookingDetail not found with ID: {} when adding services", req.getBookingDetailId());
+                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
+                    });
+
+            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                log.warn("Attempted to add services to a cancelled BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM);
+            }
+
+            if (req.getServices() == null || req.getServices().isEmpty()) {
+                continue;
+            }
+
+            // Đảm bảo list service details không bị null
+            if (targetDetail.getBookingServiceDetails() == null) {
+                targetDetail.setBookingServiceDetails(new ArrayList<>());
+            }
+
+            for (NewServiceRequest sReq : req.getServices()) {
+                iuh.fit.se.hotelmanagement_be.modular.service.entities.Service catalogService = serviceRepository.findById(sReq.getServiceId())
+                        .orElseThrow(() -> {
+                            log.error("Service not found with ID: {}", sReq.getServiceId());
+                            return new AppException(ErrorCode.SERVICE_NOT_FOUND);
+                        });
+
+                // 1. Kiểm tra xem dịch vụ này ĐÃ TỒN TẠI TRONG PHÒNG NÀY CHƯA (và chưa bị hủy)
+                BookingServiceDetail existingServiceDetail = targetDetail.getBookingServiceDetails().stream()
+                        .filter(sd -> sd.getService().getId().equals(sReq.getServiceId()) && !Boolean.TRUE.equals(sd.getCancelled()))
+                        .findFirst()
+                        .orElse(null);
+
+                double itemTotal = 0.0;
+                double price = catalogService.getPrice() != null ? catalogService.getPrice() : 0.0;
+
+                if (existingServiceDetail != null) {
+                    // TRƯỜNG HỢP A: Dịch vụ đã tồn tại -> Cộng dồn số lượng lên
+                    int oldQty = existingServiceDetail.getQuantity();
+                    int addedQty = sReq.getQuantity();
+                    int newQty = oldQty + addedQty;
+
+                    existingServiceDetail.setQuantity(newQty);
+                    if (sReq.getUsedAt() != null) {
+                        existingServiceDetail.setUsedAt(sReq.getUsedAt());
+                    }
+
+                    itemTotal = price * addedQty;
+                    log.info("Service ID: {} already exists in BookingDetail ID: {}. Increased quantity from {} to {}",
+                            sReq.getServiceId(), targetDetail.getId(), oldQty, newQty);
+                } else {
+                    // TRƯỜNG HỢP B: Lần đầu thêm dịch vụ này vào phòng -> Tạo mới hoàn toàn
+                    BookingServiceDetail serviceDetail = BookingServiceDetail.builder()
+                            .bookingDetail(targetDetail)
+                            .service(catalogService)
+                            .name(catalogService.getName())
+                            .price(price)
+                            .quantity(sReq.getQuantity())
+                            .usedAt(sReq.getUsedAt()) // Gán thời gian sử dụng từ request lên
+                            .isPaid(false)
+                            .cancelled(false)
+                            .build();
+
+                    targetDetail.getBookingServiceDetails().add(serviceDetail);
+
+                    itemTotal = price * sReq.getQuantity();
+                    log.info("Added new service '{}' (x{}) to BookingDetail ID: {}. Amount added: {}",
+                            catalogService.getName(), sReq.getQuantity(), targetDetail.getId(), itemTotal);
+                }
+
+                totalServicePriceAdded = totalServicePriceAdded.add(BigDecimal.valueOf(itemTotal));
+            }
+
+            // =========================================================================
+            // TÍNH LẠI TOÀN BỘ TIỀN CHO PHÒNG NÀY (TIỀN PHÒNG + TỔNG TẤT CẢ DỊCH VỤ KHÔNG HỦY)
+            // =========================================================================
+            double roomSub = targetDetail.getRoomSubTotal() != null ? targetDetail.getRoomSubTotal() : 0.0;
+
+            double updatedServiceSubTotal = targetDetail.getBookingServiceDetails().stream()
+                    .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
+                    .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
+                    .sum();
+
+            targetDetail.setTotalPrice(roomSub + updatedServiceSubTotal);
+        }
+
+        return totalServicePriceAdded;
+    }
+
+    @Override
+    public BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates) {
+        if (quantityUpdates == null || quantityUpdates.isEmpty()) {
+            log.debug("No service quantity updates requested for booking ID: {}", booking.getId());
+            return BigDecimal.ZERO;
+        }
+
+        log.info("Processing service quantity updates for booking ID: {}", booking.getId());
+        BigDecimal servicePriceChange = BigDecimal.ZERO;
+
+        for (UpdateServiceQuantityRequest updateReq : quantityUpdates) {
+            // 1. Tìm đúng phòng (BookingDetail) theo ID
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(d -> d.getId().equals(updateReq.getBookingDetailId()))
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        log.error("BookingDetail not found with ID: {}", updateReq.getBookingDetailId());
+                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
+                    });
+
+            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                log.warn("Attempted to update service quantity in a cancelled BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM);
+            }
+
+            if (updateReq.getServices() == null || updateReq.getServices().isEmpty()) {
+                continue;
+            }
+
+            if (targetDetail.getBookingServiceDetails() == null) {
+                targetDetail.setBookingServiceDetails(new ArrayList<>());
+            }
+
+            for (ServiceQuantityItem sItem : updateReq.getServices()) {
+                // 2. Tìm dịch vụ trong phòng đó dựa vào serviceId
+                BookingServiceDetail targetService = targetDetail.getBookingServiceDetails().stream()
+                        .filter(sd -> sd.getService().getId().equals(sItem.getServiceId()) && !Boolean.TRUE.equals(sd.getCancelled()))
+                        .findFirst()
+                        .orElse(null);
+
+                int newQuantity = sItem.getQuantity();
+
+                if (targetService == null) {
+                    if (newQuantity > 0) {
+                        log.warn("Service ID: {} not found in BookingDetail ID: {}.", sItem.getServiceId(), targetDetail.getId());
+                    }
+                    continue;
+                }
+
+                int oldQuantity = targetService.getQuantity();
+                double pricePerUnit = targetService.getPrice() != null ? targetService.getPrice() : 0.0;
+
+                if (newQuantity <= 0) {
+                    // TRƯỜNG HỢP 1: Hủy dịch vụ (giảm về 0)
+                    targetService.setCancelled(true);
+                    targetService.setCancelledAt(LocalDateTime.now());
+
+                    double deductedAmount = pricePerUnit * oldQuantity;
+                    servicePriceChange = servicePriceChange.subtract(BigDecimal.valueOf(deductedAmount));
+
+                    log.info("Cancelled service ID: {} in BookingDetail ID: {}. Reduced amount: {}",
+                            sItem.getServiceId(), targetDetail.getId(), deductedAmount);
+
+                } else if (newQuantity != oldQuantity) {
+                    // TRƯỜNG HỢP 2: Thay đổi số lượng
+                    int quantityDiff = newQuantity - oldQuantity;
+                    double priceChangeAmount = pricePerUnit * quantityDiff;
+
+                    targetService.setQuantity(newQuantity);
+                    servicePriceChange = servicePriceChange.add(BigDecimal.valueOf(priceChangeAmount));
+
+                    log.info("Updated service ID: {} in BookingDetail ID: {} from quantity {} to {}. Price change: {}",
+                            sItem.getServiceId(), targetDetail.getId(), oldQuantity, newQuantity, priceChangeAmount);
+                }
+            }
+
+            // =========================================================================
+            // SAU KHI CẬP NHẬT CÁC DỊCH VỤ TRONG PHÒNG, TÍNH LẠI TOÀN BỘ TIỀN CHO PHÒNG NÀY
+            // =========================================================================
+            double roomSub = targetDetail.getRoomSubTotal() != null ? targetDetail.getRoomSubTotal() : 0.0;
+
+            // Tính tổng tiền dịch vụ thực tế còn lại của phòng (chỉ tính các dịch vụ không bị hủy)
+            double updatedServiceSubTotal = targetDetail.getBookingServiceDetails().stream()
+                    .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
+                    .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
+                    .sum();
+
+            // Tổng tiền mới của phòng = Tiền phòng + Tổng tiền dịch vụ mới
+            targetDetail.setTotalPrice(roomSub + updatedServiceSubTotal);
+        }
+
+        return servicePriceChange;
+    }
+
+
+    private RoomPriceCalculationResult calculateRoomTotalAndFees(
+            Long hotelId, Room room, LocalDateTime checkIn, LocalDateTime checkOut, Integer numAdults, Integer numChildren, BranchRoomPolicy policy) {
+
+        // 1. Tính phụ thu qua RoomPricingCalculator đã có sẵn
+        ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(policy, numAdults, numChildren);
+        double totalExtraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
+
+        LocalDate startDate = checkIn.toLocalDate();
+        LocalDate endDate = checkOut.toLocalDate();
+
+        BigDecimal roomSubTotal = BigDecimal.ZERO;
+        double sampleBasePricePerNight = 0.0;
+
+        LocalDate currentDate = startDate;
+        while (currentDate.isBefore(endDate)) {
+            Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+
+            double dailyRoomPrice;
+            double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
+
+            if (seasonalRateOpt.isPresent()) {
+                dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
+            } else {
+                double basePrice = policy != null && policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
+                dailyRoomPrice = basePrice + amenitiesPrice;
+            }
+
+            sampleBasePricePerNight = dailyRoomPrice;
+            BigDecimal dailyTotal = BigDecimal.valueOf(dailyRoomPrice + totalExtraFeePerNight);
+            roomSubTotal = roomSubTotal.add(dailyTotal);
+
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return new RoomPriceCalculationResult(
+                roomSubTotal,
+                sampleBasePricePerNight,
+                extraFeeBreakdown.getTotalExtraFee()
+        );
     }
 }

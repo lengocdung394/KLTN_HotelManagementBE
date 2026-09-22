@@ -11,9 +11,10 @@ import java.util.List;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingModificationRequest {
-    Long employeeId;
+    String employeeId;
     // 1. Phần HỦY PHÒNG & HỦY DỊCH VỤ LẺ
     List<Long> bookingDetailIdsToCancel; // Các phòng muốn hủy
+
     List<ServiceCancellationRequest> servicesToCancel;  // Hủy dịch vụ lẻ (đã gom theo từng phòng)
 
     // 2. Phần THÊM MỚI PHÒNG (Đã bao gồm dịch vụ đi kèm cho phòng đó nếu có)
@@ -26,4 +27,7 @@ public class BookingModificationRequest {
 
     // 5.PHẦN THÊM DỊCH VỤ PHÁT SINH cho phòng đang ở sẵn (Phòng cũ)
     List<RoomServiceAdditionRequest> servicesToAddForExistingRooms;
+
+    //6. THÊM TRƯỜNG NÀY ĐỂ NHẬN YÊU CẦU CẬP NHẬT/GIẢM SỐ LƯỢNG DỊCH VỤ THEO PHÒNG
+    List<UpdateServiceQuantityRequest> serviceQuantityUpdates;
 }

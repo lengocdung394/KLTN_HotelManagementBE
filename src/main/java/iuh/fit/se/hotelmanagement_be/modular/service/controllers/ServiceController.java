@@ -44,7 +44,7 @@ public class ServiceController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Xem chi tiết một dịch vụ")
-    public ResponseEntity<ApiResponse<ServiceResponse>> getServiceById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ServiceResponse>> getServiceById(@PathVariable String id) {
         ServiceResponse result = hotelServiceService.getServiceById(id);
         return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
                 .code(200)
@@ -71,7 +71,7 @@ public class ServiceController {
     @Operation(summary = "Cập nhật dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<ServiceResponse>> updateService(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateServiceRequest request) {
 
         ServiceResponse result = hotelServiceService.updateService(id, request);
@@ -85,7 +85,7 @@ public class ServiceController {
     @DeleteMapping("/{id}")
     @Operation(summary = "Ẩn / Xóa dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
-    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deleteService(@PathVariable String id) {
         hotelServiceService.deleteService(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .code(200)
@@ -96,7 +96,7 @@ public class ServiceController {
     @PatchMapping("/{id}/toggle-status")
     @Operation(summary = "Bật / Tắt trạng thái kinh doanh của dịch vụ")
     @SecurityRequirement(name = "bearerAuth")
-    public ResponseEntity<ApiResponse<ServiceResponse>> toggleStatus(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<ServiceResponse>> toggleStatus(@PathVariable String id) {
         ServiceResponse result = hotelServiceService.toggleServiceStatus(id);
         return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
                 .code(200)

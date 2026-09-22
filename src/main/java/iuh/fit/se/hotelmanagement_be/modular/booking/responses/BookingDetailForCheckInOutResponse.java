@@ -15,9 +15,9 @@ public class BookingDetailForCheckInOutResponse {
 
     String cccd;
     String nameCustomer;
-    Long bookingId;
+    String bookingId;
     Long bookingDetailId;
-    Long roomId;
+    String roomId;
     String roomName;
     String roomTypeName;
     LocalDateTime checkInTime;

@@ -16,7 +16,7 @@ public interface BookingService {
     BookingResponse createCustomerBooking(BookingCreateRequest request);
 
     // Nhân viên tạo booking tại quầy
-    BookingResponse createCounterBooking(Long employeeId, BookingCreateRequest request);
+    BookingResponse createCounterBooking(String employeeId, BookingCreateRequest request);
 
     // Hàm chuyển đổi dữ liệu
     BookingResponse toBookingResponse(Booking booking);
@@ -24,7 +24,7 @@ public interface BookingService {
     // Tiến hành tạo chi tiết của booking
     List<BookingDetail> processBookingDetails(Booking booking, List<BookingDetailCreateRequest> detailRequests);
 
-    CheckoutSummaryResponse getCheckoutSummary(Long bookingId);
+    CheckoutSummaryResponse getCheckoutSummary(String bookingId);
 
     // Hàm chuyen đổi và Lay danh sach booking cua khách sạn
     BookingResponseForHotel toBookingForHotelResponse(Booking booking);

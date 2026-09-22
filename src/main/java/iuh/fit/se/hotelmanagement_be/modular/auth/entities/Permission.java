@@ -20,9 +20,6 @@ public class Permission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "permission_id")
     Long id;
-
     String name;
-
-
 
 }

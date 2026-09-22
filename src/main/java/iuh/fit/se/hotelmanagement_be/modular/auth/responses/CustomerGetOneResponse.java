@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CustomerGetOneResponse {
-    Long id;
+    String id;
     String fullName;
     String phone;
     String email;

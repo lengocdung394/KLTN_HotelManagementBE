@@ -25,9 +25,8 @@ import java.util.List;
 @Table(name = "orders")
 public class Order {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_id")
-    Long id;
+    String id;
 
     LocalDateTime issueDate;
 
@@ -88,12 +87,6 @@ public class Order {
         return subTotal.subtract(discTotal).max(BigDecimal.ZERO);
     }
 
-    // 💡 QUAN TRỌNG NHẤT: Tự động tính và gán giá trị vào cột totalAmount trước khi lưu/cập nhật vào DB
-    @PrePersist
-    @PreUpdate
-    protected void updateInternalAmounts() {
-        this.totalAmount = calculateActualTotal();
-    }
 
     public BigDecimal getRemainingAmount() {
         BigDecimal total = getTotalAmount(); // Hàm này giờ sẽ lấy từ field totalAmount ra rất nhanh
@@ -128,5 +121,21 @@ public class Order {
         this.setPaidAmount(currentPaid.add(amountPaid));
 
         this.operation(); // Kích hoạt logic đóng phòng/đóng đơn của bạn
+    }
+
+    // --- TỰ ĐỘNG SINH MÃ ORDER TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.issueDate == null) {
+            this.issueDate = LocalDateTime.now();
+        }
+        if (this.orderStatus == null) {
+            this.orderStatus = OrderStatusType.OPEN;
+        }
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            this.id = "ORD" + dateStr + randomNum; // Ví dụ: ORD202609228492
+        }
     }
 }

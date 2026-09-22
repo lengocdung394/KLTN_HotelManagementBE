@@ -13,7 +13,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingDetailResponseForHotel {
     Long bookingDetailId;
-    Long roomId;
+    String roomId;
     String roomName;
     String roomTypeName;
     LocalDateTime checkInTime;

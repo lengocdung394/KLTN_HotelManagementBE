@@ -16,13 +16,13 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PromotionRepository extends JpaRepository<Promotion, Long> {
+public interface PromotionRepository extends JpaRepository<Promotion, String> {
 
-    Optional<Promotion> findByIdAndDeletedFalse(Long id);
+    Optional<Promotion> findByIdAndDeletedFalse(String id);
 
     boolean existsByCodeAndDeletedFalse(String code);
 
-    boolean existsByCodeAndIdNotAndDeletedFalse(String code, Long id);
+    boolean existsByCodeAndIdNotAndDeletedFalse(String code, String id);
     Optional<Promotion> findByCodeAndDeletedFalse(String code);
     @Query(value = """
         SELECT p.* FROM promotions p

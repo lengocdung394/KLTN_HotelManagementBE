@@ -15,7 +15,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingDetailCreateRequest {
     @NotNull(message = "Mã phòng không được để trống")
-    Long roomId;
+    String roomId;
 
     @NotNull(message = "Thời gian nhận phòng không được để trống")
     LocalDateTime checkInTime;

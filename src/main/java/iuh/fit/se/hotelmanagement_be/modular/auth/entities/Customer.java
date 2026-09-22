@@ -8,6 +8,8 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = false)
@@ -24,9 +26,8 @@ import java.util.List;
 })
 public class Customer {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "customer_id")
-    Long id;
+    String id;
     String fullName;
     String phone;
     String email;
@@ -58,4 +59,14 @@ public class Customer {
     @ToString.Exclude
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
     List<CustomerPromotion> customerPromotions;
+
+    // --- TỰ ĐỘNG SINH MÃ KHÁCH HÀNG TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000; // Số ngẫu nhiên 4 chữ số
+            this.id = "CUS" + dateStr + randomNum; // Ví dụ: CUS202609228492
+        }
+    }
 }

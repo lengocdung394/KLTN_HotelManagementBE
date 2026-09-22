@@ -43,7 +43,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -91,7 +90,7 @@ public class BookingServiceImpl implements BookingService {
      */
     @Transactional
     @Override
-    public BookingResponse createCounterBooking(Long employeeId, BookingCreateRequest request) {
+    public BookingResponse createCounterBooking(String employeeId, BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
@@ -110,7 +109,7 @@ public class BookingServiceImpl implements BookingService {
     /**
      * HELPER METHOD: Gom toàn bộ logic tính tiền phòng, dịch vụ, và áp dụng voucher
      */
-    private Order calculateAndBuildOrder(Long customerId, BookingCreateRequest request, List<BookingDetail> details, Booking booking) {
+    private Order calculateAndBuildOrder(String customerId, BookingCreateRequest request, List<BookingDetail> details, Booking booking) {
         BigDecimal roomTotal = calculateTotalRoomPrice(details);
         BigDecimal serviceTotal = calculateTotalServicePrice(details);
         BigDecimal currentSubTotal = roomTotal.add(serviceTotal);
@@ -132,11 +131,11 @@ public class BookingServiceImpl implements BookingService {
         return createAndLinkOrder(roomTotal, serviceTotal, discountTotal);
     }
 
-    private Customer validateAndGetCustomer(Long customerId) {
+    private Customer validateAndGetCustomer(String customerId) {
         return customerRepository.findById(customerId).orElseThrow(() -> new AppException(ErrorCode.CUSTOMER_NOT_FOUND));
     }
 
-    private Employee validateAndGetEmployee(Long employeeId) {
+    private Employee validateAndGetEmployee(String employeeId) {
         return employeeRepository.findById(employeeId).orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
     }
 
@@ -269,7 +268,7 @@ public class BookingServiceImpl implements BookingService {
 
     // Ham nay sử dụng khi checkout tính tiền phần dịch vụ chưa được tính tiền
     @Override
-    public CheckoutSummaryResponse getCheckoutSummary(Long bookingId) {
+    public CheckoutSummaryResponse getCheckoutSummary(String bookingId) {
         Booking booking = bookingRepository.findById(bookingId).get();
         Order order = booking.getOrder();
 
@@ -311,7 +310,7 @@ public class BookingServiceImpl implements BookingService {
         return bookingDetails.stream().filter(detail -> detail.getBookingServiceDetails() != null).flatMap(detail -> detail.getBookingServiceDetails().stream()).map(serviceDetail -> BigDecimal.valueOf(serviceDetail.getPrice()).multiply(BigDecimal.valueOf(serviceDetail.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private BigDecimal applyPromotion(Long customerId, String promoCode, BigDecimal currentTotalAmount, BigDecimal roomTotal, BigDecimal serviceTotal, Booking booking) {
+    private BigDecimal applyPromotion(String customerId, String promoCode, BigDecimal currentTotalAmount, BigDecimal roomTotal, BigDecimal serviceTotal, Booking booking) {
 
         if (promoCode == null || promoCode.isEmpty()) {
             return BigDecimal.ZERO;
@@ -398,36 +397,6 @@ public class BookingServiceImpl implements BookingService {
     /**
      * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - Tính tiền nốt lúc Checkout)
      */
-    @Transactional
-    @Override
-    public BookingResponse addServicesToRoom(Long bookingId, Long bookingDetailId, List<BookingServiceRequest> serviceRequests) {
-        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
-
-        BookingDetail targetDetail = booking.getBookingDetails().stream().filter(d -> d.getId().equals(bookingDetailId)).findFirst().orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
-
-        List<BookingServiceDetail> newServices = processAndAttachServices(targetDetail, serviceRequests);
-
-        if (targetDetail.getBookingServiceDetails() == null) {
-            targetDetail.setBookingServiceDetails(new ArrayList<>());
-        }
-        targetDetail.getBookingServiceDetails().addAll(newServices);
-
-        BigDecimal addedServiceTotal = newServices.stream().map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Order order = booking.getOrder();
-        order.setServiceTotalAmount(order.getServiceTotalAmount().add(addedServiceTotal));
-
-        // Cập nhật trạng thái thông minh dựa trên số dư còn thiếu thực tế
-        if (order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0) {
-            order.setOrderStatus(OrderStatusType.PAID);
-        } else {
-            order.setOrderStatus(OrderStatusType.OPEN);
-        }
-
-        Booking saved = bookingRepository.save(booking);
-        return toBookingResponse(saved);
-    }
-
 
 
     @Override
@@ -443,7 +412,7 @@ public class BookingServiceImpl implements BookingService {
                     // Map thẳng các khoản chi tiết vào Response
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
                     // map danh sach dich vu
-                    .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).name(serviceDetail.getName()).quantity(serviceDetail.getQuantity()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
+                    .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).name(serviceDetail.getName()).quantity(serviceDetail.getQuantity()).cancelled(serviceDetail.getCancelled()).cancelledAt(serviceDetail.getCancelledAt()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
         }
         Order order = booking.getOrder();
         return BookingResponseForHotel.builder().orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();

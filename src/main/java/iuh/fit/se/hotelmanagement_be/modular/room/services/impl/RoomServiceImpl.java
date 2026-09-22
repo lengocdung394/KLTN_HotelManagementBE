@@ -224,6 +224,8 @@ public class RoomServiceImpl implements RoomService {
             return RoomResponse.builder()
                     .id(room.getId())
                     .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
+                    // lay ra so phong
+                    .roomNumber(room.getRoomNumber())
                     .floorNumber(room.getFloor().getFloorNumber())
                     .nameBuilding(room.getFloor().getBuilding().getName())
                     .roomStatus(room.getRoomStatus())

@@ -7,7 +7,6 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
@@ -100,9 +99,9 @@ public class HotelRoomPolicyController {
     @PostMapping("/{bookingId}/bulk-check-in")
     @Operation(summary = "Thực hiện thủ tục nhận phòng đồng loạt (Bulk Check-in) cho danh sách phòng được chọn và tính phụ thu sớm")
     public ResponseEntity<BookingResponse> processBulkCheckIn(
-            @PathVariable Long bookingId,
+            @PathVariable String bookingId,
             @RequestBody List<Long> bookingDetailIds,
-            @RequestParam Long employeeId) {
+            @RequestParam String employeeId) {
         BookingResponse response = checkInOutService.processBulkCheckIn(bookingId, bookingDetailIds, employeeId);
         return ResponseEntity.ok(response);
     }
@@ -113,9 +112,9 @@ public class HotelRoomPolicyController {
     @PostMapping("/{bookingId}/bulk-check-out")
     @Operation(summary = "Thực hiện thủ tục trả phòng đồng loạt (Bulk Check-out), tính phụ thu lố giờ, chốt tiền dịch vụ và đóng Order CLOSED")
     public ResponseEntity<BookingResponse> processBulkCheckOut(
-            @PathVariable Long bookingId,
+            @PathVariable String bookingId,
             @RequestBody List<Long> bookingDetailIds,
-            @RequestParam Long employeeId) {
+            @RequestParam String employeeId) {
         BookingResponse response = checkInOutService.processBulkCheckOut(bookingId, bookingDetailIds, employeeId);
         return ResponseEntity.ok(response);
     }

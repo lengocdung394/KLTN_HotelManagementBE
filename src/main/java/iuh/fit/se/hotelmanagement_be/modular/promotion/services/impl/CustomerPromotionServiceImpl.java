@@ -35,7 +35,7 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
      CustomerPromotionRepository customerPromotionRepository;
      // Đảm bảo class của bạn đã có annotation này để sử dụng biến `log`
     @Override
-    public List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(Long customerId) {
+    public List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(String customerId) {
         log.info("==> [API] Đang lấy danh sách mã khuyến mãi cho khách hàng có ID: {}...", customerId);
 
         List<CustomerPromotion> customerPromotions = customerPromotionRepository.findByCustomerId(customerId);

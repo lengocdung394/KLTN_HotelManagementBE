@@ -14,9 +14,9 @@ import java.util.List;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingResponseForHotel {
-    Long orderId;
-    Long bookingId;
-    Long customerId;
+    String orderId;
+    String bookingId;
+    String customerId;
     String customerName;
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;

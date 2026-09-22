@@ -1,19 +1,19 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.controllers;
 
-import io.swagger.v3.oas.annotations.Operation;
+
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
-import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
+import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
+@Slf4j
 @RestController
 @RequestMapping("/management-bookings")
 @RequiredArgsConstructor
@@ -21,67 +21,30 @@ import java.util.List;
 @Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
 public class BookingManagementController {
     BookingManagementService bookingManagementService;
-//
-//    /**
-//     * Endpoint 5: Hủy bớt 1 phòng hoặc nhiều phòng cùng lúc trong Booking lớn
-//     */
-//    @PostMapping("/{bookingId}/cancel-rooms")
-//    @Operation(summary = "Hủy một hoặc nhiều phòng cụ thể trong đơn đặt phòng lớn")
-//    public ResponseEntity<BookingResponse> cancelRooms(
-//            @PathVariable Long bookingId,
-//            @RequestBody List<Long> bookingDetailIds,
-//            @RequestParam Long employeeId) {
-//        BookingResponse response = bookingManagementService.cancelRooms(bookingId, bookingDetailIds, employeeId);
-//        return ResponseEntity.ok(response);
-//    }
-//
-//    /**
-//     * Endpoint 6: Hủy toàn bộ đơn đặt phòng (Hủy sạch sẽ cả cái Booking)
-//     */
-//    @PostMapping("/{bookingId}/cancel-all")
-//    @Operation(summary = "Hủy bỏ toàn bộ đơn đặt phòng lớn (Hủy sạch các phòng)")
-//    public ResponseEntity<BookingResponse> cancelEntireBooking(
-//            @PathVariable Long bookingId,
-//            @RequestParam Long employeeId) {
-//        BookingResponse response = bookingManagementService.cancelEntireBooking(bookingId, employeeId);
-//        return ResponseEntity.ok(response);
-//    }
-//
-//    /**
-//     * Endpoint 7: Khách yêu cầu đặt thêm phòng phát sinh gối đầu (Lúc Check-in tại quầy)
-//     */
-//    @PostMapping("/{bookingId}/add-rooms")
-//    @Operation(summary = "Đặt thêm một hoặc nhiều phòng phát sinh gối đầu vào Booking hiện tại")
-//    public ResponseEntity<BookingResponse> addRoomToExistingBooking(
-//            @PathVariable Long bookingId,
-//            @RequestBody List<BookingDetailCreateRequest> additionalRoomRequests) {
-//        BookingResponse response = bookingManagementService.addRoomToExistingBooking(bookingId, additionalRoomRequests);
-//        return ResponseEntity.ok(response);
-//    }
-//
-//    /**
-//     * Endpoint 8: Chỉnh sửa số lượng hoặc hủy bớt dịch vụ đi kèm của 1 phòng (Dùng linh hoạt lúc ở phòng hoặc Checkout)
-//     */
-//    @PutMapping("/{bookingId}/details/{bookingDetailId}/services")
-//    @Operation(summary = "Chỉnh sửa số lượng hoặc hủy bớt dịch vụ của một phòng cụ thể (Hỗ trợ Check-in/Check-out)")
-//    public ResponseEntity<BookingResponse> updateOrCancelServices(
-//            @PathVariable Long bookingId,
-//            @PathVariable Long bookingDetailId,
-//            @RequestBody List<BookingServiceRequest> updatedServiceRequests,
-//            @RequestParam Long employeeId) {
-//        BookingResponse response = bookingManagementService.updateOrCancelServices(bookingId, bookingDetailId, updatedServiceRequests, employeeId);
-//        return ResponseEntity.ok(response);
-//    }
-//
-//
-//    /**
-//     * Endpoint 3: Đang ở phòng, gọi thêm dịch vụ phát sinh (Tính vào tiền checkout)
-//     */
-//    @PostMapping("/{bookingId}/services")
-//    @Operation(summary = "Gọi thêm dịch vụ phát sinh trong quá trình lưu trú (Room Charge)")
-//    public ResponseEntity<BookingResponse> addServicesToBooking(
-//            @PathVariable Long bookingId,
-//            @RequestBody List<BookingServiceRequest> serviceRequests) {
-//        return ResponseEntity.ok(bookingManagementService.addServiceToExistingBooking(bookingId, serviceRequests));
-//    }
+
+    /**
+     * API chỉnh sửa đơn đặt phòng (Hỗ trợ đồng thời: Hủy phòng, thêm phòng, đổi phòng, đổi ngày, hủy dịch vụ).
+     *
+     * @param bookingId ID của đơn đặt phòng cần thay đổi.
+     * @param request   DTO chứa danh sách các thay đổi.
+     * @return Thông báo thành công kèm theo request gốc hoặc kết quả trả về.
+     */
+    @PutMapping("/{bookingId}/modify")
+    public ResponseEntity<ApiResponse<BookingModificationResponse>> modifyBooking(
+            @PathVariable String bookingId,
+            @RequestBody BookingModificationRequest request
+    ) {
+        log.info("Received request to modify booking ID: {}", bookingId);
+
+        BookingModificationResponse result = bookingManagementService.modifyBooking(bookingId, request);
+
+        return ResponseEntity.ok(
+                ApiResponse.<BookingModificationResponse>builder()
+                        .code(200)
+                        .message("Booking modified successfully")
+                        .result(result)
+                        .build()
+        );
+    }
+
 }

@@ -137,7 +137,7 @@ public class AuthServiceImpl implements AuthService {
 
         String fullName = "";
         String position = "";
-        Long id = null;
+        String id = null;
 
         if (account.getEmployee() != null) {
             fullName = account.getEmployee().getFullName();

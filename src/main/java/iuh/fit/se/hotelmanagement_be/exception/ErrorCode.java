@@ -78,6 +78,7 @@ public enum ErrorCode {
     SERVICE_NOT_FOUND(5005, "[5005] Service not found", HttpStatus.NOT_FOUND),
     EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type",HttpStatus.BAD_REQUEST ),
     // bookingdetail
+    CANNOT_UPDATE_CANCELLED_ROOM(400, "Không thể cập nhật thông tin của phòng đã bị hủy.", HttpStatus.BAD_REQUEST),
     BOOKING_DETAILS_REQUIRED(5004, "[5004] Booking details cannot be empty", HttpStatus.BAD_REQUEST),
     // Ví dụ các lỗi hỗ trợ khác đã nhắc tới trước đó:
     INVALID_BOOKING_DATE(1052, "Thời gian nhận phòng phải trước thời gian trả phòng", HttpStatus.BAD_REQUEST),
@@ -89,7 +90,7 @@ public enum ErrorCode {
 
     CANNOT_CHANGE_CANCELLED_ROOM(1004, "Cannot change a room that has already been cancelled", HttpStatus.BAD_REQUEST),
     CANNOT_UPDATE_DATE_FOR_CANCELLED_ROOM(1005, "Cannot update dates for a room that has already been cancelled", HttpStatus.BAD_REQUEST),
-    //
+    CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM(400, "Cannot add service to a cancelled room detail", HttpStatus.BAD_REQUEST),
     ORDER_NOT_FOUND(1001, "Hotel order profile could not be found!", HttpStatus.BAD_REQUEST),
     ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),
     ORDER_ALREADY_PAID(1003, "This room order has already been completely paid for!", HttpStatus.BAD_REQUEST),

@@ -18,18 +18,18 @@ import java.util.List;
 public class BookingCreateRequest {
     // Thông tin khách hàng
     @NotNull(message = "Mã khách hàng không được để trống")
-    Long customerId;
+    String customerId;
 
     // Thông tin nhân viên (Nếu như là đặt tài quầy)
 //    @NotNull(message = "Mã nhân viên không được để trống")
-    Long employeeId;
+    String  employeeId;
 
     BookingChannel bookingChannel; // WALK_IN hoặc ONLINE
 
     // Giá phòng thời điểm đó
     Long customerPromotionId; // Voucher của khách (nếu có)
 
-    Long promotionId;         // Mã giảm giá chung (nếu có)
+    String promotionId;         // Mã giảm giá chung (nếu có)
 
     @NotEmpty(message = "Danh sách chi tiết phòng đặt không được để trống")
     @Valid

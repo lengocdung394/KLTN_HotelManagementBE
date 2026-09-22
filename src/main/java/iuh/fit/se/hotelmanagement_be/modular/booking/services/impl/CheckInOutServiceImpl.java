@@ -148,7 +148,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
      */
     @Transactional
     @Override
-    public BookingResponse processBulkCheckIn(Long bookingId, List<Long> bookingDetailIds, Long employeeId) {
+    public BookingResponse processBulkCheckIn(String bookingId, List<Long> bookingDetailIds, String employeeId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
@@ -210,7 +210,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
      */
     @Transactional
     @Override
-    public BookingResponse processBulkCheckOut(Long bookingId, List<Long> bookingDetailIds, Long employeeId) {
+    public BookingResponse processBulkCheckOut(String bookingId, List<Long> bookingDetailIds, String employeeId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 

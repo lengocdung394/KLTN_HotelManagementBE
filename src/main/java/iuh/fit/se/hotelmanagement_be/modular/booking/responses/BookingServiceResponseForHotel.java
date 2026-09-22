@@ -12,9 +12,11 @@ import java.time.LocalDateTime;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingServiceResponseForHotel {
 
-    Long serviceId;
+    String serviceId;
     String name;
     Integer quantity;
     Double price;
     LocalDateTime usedAt;
+    Boolean cancelled;
+    LocalDateTime cancelledAt;
 }

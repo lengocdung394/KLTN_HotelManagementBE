@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,7 +27,7 @@ public interface BookingManagementService {
      * @param request   Đối tượng chứa toàn bộ thông tin thay đổi do người dùng gửi lên.
      * @return Yêu cầu chỉnh sửa ban đầu (hoặc DTO kết quả tương ứng).
      */
-    BookingModificationRequest modifyBooking(Long bookingId, BookingModificationRequest request);
+    BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request);
 
     /**
      * Thực hiện đổi phòng hàng loạt cho các phòng đang có trong đơn đặt phòng (ví dụ: chuyển từ phòng Standard sang Deluxe).
@@ -66,4 +67,6 @@ public interface BookingManagementService {
      * @return Tổng số tiền phòng được giảm trừ sau khi hủy.
      */
     BigDecimal processCancellations(Booking booking, List<Long> detailIdsToCancel, String operatorName);
+    BigDecimal processServicesForExistingRooms(Booking booking, List<RoomServiceAdditionRequest> requests);
+    BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates);
 }

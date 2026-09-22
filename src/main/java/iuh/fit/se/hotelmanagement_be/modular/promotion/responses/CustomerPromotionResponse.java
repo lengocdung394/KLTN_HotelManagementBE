@@ -35,7 +35,7 @@ public class CustomerPromotionResponse {
     // --- Thông tin chi tiết lấy từ Promotion gốc ---
 
     @Schema(description = "ID khuyến mãi gốc", example = "1")
-    Long promotionId;
+    String promotionId;
 
     @Schema(description = "Tên chương trình khuyến mãi", example = "Ưu đãi Mùa Thu 2026")
     String name;

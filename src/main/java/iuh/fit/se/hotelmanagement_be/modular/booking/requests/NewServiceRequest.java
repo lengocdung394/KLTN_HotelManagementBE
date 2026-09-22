@@ -6,9 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-
 import java.time.LocalDateTime;
-import java.util.List;
+
 
 @Data
 @NoArgsConstructor
@@ -19,7 +18,7 @@ public class NewServiceRequest {
 
     @NotNull(message = "ID dịch vụ không được để trống")
     @Schema(description = "ID Dịch vụ được chọn", example = "1")
-    Long serviceId;
+    String serviceId;
 
     @NotNull(message = "Số lượng dịch vụ không được để trống")
     @Positive(message = "Số lượng dịch vụ phải lớn hơn 0")

@@ -70,6 +70,7 @@ public class BookingServiceImpl implements BookingService {
     HotelRepository hotelRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
+    BookingSocketEmitter bookingSocketEmitter;
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -80,16 +81,42 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
 
+        // 1. Xử lý danh sách chi tiết đặt phòng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
-        booking.setBookingDetails(details);
-        // tim khach san
-        Hotel hotel = hotelRepository.findById(request.getHotelId()).get();
+
+        // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác, tránh lỗi flush
+        booking.getBookingDetails().clear();
+        if (details != null) {
+            for (BookingDetail detail : details) {
+                detail.setBooking(booking); // Thiết lập quan hệ 2 chiều bắt buộc cho JPA
+                booking.getBookingDetails().add(detail);
+            }
+        }
+
+        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
+        Hotel hotel = hotelRepository.findById(request.getHotelId())
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
-        Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
+        // 3. Tính toán và tạo Order
+        Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
+        // 4. Lưu vào Database
         Booking savedBooking = bookingRepository.save(booking);
+
+        // === 5. BẮN SOCKET THÔNG BÁO REALTIME ===
+        Long hotelId = hotel.getId();
+        String customerId = customer.getId();
+
+        // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
+        bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+        bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
+
+        // Báo về cho khách hàng trạng thái đơn hàng
+        bookingSocketEmitter.emitCustomerBookingStatus(customerId, savedBooking);
+        // ==========================================
+
         return toBookingResponse(savedBooking);
     }
 
@@ -103,19 +130,42 @@ public class BookingServiceImpl implements BookingService {
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
 
+        // 1. Xử lý danh sách chi tiết đặt phòng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
-        booking.setBookingDetails(details);
-        // tim khach san
-        Hotel hotel = hotelRepository.findById(hotelId).orElse(null);
+
+        // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác
+        booking.getBookingDetails().clear();
+        if (details != null) {
+            for (BookingDetail detail : details) {
+                detail.setBooking(booking); // Thiết lập quan hệ 2 chiều bắt buộc cho JPA
+                booking.getBookingDetails().add(detail);
+            }
+        }
+
+        // 2. Tìm khách sạn
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
-        Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
+
+        // 3. Tính toán và tạo Order
+        Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
+        // 4. Lưu vào Database
         Booking savedBooking = bookingRepository.save(booking);
-        log("Nhan vien Tao booking " + order);
+
+        // Sửa lại cú pháp log chuẩn SLF4J
+        log.info("Nhan vien Tao booking: {}", order);
+
+        // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
+        if (hotelId != null) {
+            bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+            bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
+        }
+        // ====================================================
+
         return toBookingResponse(savedBooking);
     }
-
     /**
      * HELPER METHOD: Gom toàn bộ logic tính tiền phòng, dịch vụ, và áp dụng voucher
      */
@@ -436,40 +486,43 @@ public class BookingServiceImpl implements BookingService {
         // Chuyển đổi sang danh sách BookingResponse
         return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
     }
-
     @Transactional
     @Override
     public List<RoomMatrixResponse> getRoomMatrix(Long hotelId, LocalDate startDate, LocalDate endDate) {
-        // 1. Lấy toàn bộ danh sách phòng thuộc khách sạn này
         List<Room> allRooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
-        LocalDateTime startDateTime = startDate.atStartOfDay(); // 2026-10-01 00:00:00
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
-        // 2. Xác định mốc 5 phút trước cho quy tắc đơn PENDING
         LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
 
-        // 3. Lấy tất cả các BookingDetail đang bận trong khoảng thời gian yêu cầu bằng Repository đã tối ưu
         List<BookingDetail> activeDetails = bookingDetailRepository.findActiveBookingsByDateRange(
                 hotelId, startDateTime, endDateTime, fiveMinutesAgo
         );
 
-        // 4. Gom nhóm các BookingDetail theo roomId để tiện tra cứu cho từng phòng
         Map<String, List<BookingDetail>> roomSchedulesMap = activeDetails.stream()
                 .collect(Collectors.groupingBy(detail -> detail.getRoom().getId()));
 
-        // 5. Duyệt qua từng phòng và gán lịch bận tương ứng
         return allRooms.stream().map(room -> {
-            // Lấy danh sách lịch bận của phòng hiện tại (nếu không có trả về list rỗng)
             List<BookingDetail> detailsForRoom = roomSchedulesMap.getOrDefault(room.getId(), Collections.emptyList());
 
-            // Map sang DTO lịch bận kèm theo vòng lặp bóc tách từng ngày cụ thể
             List<RoomScheduleDto> schedules = detailsForRoom.stream()
+                    .filter(detail -> {
+                        Booking booking = detail.getBooking();
+                        if (booking == null) return true;
+
+                        if (booking.getBookingStatus() == BookingStatus.PENDING
+                                && booking.getCreatedAt() != null
+                                && booking.getCreatedAt().isBefore(fiveMinutesAgo)) {
+                            return false;
+                        }
+
+                        return true;
+                    })
                     .map(detail -> {
-                        // Bóc tách khoảng thời gian thành danh sách từng ngày cụ thể (occupiedDates)
                         List<LocalDate> dates = new ArrayList<>();
                         if (detail.getCheckinTime() != null && detail.getCheckoutTime() != null) {
                             LocalDate current = detail.getCheckinTime().toLocalDate();
                             LocalDate end = detail.getCheckoutTime().toLocalDate();
-
                             while (!current.isAfter(end)) {
                                 dates.add(current);
                                 current = current.plusDays(1);
@@ -477,18 +530,18 @@ public class BookingServiceImpl implements BookingService {
                         }
 
                         return RoomScheduleDto.builder()
-                                .bookingId(detail.getBooking().getId())
-                                .customerName(detail.getBooking().getCustomer() != null ?
-                                        detail.getBooking().getCustomer().getFullName() : "Khách tại quầy")
+                                .bookingId(detail.getBooking() != null ? detail.getBooking().getId() : null)
+                                .customerName(detail.getBooking() != null && detail.getBooking().getCustomer() != null
+                                        ? detail.getBooking().getCustomer().getFullName()
+                                        : "Khách tại quầy")
                                 .checkinTime(detail.getCheckinTime())
                                 .checkoutTime(detail.getCheckoutTime())
-                                .bookingStatus(detail.getBooking().getBookingStatus())
-                                .occupiedDates(dates) // Gói danh sách ngày vào đây
+                                .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
+                                .occupiedDates(dates)
                                 .build();
                     })
                     .collect(Collectors.toList());
 
-            // Trả về thông tin phòng kèm danh sách lịch bận của nó
             return RoomMatrixResponse.builder()
                     .roomId(room.getId())
                     .roomNumber(room.getRoomNumber())
@@ -497,5 +550,4 @@ public class BookingServiceImpl implements BookingService {
                     .build();
         }).collect(Collectors.toList());
     }
-
 }

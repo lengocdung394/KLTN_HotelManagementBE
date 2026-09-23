@@ -54,7 +54,7 @@ dependencies {
     // Thay thế bản 1.0.2 bằng phiên bản mới hơn
     implementation 'vn.payos:payos-java:2.0.1'
    // Thư viện Netty-SocketIO Server cho Java
-    implementation 'com.corundumstudio.socketio:netty-socketio:1.7.18'
+    implementation 'com.corundumstudio.socketio:netty-socketio:2.0.9'
 
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 }

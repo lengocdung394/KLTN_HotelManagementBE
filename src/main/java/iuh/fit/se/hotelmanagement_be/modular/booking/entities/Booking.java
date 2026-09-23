@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
@@ -62,7 +63,10 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     Promotion promotion;
-
+    // Thêm liên kết tới Chi nhánh/Khách sạn
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hotel_id", nullable = false)
+    Hotel hotel; // Hoặc Branch branch; tùy theo tên entity của bạn
 
     //
     @OneToOne(cascade = CascadeType.ALL)

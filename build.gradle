@@ -53,7 +53,10 @@ dependencies {
     implementation("com.cloudinary:cloudinary-http44:1.36.0")
     // Thay thế bản 1.0.2 bằng phiên bản mới hơn
     implementation 'vn.payos:payos-java:2.0.1'
+   // Thư viện Netty-SocketIO Server cho Java
+    implementation 'com.corundumstudio.socketio:netty-socketio:1.7.18'
 
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 }
 
 tasks.named('test') {

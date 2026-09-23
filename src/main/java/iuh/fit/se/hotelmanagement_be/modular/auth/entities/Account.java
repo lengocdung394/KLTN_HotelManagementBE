@@ -100,4 +100,12 @@ public class Account implements UserDetails {
             this.id = "ACC" + dateStr + randomNum; // Ví dụ: ACC202609228492
         }
     }
+
+    // Helper method lấy Employee ID (nếu là nhân viên)
+    public String getEmployeeId() {
+        if (this.employee != null) {
+            return this.employee.getId();
+        }
+        return null;
+    }
 }

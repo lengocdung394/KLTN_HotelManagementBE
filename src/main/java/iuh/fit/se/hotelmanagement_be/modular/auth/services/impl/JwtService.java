@@ -37,7 +37,7 @@ public class JwtService {
             extraClaims.put("fullName", emp.getFullName());
             extraClaims.put("phone", emp.getPhone());
             extraClaims.put("position", emp.getPosition());
-            extraClaims.put("id", emp.getId());
+            extraClaims.put("id", emp.getId()); // cai này là mã nhân viên
 
             // Lấy thông tin Hotel trực thuộc
             if (emp.getHotel() != null) {

@@ -59,7 +59,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         log.info("Processing room additions. Total rooms to add: {} for booking ID: {}", roomsToAdd.size(), booking.getId());
         BigDecimal totalRoomAndServiceAdded = BigDecimal.ZERO;
-        Long hotelId = booking.getOrder().getBooking().getEmployee().getHotel().getId();
+        // Lay tu booking
+        Long hotelId = booking.getHotel().getId();
 
         for (NewRoomRequest roomReq : roomsToAdd) {
             log.info("Adding room ID: {} from {} to {}, Adults: {}, Children: {}",
@@ -167,7 +168,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         }
 
         BigDecimal totalRoomPriceChange = BigDecimal.ZERO;
-        Long hotelId = booking.getEmployee().getHotel().getId();
+        // Lay tu booking
+        Long hotelId = booking.getHotel().getId();
 
         for (RoomDateUpdateRequest req : updates) {
             BookingDetail targetDetail = booking.getBookingDetails().stream()
@@ -341,7 +343,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         log.info("Processing room changes. Total requests: {} for booking ID: {}", roomChanges.size(), booking.getId());
         BigDecimal roomPriceChange = BigDecimal.ZERO;
-        Long hotelId = booking.getOrder().getBooking().getEmployee().getHotel().getId();
+        Long hotelId = booking.getHotel().getId();
 
         for (UpdateRoomChangeRequest changeReq : roomChanges) {
             log.info("Changing BookingDetail ID: {} to new Room ID: {}", changeReq.getBookingDetailId(), changeReq.getNewRoomId());

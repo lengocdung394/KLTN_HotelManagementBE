@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.branch.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
@@ -9,6 +10,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomMatrixResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
@@ -17,7 +19,9 @@ import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -56,10 +60,15 @@ public class HotelRoomPolicyController {
         return ResponseEntity.ok(authService.getCustomersByHotelId(hotelId));
     }
 
+    // API lấy danh sách booking theo khách sạn (Lấy ngầm hotelId từ Token của nhân viên đăng nhập)
+    @GetMapping("/bookings")
+    @Operation(summary = "Lấy danh sách booking của khách sạn dựa vào token nhân viên đăng nhập")
+    public ResponseEntity<List<BookingResponseForHotel>> getBookingsByHotel(Authentication authentication) {
 
-    // API lấy danh sách booking theo khách sạn
-    @GetMapping("/booking/{hotelId}")
-    public ResponseEntity<List<BookingResponseForHotel>> getBookingsByHotel(@PathVariable Long hotelId) {
+        Account account = (Account) authentication.getPrincipal();
+
+        Long hotelId = account.getHotelId();
+
         List<BookingResponseForHotel> bookings = bookingService.getBookingsByHotel(hotelId);
         return ResponseEntity.ok(bookings);
     }
@@ -70,11 +79,16 @@ public class HotelRoomPolicyController {
     @GetMapping("/today-checkins")
     @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-in (Mặc định lấy ngày hôm nay và trạng thái PENDING nếu để trống)")
     public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckInList(
-            @RequestParam Long hotelId,
+
             @RequestParam(required = false) LocalDate date,
             @RequestParam(required = false) BookingStatusType status,
-            @RequestParam(required = false) BookingStatus bookingStatus
+            @RequestParam(required = false) BookingStatus bookingStatus,
+            Authentication authentication
     ) {
+
+        Account account = (Account) authentication.getPrincipal();
+
+        Long hotelId = account.getHotelId();
 
         return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId, date, status, bookingStatus));
     }
@@ -83,11 +97,15 @@ public class HotelRoomPolicyController {
     @GetMapping("/today-checkouts")
     @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-out (Mặc định lấy ngày hôm nay và trạng thái CHECKED_IN nếu để trống)")
     public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckOutList(
-            @RequestParam Long hotelId,
+
             @RequestParam(required = false) LocalDate date,
             @RequestParam(required = false) BookingStatusType status,
-            @RequestParam(required = false) BookingStatus bookingStatus
+            @RequestParam(required = false) BookingStatus bookingStatus,
+            Authentication authentication
     ) {
+        Account account = (Account) authentication.getPrincipal();
+
+        Long hotelId = account.getHotelId();
 
         return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, status, bookingStatus));
     }
@@ -118,4 +136,20 @@ public class HotelRoomPolicyController {
         BookingResponse response = checkInOutService.processBulkCheckOut(bookingId, bookingDetailIds, employeeId);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/matrix")
+    @Operation(summary = "Lấy ma trận lịch tổng phòng của chi nhánh nhân viên đang làm việc")
+    public ResponseEntity<List<RoomMatrixResponse>> getRoomMatrix(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            Authentication authentication
+    ) {
+        // Lấy ngầm hotelId từ Token
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId(); // Hoặc account.getEmployee().getHotel().getId()
+
+        List<RoomMatrixResponse> response = bookingService.getRoomMatrix(hotelId, startDate, endDate);
+        return ResponseEntity.ok(response);
+    }
+
 }

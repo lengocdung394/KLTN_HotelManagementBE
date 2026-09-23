@@ -19,6 +19,7 @@ public class BookingResponse {
     String bookingId;
     String customerId;
     String customerName;
+    Long hotelId;
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
     LocalDateTime createdAt;

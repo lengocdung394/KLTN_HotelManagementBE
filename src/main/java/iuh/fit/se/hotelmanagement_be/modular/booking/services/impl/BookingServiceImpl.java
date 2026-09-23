@@ -12,6 +12,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDeta
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
@@ -19,7 +20,9 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequ
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
@@ -42,9 +45,9 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.rmi.server.LogStream.log;
@@ -64,7 +67,9 @@ public class BookingServiceImpl implements BookingService {
     BookingRepository bookingRepository;
     CustomerPromotionRepository customerPromotionRepository;
     PromotionRepository promotionRepository;
-    private final RoomSeasonalRateRepository roomSeasonalRateRepository;
+    HotelRepository hotelRepository;
+    RoomSeasonalRateRepository roomSeasonalRateRepository;
+    BookingDetailRepository bookingDetailRepository;
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -77,6 +82,9 @@ public class BookingServiceImpl implements BookingService {
 
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
         booking.setBookingDetails(details);
+        // tim khach san
+        Hotel hotel = hotelRepository.findById(request.getHotelId()).get();
+        booking.setHotel(hotel);
 
         Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
         booking.setOrder(order);
@@ -90,14 +98,16 @@ public class BookingServiceImpl implements BookingService {
      */
     @Transactional
     @Override
-    public BookingResponse createCounterBooking(String employeeId, BookingCreateRequest request) {
+    public BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
 
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
         booking.setBookingDetails(details);
-
+        // tim khach san
+        Hotel hotel = hotelRepository.findById(hotelId).orElse(null);
+        booking.setHotel(hotel);
         Order order = calculateAndBuildOrder(customer.getId(), request, details, booking);
         booking.setOrder(order);
 
@@ -161,7 +171,7 @@ public class BookingServiceImpl implements BookingService {
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice()).build()).toList();
         }
         Order order = booking.getOrder();
-        return BookingResponse.builder().orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();
+        return BookingResponse.builder().hotelId(booking.getHotel().getId()).orderId(order.getId()).bookingId(booking.getId()).customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null).customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null).bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel()).createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null).discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null).bookingDetails(detailResponses).build();
     }
 
     private Order createAndLinkOrder(BigDecimal roomTotal, BigDecimal serviceTotal, BigDecimal discountTotal) {
@@ -425,6 +435,67 @@ public class BookingServiceImpl implements BookingService {
 
         // Chuyển đổi sang danh sách BookingResponse
         return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
+    }
+
+    @Transactional
+    @Override
+    public List<RoomMatrixResponse> getRoomMatrix(Long hotelId, LocalDate startDate, LocalDate endDate) {
+        // 1. Lấy toàn bộ danh sách phòng thuộc khách sạn này
+        List<Room> allRooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
+        LocalDateTime startDateTime = startDate.atStartOfDay(); // 2026-10-01 00:00:00
+        LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
+        // 2. Xác định mốc 5 phút trước cho quy tắc đơn PENDING
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+
+        // 3. Lấy tất cả các BookingDetail đang bận trong khoảng thời gian yêu cầu bằng Repository đã tối ưu
+        List<BookingDetail> activeDetails = bookingDetailRepository.findActiveBookingsByDateRange(
+                hotelId, startDateTime, endDateTime, fiveMinutesAgo
+        );
+
+        // 4. Gom nhóm các BookingDetail theo roomId để tiện tra cứu cho từng phòng
+        Map<String, List<BookingDetail>> roomSchedulesMap = activeDetails.stream()
+                .collect(Collectors.groupingBy(detail -> detail.getRoom().getId()));
+
+        // 5. Duyệt qua từng phòng và gán lịch bận tương ứng
+        return allRooms.stream().map(room -> {
+            // Lấy danh sách lịch bận của phòng hiện tại (nếu không có trả về list rỗng)
+            List<BookingDetail> detailsForRoom = roomSchedulesMap.getOrDefault(room.getId(), Collections.emptyList());
+
+            // Map sang DTO lịch bận kèm theo vòng lặp bóc tách từng ngày cụ thể
+            List<RoomScheduleDto> schedules = detailsForRoom.stream()
+                    .map(detail -> {
+                        // Bóc tách khoảng thời gian thành danh sách từng ngày cụ thể (occupiedDates)
+                        List<LocalDate> dates = new ArrayList<>();
+                        if (detail.getCheckinTime() != null && detail.getCheckoutTime() != null) {
+                            LocalDate current = detail.getCheckinTime().toLocalDate();
+                            LocalDate end = detail.getCheckoutTime().toLocalDate();
+
+                            while (!current.isAfter(end)) {
+                                dates.add(current);
+                                current = current.plusDays(1);
+                            }
+                        }
+
+                        return RoomScheduleDto.builder()
+                                .bookingId(detail.getBooking().getId())
+                                .customerName(detail.getBooking().getCustomer() != null ?
+                                        detail.getBooking().getCustomer().getFullName() : "Khách tại quầy")
+                                .checkinTime(detail.getCheckinTime())
+                                .checkoutTime(detail.getCheckoutTime())
+                                .bookingStatus(detail.getBooking().getBookingStatus())
+                                .occupiedDates(dates) // Gói danh sách ngày vào đây
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
+            // Trả về thông tin phòng kèm danh sách lịch bận của nó
+            return RoomMatrixResponse.builder()
+                    .roomId(room.getId())
+                    .roomNumber(room.getRoomNumber())
+                    .roomTypeName(room.getRoomType() != null ? room.getRoomType().name() : "Standard")
+                    .schedules(schedules)
+                    .build();
+        }).collect(Collectors.toList());
     }
 
 }

@@ -8,7 +8,9 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequ
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckoutSummaryResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomMatrixResponse;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface BookingService {
@@ -16,7 +18,7 @@ public interface BookingService {
     BookingResponse createCustomerBooking(BookingCreateRequest request);
 
     // Nhân viên tạo booking tại quầy
-    BookingResponse createCounterBooking(String employeeId, BookingCreateRequest request);
+    BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request);
 
     // Hàm chuyển đổi dữ liệu
     BookingResponse toBookingResponse(Booking booking);
@@ -31,6 +33,6 @@ public interface BookingService {
 
     List<BookingResponseForHotel> getBookingsByHotel(Long hotelId);
 
-
+    List<RoomMatrixResponse> getRoomMatrix(Long hotelId, LocalDate startDate, LocalDate endDate);
 
 }

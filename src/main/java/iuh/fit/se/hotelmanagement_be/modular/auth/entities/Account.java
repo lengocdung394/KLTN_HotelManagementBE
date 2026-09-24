@@ -8,6 +8,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -22,9 +24,8 @@ import java.util.stream.Collectors;
 @Table(name = "account")
 public class Account implements UserDetails {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "account_id")
-    Long id;
+    String id;
 
     String email;
 
@@ -88,5 +89,23 @@ public class Account implements UserDetails {
     @Override
     public boolean isEnabled() {
         return UserDetails.super.isEnabled();
+    }
+
+    // --- TỰ ĐỘNG SINH MÃ ACCOUNT TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            this.id = "ACC" + dateStr + randomNum; // Ví dụ: ACC202609228492
+        }
+    }
+
+    // Helper method lấy Employee ID (nếu là nhân viên)
+    public String getEmployeeId() {
+        if (this.employee != null) {
+            return this.employee.getId();
+        }
+        return null;
     }
 }

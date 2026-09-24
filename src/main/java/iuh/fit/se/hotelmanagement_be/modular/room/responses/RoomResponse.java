@@ -16,8 +16,10 @@ import java.util.Set;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomResponse {
-    Long id;
+    String id;
     Long floorId;
+    // lay them so phong
+    String roomNumber;
     int floorNumber;
     String nameBuilding;
     RoomStatus roomStatus;

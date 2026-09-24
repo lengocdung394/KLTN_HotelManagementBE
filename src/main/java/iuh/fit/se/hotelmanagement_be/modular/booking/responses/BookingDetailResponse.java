@@ -11,8 +11,11 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingDetailResponse {
+    String cccd;
+    String nameCustomer;
+    String bookingId;
     Long bookingDetailId;
-    Long roomId;
+    String roomId;
     String roomName;
     String roomTypeName;
     LocalDateTime checkInTime;

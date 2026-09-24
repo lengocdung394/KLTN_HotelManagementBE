@@ -19,7 +19,7 @@ public interface PromotionService {
 
     PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile);
 
-    PromotionResponse getPromotionById(Long id);
+    PromotionResponse getPromotionById(String id);
 
     PageResponse<PromotionResponse> getAllPromotions(
             Long hotelId,
@@ -33,9 +33,9 @@ public interface PromotionService {
 
     List<PromotionResponse> getActivePromotions();
 
-    PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request, MultipartFile imageFile);
+    PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile);
 
-    PromotionResponse changeStatus(Long id, ChangeStatusRequest request);
+    PromotionResponse changeStatus(String id, ChangeStatusRequest request);
 
-    void deletePromotion(Long id);
+    void deletePromotion(String id);
 }

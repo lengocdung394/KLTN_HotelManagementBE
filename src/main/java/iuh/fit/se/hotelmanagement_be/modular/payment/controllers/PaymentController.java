@@ -4,10 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CashPaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentResponse;
+import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentTransactionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.WebhookResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.PaymentService;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -61,4 +64,10 @@ public class PaymentController {
         }
     }
 
+
+    @PostMapping("/cash")
+    public ResponseEntity<PaymentTransactionResponse> payWithCash(@RequestBody @Valid CashPaymentRequest request) {
+        PaymentTransactionResponse response = paymentService.payWithCash(request);
+        return ResponseEntity.ok(response);
+    }
 }

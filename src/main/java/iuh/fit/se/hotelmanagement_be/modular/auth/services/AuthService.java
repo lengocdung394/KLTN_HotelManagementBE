@@ -13,11 +13,6 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import java.util.List;
 
 public interface AuthService {
-    // Bước 1: Kiểm tra email + lưu OTP tạm + gửi mail
-    void customerRegisterRequest(CustomerCreateRequest request);
-
-    // Bước 2: Kiểm tra OTP + lưu User chính thức vào DB + trả về thông tin User
-    UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request);
 
     AuthenticationResponse login(UserLoginRequest request);
 

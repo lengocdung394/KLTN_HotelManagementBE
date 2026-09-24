@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -33,4 +34,25 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, Lo
             @Param("checkinTime") LocalDateTime checkinTime,
             @Param("checkoutTime") LocalDateTime checkoutTime
     );
+
+    @Query("SELECT bd FROM BookingDetail bd " +
+            "JOIN bd.booking b " +
+            "WHERE b.hotel.id = :hotelId " +
+            "AND b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED " +
+            "AND (" +
+            "   b.bookingStatus IN (" +
+            "       iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CONFIRMED, " +
+            "       iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.IN_HOUSE" +
+            "   ) " +
+            "   OR (b.bookingStatus = iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING AND b.createdAt >= :fiveMinutesAgo)" +
+            ") " +
+            "AND bd.checkinTime <= :endDate AND bd.checkoutTime >= :startDate")
+    List<BookingDetail> findActiveBookingsByDateRange(
+            @Param("hotelId") Long hotelId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("fiveMinutesAgo") LocalDateTime fiveMinutesAgo
+    );
 }
+
+

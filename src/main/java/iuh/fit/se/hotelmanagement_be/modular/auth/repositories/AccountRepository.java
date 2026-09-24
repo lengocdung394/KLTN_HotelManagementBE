@@ -8,7 +8,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Optional;
 
-public interface  AccountRepository extends JpaRepository<Account, Long> {
+public interface  AccountRepository extends JpaRepository<Account, String> {
     // Fetch sẵn cả User và Hotel đi kèm để tránh lỗi Lazy loading khi lấy hotelId
     @Query("SELECT a FROM Account a " +
             "LEFT JOIN FETCH a.employee e " +

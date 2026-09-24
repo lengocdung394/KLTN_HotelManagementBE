@@ -7,6 +7,6 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionGetLis
 import java.util.List;
 
 public interface CustomerPromotionService {
-    List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(Long customerId);
+    List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(String customerId);
     CustomerPromotionResponse claimPromotion(ClaimPromotionRequest request);
 }

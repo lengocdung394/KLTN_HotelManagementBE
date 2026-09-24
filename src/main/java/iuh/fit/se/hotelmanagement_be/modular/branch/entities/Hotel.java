@@ -52,4 +52,7 @@ public class Hotel {
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     List<BranchRoomPolicy> roomPolicies;
+
+    // --- TỰ ĐỘNG SINH MÃ KHÁCH SẠN NẾU CHƯA CÓ ---
+
 }

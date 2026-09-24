@@ -5,14 +5,20 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @EqualsAndHashCode()
 @Data
@@ -23,9 +29,8 @@ import java.util.Set;
 @Table(name = "rooms")
 public class Room {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "room_id")
-    Long id;
+    String id;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "json")
@@ -51,7 +56,20 @@ public class Room {
             inverseJoinColumns = @JoinColumn(name = "amenity_id")
     )
     Set<Amenity> amenities;
+    // --- TỰ ĐỘNG SINH MÃ HỆ THỐNG (ROOM_RANDOM) TRƯỚC KHI LƯU ---
 
+    @Column(name = "room_number", nullable = false, length = 20)
+    String roomNumber; // Số phòng thực tế có thứ tự (VD: "101", "102", "201")
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            // Lấy 6 ký tự ngẫu nhiên từ UUID để làm phần random gọn gàng, độc nhất
+            String randomCode = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            this.id = "ROOM_" + dateStr + "_" + randomCode; // Ví dụ: ROOM_20260922_A9F2B1
+        }
+    }
 
     // 💡 Hàm Helper tự động tính tổng tiền tất cả tiện ích có trong phòng
     public Double getTotalAmenitiesPrice() {

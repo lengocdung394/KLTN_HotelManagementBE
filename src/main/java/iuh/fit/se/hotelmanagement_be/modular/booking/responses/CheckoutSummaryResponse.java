@@ -12,8 +12,8 @@ import java.util.List;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CheckoutSummaryResponse {
-    Long bookingId;
-    Long orderId;
+    String bookingId;
+    String orderId;
     String customerName;
     // Các khoản tiền tổng quan
     BigDecimal roomTotal;

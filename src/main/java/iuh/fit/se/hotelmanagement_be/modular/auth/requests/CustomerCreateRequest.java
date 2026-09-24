@@ -9,10 +9,8 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CustomerCreateRequest {
-    String email;
     String phone;
     String fullName;
-    String address;
     String cccd;
-    String password;
+
 }

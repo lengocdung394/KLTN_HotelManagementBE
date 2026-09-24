@@ -4,12 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CashPaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentResponse;
+import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentTransactionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.WebhookResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.PaymentService;
 import lombok.extern.slf4j.Slf4j;
@@ -20,13 +26,17 @@ import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Optional;
+
 @Slf4j
 @Service
 public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final ObjectMapper objectMapper;
     private final PayOS payOS;
+    private final PaymentRepository paymentRepository;
 
     // Tự viết Constructor tường minh để khởi tạo đầy đủ các bean và thông tin cấu hình PayOS
     public PaymentServiceImpl(
@@ -34,166 +44,14 @@ public class PaymentServiceImpl implements PaymentService {
             ObjectMapper objectMapper,
             @Value("${CLIENT_ID}") String clientId,
             @Value("${API_KEY}") String apiKey,
-            @Value("${CHECKSUM_KEY}") String checksumKey
+            @Value("${CHECKSUM_KEY}") String checksumKey, PaymentRepository paymentRepository
     ) {
         this.orderRepository = orderRepository;
         this.objectMapper = objectMapper;
+        this.paymentRepository = paymentRepository;
         this.payOS = new PayOS(clientId, apiKey, checksumKey);
     }
 
-//    @Override
-//    @Transactional(readOnly = true)
-//    public PaymentResponse createVietQRPaymentLink(PaymentRequest request) throws Exception {
-//        Optional<Order> oderOpt = orderRepository.findById(request.getOrderId());
-//        if (oderOpt.isEmpty()) {
-//            throw new AppException(ErrorCode.ORDER_NOT_FOUND);
-//        }
-//        Order order = oderOpt.get();
-//        if (order.getOrderStatus() != OrderStatusType.OPEN) {
-//            throw new AppException(ErrorCode.ORDER_NOT_OPEN);
-//        }
-//
-//        BigDecimal remainingAmount = order.getRemainingAmount();
-//        if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
-//            throw new AppException(ErrorCode.ORDER_ALREADY_PAID);
-//        }
-//
-//        long amountToPay = remainingAmount.longValue();
-//        // Tạo orderCode độc nhất bằng cách kết hợp ID đơn hàng và timestamp để tránh bị trùng trên PayOS khi test nhiều lần
-//        long uniqueOrderCode = order.getId() * 1000L + (System.currentTimeMillis() % 1000);
-//        String paymentDescription = "Thanh toan HD" + order.getId();
-//
-//        // CHỈNH SỬA: Sử dụng CreatePaymentLinkRequest chuẩn V2 thay cho class cũ
-//        CreatePaymentLinkRequest paymentRequest = CreatePaymentLinkRequest.builder()
-//                .orderCode(uniqueOrderCode)
-//                .amount(amountToPay)
-//                .description(paymentDescription)
-//                .returnUrl("http://localhost:8080/bookings?status=success&orderId=" + order.getId())
-//                .cancelUrl("http://localhost:8080/bookings?status=cancel&orderId=" + order.getId())
-//                .build();
-//
-//        // CHỈNH SỬA: Sử dụng var và gọi hàm dạng module .paymentRequests().create()
-//        var checkoutData = payOS.paymentRequests().create(paymentRequest);
-//
-//        return PaymentResponse.builder()
-//                .error(0)
-//                .message("Sinh mã VietQR thành công (Hạn 5 phút)")
-//                .checkoutUrl(checkoutData.getCheckoutUrl())
-//                .build();
-//    }
-//
-//    @Override
-//    public WebhookResponse processPayOSWebhook(JsonNode webhookBody) throws Exception {
-//        Webhook webhookRaw = objectMapper.treeToValue(webhookBody, Webhook.class);
-//
-//        // CHỈNH SỬA: Sử dụng var và gọi hàm dạng module .webhooks().verify() chuẩn V2
-//        var verifiedData = payOS.webhooks().verify(webhookRaw);
-//
-//        if (verifiedData != null && "00".equals(verifiedData.getCode())) {
-//            Long orderId = verifiedData.getOrderCode();
-//            long amountPaidOnGateway = verifiedData.getAmount();
-//            String counterAccountName = verifiedData.getCounterAccountName();
-//            Optional<Order> orderOpt = orderRepository.findById(orderId);
-//            if (orderOpt.isPresent()) {
-//                Order order = orderOpt.get();
-//
-//                PaymentType xacDinhPaymentType = PaymentType.BANK;
-//                if (counterAccountName != null && (counterAccountName.toLowerCase().contains("momo") || counterAccountName.toLowerCase().contains("vnpay"))) {
-//                    xacDinhPaymentType = PaymentType.EWALLET;
-//                }
-//
-//                PaymentTransaction transaction = PaymentTransaction.builder()
-//                        .amount(BigDecimal.valueOf(amountPaidOnGateway))
-//                        .transactionDate(LocalDateTime.now())
-//                        .paymentType(xacDinhPaymentType)
-//                        .cashFlowType(CashFlowType.RECEIPT)
-//                        .note("PayOS Webhook Ref: " + verifiedData.getPaymentLinkId())
-//                        .order(order)
-//                        .build();
-//
-//                if (order.getPaymentTransactions() == null) {
-//                    order.setPaymentTransactions(new ArrayList<>());
-//                }
-//                order.getPaymentTransactions().add(transaction);
-//                BigDecimal currentPaid = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-//                order.setPaidAmount(currentPaid.add(BigDecimal.valueOf(amountPaidOnGateway)));
-//
-//                order.operation(); // Kích hoạt logic cốt lõi đóng đơn của bạn
-//
-//                orderRepository.save(order);
-//
-//                return WebhookResponse.builder().error(0).message("Cập nhật đơn hàng thành công via Webhook").build();
-//            }
-//        }
-//        return WebhookResponse.builder().error(4).message("Dữ liệu webhook không hợp lệ hoặc không thành công").build();
-//    }
-
-    //
-//    @Override
-//    @Transactional // BẮT BUỘC: Thêm annotation này để Spring Boot tự động lưu các bảng Entity liên kết (PaymentTransaction) xuống DB
-//    public WebhookResponse processPayOSWebhook(JsonNode webhookBody) throws Exception {
-//        // 1. Kiểm tra an toàn dữ liệu đầu vào
-//        if (webhookBody == null || !webhookBody.has("data")) {
-//            return WebhookResponse.builder().error(4).message("Dữ liệu webhook trống").build();
-//        }
-//
-//        // 2. Trích xuất trực tiếp dữ liệu từ JsonNode để tránh lỗi ép kiểu của Jackson
-//        JsonNode dataNode = webhookBody.get("data");
-//        String code = webhookBody.has("code") ? webhookBody.get("code").asText() : "";
-//
-//        if (dataNode != null && "00".equals(code)) {
-//            long uniqueOrderCode = dataNode.get("orderCode").asLong();
-//
-//            // 3. GIẢI MÃ THÔNG MINH:
-//            // Nếu mã đơn < 100000 (đơn cũ hoặc test tay), giữ nguyên làm ID.
-//            // Nếu mã đơn >= 100000 (đơn hỗn hợp mới dạng ID * 1000 + đuôi), chia cho 1000L để lấy ID gốc.
-//            Long orderId = (uniqueOrderCode < 100000L) ? uniqueOrderCode : (uniqueOrderCode / 1000L);
-//
-//            long amountPaidOnGateway = dataNode.get("amount").asLong();
-//            String counterAccountName = dataNode.has("counterAccountName") && !dataNode.get("counterAccountName").isNull()
-//                    ? dataNode.get("counterAccountName").asText() : null;
-//            String paymentLinkId = dataNode.has("paymentLinkId") ? dataNode.get("paymentLinkId").asText() : "";
-//
-//            // 4. Tìm kiếm đơn hàng trong Database theo ID gốc chuẩn xác
-//            Optional<Order> orderOpt = orderRepository.findById(orderId);
-//            if (orderOpt.isPresent()) {
-//                Order order = orderOpt.get();
-//
-//                // Xác định hình thức thanh toán (Ngân hàng hay Ví điện tử)
-//                PaymentType xacDinhPaymentType = PaymentType.BANK;
-//                if (counterAccountName != null && (counterAccountName.toLowerCase().contains("momo") || counterAccountName.toLowerCase().contains("vnpay"))) {
-//                    xacDinhPaymentType = PaymentType.EWALLET;
-//                }
-//
-//                // 5. Khởi tạo bản ghi lịch sử giao dịch (PaymentTransaction)
-//                PaymentTransaction transaction = PaymentTransaction.builder()
-//                        .amount(BigDecimal.valueOf(amountPaidOnGateway))
-//                        .transactionDate(LocalDateTime.now())
-//                        .paymentType(xacDinhPaymentType)
-//                        .cashFlowType(CashFlowType.RECEIPT)
-//                        .note("PayOS Webhook Ref: " + paymentLinkId)
-//                        .order(order)
-//                        .build();
-//
-//                if (order.getPaymentTransactions() == null) {
-//                    order.setPaymentTransactions(new ArrayList<>());
-//                }
-//                order.getPaymentTransactions().add(transaction);
-//
-//                // 6. Cộng dồn số tiền thực tế khách đã chuyển khoản (Lưu đúng số tiền kể cả khi khách chuyển dư)
-//                BigDecimal currentPaid = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-//                order.setPaidAmount(currentPaid.add(BigDecimal.valueOf(amountPaidOnGateway)));
-//
-//                order.operation(); // Kích hoạt logic cốt lõi đóng đơn của bạn
-//
-//                // 7. Cập nhật thực thể xuống Database
-//                orderRepository.save(order);
-//
-//                return WebhookResponse.builder().error(0).message("Cập nhật đơn hàng thành công via Webhook").build();
-//            }
-//        }
-//        return WebhookResponse.builder().error(4).message("Dữ liệu webhook không hợp lệ hoặc không tìm thấy đơn hàng tương ứng trong hệ thống").build();
-//    }
     @Override
     @Transactional
     public PaymentResponse createVietQRPaymentLink(PaymentRequest request) throws Exception {
@@ -230,8 +88,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         var checkoutData = payOS.paymentRequests().create(paymentRequest);
 
-        // Lưu lại mã để lúc webhook về tra ngược chính xác, không cần đoán
-        order.setPaymentOrderCode(uniqueOrderCode);
+        // Khởi tạo danh sách nếu chưa có
+        if (order.getPaymentOrderCodes() == null) {
+            order.setPaymentOrderCodes(new ArrayList<>());
+        }
+
+        // Thêm mã mới vào danh sách
+        order.getPaymentOrderCodes().add(uniqueOrderCode);
         orderRepository.save(order);
 
         return PaymentResponse.builder()
@@ -278,7 +141,7 @@ public class PaymentServiceImpl implements PaymentService {
         long uniqueOrderCode = dataNode.get("orderCode").asLong();
         log.info("[Webhook] orderCode nhận từ PayOS={}", uniqueOrderCode);
 
-        Optional<Order> orderOpt = orderRepository.findByPaymentOrderCode(uniqueOrderCode);
+        Optional<Order> orderOpt = orderRepository.findByPaymentOrderCodesContaining(uniqueOrderCode);
         if (orderOpt.isEmpty()) {
             log.warn("[Webhook] KHÔNG TÌM THẤY order với paymentOrderCode={}", uniqueOrderCode);
             return WebhookResponse.builder().error(4).message("Dữ liệu webhook không hợp lệ hoặc không tìm thấy đơn hàng tương ứng trong hệ thống").build();
@@ -312,5 +175,106 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("[Webhook] Đã gọi orderRepository.save(order.id={})", order.getId());
 
         return WebhookResponse.builder().error(0).message("Cập nhật đơn hàng thành công via Webhook").build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentTransactionResponse payWithCash(
+            CashPaymentRequest request
+    ) {
+        Order order = orderRepository.findById(request.getOrderId())
+                .orElseThrow(() ->
+                        new AppException(ErrorCode.ORDER_NOT_FOUND)
+                );
+
+        if (order.getOrderStatus() == OrderStatusType.CANCELLED) {
+            throw new AppException(
+                    ErrorCode.ORDER_ALREADY_CANCELLED
+            );
+        }
+
+        if (order.getOrderStatus() == OrderStatusType.PAID
+                || order.getOrderStatus() == OrderStatusType.CLOSED) {
+            throw new AppException(
+                    ErrorCode.ORDER_ALREADY_PAID
+            );
+        }
+
+        if (request.getAmountPaid() == null
+                || request.getAmountPaid().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(
+                    ErrorCode.INVALID_PAYMENT_AMOUNT
+            );
+        }
+
+        BigDecimal totalAmount = order.getTotalAmount();
+        BigDecimal amountPaid = request.getAmountPaid();
+
+        if (totalAmount == null
+                || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(
+                    ErrorCode.INVALID_PAYMENT_AMOUNT
+            );
+        }
+
+        if (amountPaid.compareTo(totalAmount) < 0) {
+            throw new AppException(
+                    ErrorCode.INSUFFICIENT_PAYMENT
+            );
+        }
+
+        BigDecimal changeAmount =
+                amountPaid.subtract(totalAmount);
+
+        PaymentTransaction receiptTransaction =
+                PaymentTransaction.builder()
+                        .order(order)
+                        .amount(amountPaid)
+                        .paymentType(PaymentType.CASH)
+                        .cashFlowType(CashFlowType.RECEIPT)
+                        .note(
+                                request.getNote() != null
+                                        ? request.getNote()
+                                        : "Thanh toán tiền mặt tại quầy"
+                        )
+                        .transactionDate(LocalDateTime.now())
+                        .build();
+
+        paymentRepository.save(receiptTransaction);
+
+        if (changeAmount.compareTo(BigDecimal.ZERO) > 0) {
+            PaymentTransaction changeTransaction =
+                    PaymentTransaction.builder()
+                            .order(order)
+                            .amount(changeAmount)
+                            .paymentType(PaymentType.CASH)
+                            .cashFlowType(CashFlowType.CHANGE)
+                            .note("Tiền thừa trả khách")
+                            .transactionDate(LocalDateTime.now())
+                            .build();
+
+            paymentRepository.save(changeTransaction);
+        }
+
+        // Quan trọng: cập nhật số tiền đã thanh toán
+        order.setPaidAmount(totalAmount);
+        order.setOrderStatus(OrderStatusType.PAID);
+        // cap nhat trang thai confirm
+        order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
+        orderRepository.save(order);
+
+        return PaymentTransactionResponse.builder()
+                .transactionId(receiptTransaction.getId())
+                .orderId(order.getId())
+                .totalAmount(totalAmount)
+                .amountPaid(amountPaid)
+                .changeAmount(changeAmount)
+                .paymentType("CASH")
+                .status(OrderStatusType.PAID.name())
+                .transactionDate(
+                        receiptTransaction.getTransactionDate()
+                )
+                .message("Thanh toán tiền mặt thành công")
+                .build();
     }
 }

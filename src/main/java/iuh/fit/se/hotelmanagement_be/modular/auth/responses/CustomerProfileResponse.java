@@ -12,8 +12,8 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CustomerProfileResponse {
-    Long id;
-    Long accountId;
+    String id;
+    String accountId;
     String fullName;
     String email;
     String phone;

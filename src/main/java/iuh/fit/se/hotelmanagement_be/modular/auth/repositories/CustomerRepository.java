@@ -6,8 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
-public interface CustomerRepository extends JpaRepository<Customer, Long> {
+public interface CustomerRepository extends JpaRepository<Customer, String> {
     boolean existsByPhone(String phone);
 
     boolean existsByCccd(String cccd);
@@ -19,5 +20,11 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             "JOIN f.building bu " +
             "WHERE bu.hotel.id = :hotelId")
     List<Customer> findCustomersByHotelId(@Param("hotelId") Long hotelId);
+    // Dùng Optional giúp bắt lỗi không tìm thấy thanh lịch hơn
+    Optional<Customer> findByPhone(String phone);
+
+    Optional<Customer> findByCccd(String cccd);
+
+    Optional<Customer> findByEmail(String email);
 
 }

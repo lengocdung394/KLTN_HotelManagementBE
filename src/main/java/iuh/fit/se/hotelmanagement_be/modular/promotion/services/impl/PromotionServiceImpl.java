@@ -165,7 +165,7 @@ public class PromotionServiceImpl implements PromotionService {
 
     // ==================== READ ====================
     @Override
-    public PromotionResponse getPromotionById(Long id) {
+    public PromotionResponse getPromotionById(String id) {
         return toResponse(findOrThrow(id));
     }
 
@@ -191,7 +191,7 @@ public class PromotionServiceImpl implements PromotionService {
     // ==================== UPDATE ====================
     @Override
     @Transactional
-    public PromotionResponse updatePromotion(Long id, UpdatePromotionRequest request, MultipartFile imageFile) {
+    public PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile) {
         log.info("Cập nhật khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
 
@@ -224,7 +224,7 @@ public class PromotionServiceImpl implements PromotionService {
     // ==================== CHANGE STATUS ====================
     @Override
     @Transactional
-    public PromotionResponse changeStatus(Long id, ChangeStatusRequest request) {
+    public PromotionResponse changeStatus(String id, ChangeStatusRequest request) {
         log.info("Đổi trạng thái khuyến mãi ID: {} → {}", id, request.getStatus());
         Promotion promotion = findOrThrow(id);
 
@@ -248,7 +248,7 @@ public class PromotionServiceImpl implements PromotionService {
     // ==================== DELETE ====================
     @Override
     @Transactional
-    public void deletePromotion(Long id) {
+    public void deletePromotion(String id) {
         log.info("Xóa mềm khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
 
@@ -261,7 +261,7 @@ public class PromotionServiceImpl implements PromotionService {
     }
 
     // ==================== HELPERS ====================
-    private Promotion findOrThrow(Long id) {
+    private Promotion findOrThrow(String id) {
         return promotionRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khuyến mãi với ID: " + id));
     }

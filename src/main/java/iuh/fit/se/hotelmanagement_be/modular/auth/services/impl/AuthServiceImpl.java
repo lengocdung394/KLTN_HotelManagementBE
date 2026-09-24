@@ -47,75 +47,75 @@ public class AuthServiceImpl implements AuthService {
     final org.springframework.security.authentication.AuthenticationManager authenticationManager;
     RoleRepository roleRepository;
 
-    @Override
-    public void customerRegisterRequest(CustomerCreateRequest request) {
-        LocalDateTime now = LocalDateTime.now();
-        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
-            throw new AppException(ErrorCode.PHONE_OTP_PENDING);
-        }
-        if (accountRepository.existsByEmail(request.getEmail())) {
-            throw new AppException(ErrorCode.EMAIL_EXISTED);
-        }
-
-        if (customerRepository.existsByPhone(request.getPhone())) {
-            throw new AppException(ErrorCode.PHONE_EXISTED);
-        }
-
-        if (otpRepository.existsByEmailAndExpiredAtAfter(request.getEmail(), now)) {
-            throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
-        }
-
-
-        if (request.getCccd() != null && customerRepository.existsByCccd(request.getCccd())) {
-            throw new AppException(ErrorCode.CCCD_EXISTED);
-        }
-
-        String otpCode = otpService.generateOtpCode();
-        otpService.saveOtp(request.getEmail(), otpCode, request);
-        emailService.sendOtpEmail(request.getEmail(), otpCode);
-    }
-
-
-    @Override
-    @Transactional
-    public UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request) {
-        boolean isValid = otpService.validateOtp(request.getEmail(), request.getOtp());
-        if (!isValid) {
-            throw new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn");
-        }
-
-        OtpVerification pendingUser = otpService.getPendingRegistration(request.getEmail());
-
-        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
-                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy cấu hình quyền ROLE_CUSTOMER"));
-
-        // 1. Tạo Account trước
-        Account account = Account.builder()
-                .email(pendingUser.getEmail())
-                .password(passwordEncoder.encode(pendingUser.getPassword()))
-                .roles(Set.of(customerRole))
-                .build();
-
-        // 2. Tạo Customer giữ khóa ngoại account
-        Customer customer = Customer.builder()
-                .fullName(pendingUser.getFullName())
-                .phone(pendingUser.getPhone())
-                .cccd(pendingUser.getCccd())
-                .email(pendingUser.getEmail())
-                .account(account) // Gán account vào Customer
-                .build();
-
-        // 3. Lưu Customer (sẽ tự động Cascade lưu Account)
-        Customer savedCustomer = customerRepository.save(customer);
-
-        otpService.clearOtp(request.getEmail());
-
-        return UserResponse.builder()
-                .id(savedCustomer.getId())
-                .fullName(savedCustomer.getFullName())
-                .email(savedCustomer.getAccount().getEmail())
-                .build();
-    }
+//    @Override
+//    public void customerRegisterRequest(CustomerCreateRequest request) {
+//        LocalDateTime now = LocalDateTime.now();
+//        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
+//            throw new AppException(ErrorCode.PHONE_OTP_PENDING);
+//        }
+//        if (accountRepository.existsByEmail(request.getEmail())) {
+//            throw new AppException(ErrorCode.EMAIL_EXISTED);
+//        }
+//
+//        if (customerRepository.existsByPhone(request.getPhone())) {
+//            throw new AppException(ErrorCode.PHONE_EXISTED);
+//        }
+//
+//        if (otpRepository.existsByEmailAndExpiredAtAfter(request.getEmail(), now)) {
+//            throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
+//        }
+//
+//
+//        if (request.getCccd() != null && customerRepository.existsByCccd(request.getCccd())) {
+//            throw new AppException(ErrorCode.CCCD_EXISTED);
+//        }
+//
+//        String otpCode = otpService.generateOtpCode();
+//        otpService.saveOtp(request.getEmail(), otpCode, request);
+//        emailService.sendOtpEmail(request.getEmail(), otpCode);
+//    }
+//
+//
+//    @Override
+//    @Transactional
+//    public UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request) {
+//        boolean isValid = otpService.validateOtp(request.getEmail(), request.getOtp());
+//        if (!isValid) {
+//            throw new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn");
+//        }
+//
+//        OtpVerification pendingUser = otpService.getPendingRegistration(request.getEmail());
+//
+//        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
+//                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy cấu hình quyền ROLE_CUSTOMER"));
+//
+//        // 1. Tạo Account trước
+//        Account account = Account.builder()
+//                .email(pendingUser.getEmail())
+//                .password(passwordEncoder.encode(pendingUser.getPassword()))
+//                .roles(Set.of(customerRole))
+//                .build();
+//
+//        // 2. Tạo Customer giữ khóa ngoại account
+//        Customer customer = Customer.builder()
+//                .fullName(pendingUser.getFullName())
+//                .phone(pendingUser.getPhone())
+//                .cccd(pendingUser.getCccd())
+//                .email(pendingUser.getEmail())
+//                .account(account) // Gán account vào Customer
+//                .build();
+//
+//        // 3. Lưu Customer (sẽ tự động Cascade lưu Account)
+//        Customer savedCustomer = customerRepository.save(customer);
+//
+//        otpService.clearOtp(request.getEmail());
+//
+//        return UserResponse.builder()
+//                .id(savedCustomer.getId())
+//                .fullName(savedCustomer.getFullName())
+//                .email(savedCustomer.getAccount().getEmail())
+//                .build();
+//    }
 
     @Override
     public AuthenticationResponse login(UserLoginRequest request) {
@@ -135,19 +135,27 @@ public class AuthServiceImpl implements AuthService {
 
         String jwtToken = jwtService.generateToken(account);
 
-        // Xác định thông tin hiển thị (Employee hay Customer)
         String fullName = "";
         String position = "";
+        String id = null;
 
         if (account.getEmployee() != null) {
             fullName = account.getEmployee().getFullName();
             position = account.getEmployee().getPosition();
+            id = account.getEmployee().getId();
         } else if (account.getCustomer() != null) {
             fullName = account.getCustomer().getFullName();
+            id = account.getCustomer().getId();
             position = "Khách hàng";
+        } else {
+            // Trường hợp tài khoản là Admin thuần túy (không có Employee, không có Customer)
+            fullName = "Quản trị hệ thống"; // Hoặc lấy từ đâu đó
+            position = "Admin";
+            id = account.getId(); // Lấy ID của chính Account luôn
         }
 
         return AuthenticationResponse.builder()
+                .id(id)
                 .token(jwtToken)
                 .email(account.getEmail())
                 .fullName(fullName)

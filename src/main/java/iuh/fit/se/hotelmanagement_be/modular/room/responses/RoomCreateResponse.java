@@ -16,7 +16,7 @@ import java.util.Set;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomCreateResponse {
-    Long id;
+    String id;
     Long floorId;
     String floorName;
     RoomStatus roomStatus;

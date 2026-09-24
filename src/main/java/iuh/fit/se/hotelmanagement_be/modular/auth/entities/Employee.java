@@ -8,7 +8,10 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
+
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @EqualsAndHashCode()
 @Data
@@ -19,9 +22,8 @@ import java.time.LocalDate;
 @Table(name = "employees")
 public class Employee {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "employee_id")
-    Long id;
+    String id;
 
     String cccd;
 
@@ -43,5 +45,15 @@ public class Employee {
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JoinColumn(name = "account_id", referencedColumnName = "account_id")
     Account account;
+
+    // --- TỰ ĐỘNG SINH MÃ NHÂN VIÊN TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000; // Số ngẫu nhiên 4 chữ số
+            this.id = "EMP" + dateStr + randomNum; // Ví dụ: EMP202609228492
+        }
+    }
 
 }

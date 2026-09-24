@@ -39,7 +39,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
                 .build();
     }
 
-    private Service findOrThrow(Long id) {
+    private Service findOrThrow(String id) {
         return serviceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy dịch vụ với ID: " + id));
     }
@@ -63,7 +63,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
     }
 
     @Override
-    public ServiceResponse getServiceById(Long id) {
+    public ServiceResponse getServiceById(String id) {
         return toResponse(findOrThrow(id));
     }
 
@@ -96,7 +96,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     @Override
     @Transactional
-    public ServiceResponse updateService(Long id, UpdateServiceRequest request) {
+    public ServiceResponse updateService(String id, UpdateServiceRequest request) {
         Service service = findOrThrow(id);
 
         if (serviceRepository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
@@ -125,7 +125,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     @Override
     @Transactional
-    public void deleteService(Long id) {
+    public void deleteService(String id) {
         Service service = findOrThrow(id);
         // Soft delete: chuyển trạng thái active = false để không ảnh hưởng dữ liệu lịch sử đặt phòng
         service.setActive(false);
@@ -134,7 +134,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     @Override
     @Transactional
-    public ServiceResponse toggleServiceStatus(Long id) {
+    public ServiceResponse toggleServiceStatus(String id) {
         Service service = findOrThrow(id);
         boolean current = Boolean.TRUE.equals(service.getActive());
         service.setActive(!current);

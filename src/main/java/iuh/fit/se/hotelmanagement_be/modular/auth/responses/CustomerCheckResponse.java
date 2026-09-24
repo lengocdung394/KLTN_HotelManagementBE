@@ -1,4 +1,4 @@
-package iuh.fit.se.hotelmanagement_be.modular.auth.requests;
+package iuh.fit.se.hotelmanagement_be.modular.auth.responses;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -8,9 +8,12 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CustomerCreateRequest {
-    String phone;
+public class CustomerCheckResponse {
+
     String fullName;
     String cccd;
-
+    String phone;
+    String status;
+    String message;
+    String email;
 }

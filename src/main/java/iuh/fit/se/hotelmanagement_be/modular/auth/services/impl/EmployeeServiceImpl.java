@@ -8,7 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepositor
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.services.UserService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.EmployeeService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class UserServiceImpl implements UserService {
+public class EmployeeServiceImpl implements EmployeeService {
     EmployeeRepository employeeRepository;
     AccountRepository accountRepository;
     RoleRepository roleRepository;
@@ -34,6 +34,7 @@ public class UserServiceImpl implements UserService {
     PasswordEncoder passwordEncoder;
     CloudinaryService cloudinaryService;
 
+    // Sử dụng khi quản lí tạo tài khoản cho nhân viên (kèm theo thông tin cá nhân)
     @Transactional
     @Override
     public EmployeeCreateResponse createStaffAndAccount(UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount) {

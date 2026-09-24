@@ -9,6 +9,10 @@ import org.springframework.http.HttpStatusCode;
 @AllArgsConstructor
 public enum ErrorCode {
     // --- SYSTEM & AUTH ERRORS ---
+    INVALID_OTP(1003, "[1003] Invalid or expired OTP", HttpStatus.BAD_REQUEST),
+    NEW_CUSTOMER(1000, "[10xx] New customer registration", HttpStatus.OK), // Nếu cần trả về dạng thông báo
+    WALK_IN_CUSTOMER_NEEDS_PASSWORD(1001, "[10yy] Walk-in customer needs to set password", HttpStatus.OK),
+    CUSTOMER_ALREADY_REGISTERED(1002, "[1002] Customer already registered", HttpStatus.BAD_REQUEST),
     UNCATEGORIZED(9999, "[9999] Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
     USERNAME_EXISTED(1001, "[1001] Username existed", HttpStatus.BAD_REQUEST),
     USERNAME_NOT_FOUND(1002, "[1002] Username not found", HttpStatus.NOT_FOUND),

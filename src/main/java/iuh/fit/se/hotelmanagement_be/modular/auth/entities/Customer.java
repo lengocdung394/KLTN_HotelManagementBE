@@ -47,6 +47,10 @@ public class Customer {
     @Builder.Default
     LoyaltyTier loyaltyTier = LoyaltyTier.BRONZE;
 
+
+    @Builder.Default
+    private boolean isRegistered = false; // False = chỉ là hồ sơ tại quầy; True = đã có tài khoản web
+
     @Column(name = "total_spent")
     @Builder.Default
     Double totalSpent = 0.0;

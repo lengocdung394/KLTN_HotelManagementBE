@@ -5,6 +5,7 @@ import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.OtpVerification;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.OtpRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerRegisterRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,7 @@ public class OtpService {
     private EmailService emailService;
 
     @Transactional
-    public void saveOtp(String email, String otpCode, CustomerCreateRequest request) {
+    public void saveOtp(String email, String otpCode, CustomerRegisterRequest request) {
         // Email này da có OTP cũ thì xóa trước khi tạo mới
         otpRepository.deleteByEmail(email);
 
@@ -30,6 +31,7 @@ public class OtpService {
                 .otpCode(otpCode)
                 .fullName(request.getFullName())
                 .password(request.getPassword())
+                .cccd(request.getCccd())
                 .phone(request.getPhone())
                 .failedAttempts(0)
                 .expiredAt(LocalDateTime.now().plusMinutes(5))

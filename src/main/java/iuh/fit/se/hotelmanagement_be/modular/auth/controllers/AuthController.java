@@ -6,6 +6,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.CustomerService;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.OtpService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
@@ -22,14 +23,15 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     AuthService authService;
     OtpService otpService;
+    CustomerService customerService;
 
     @Operation(
             summary = "Yêu cầu đăng ký tài khoản khách hàng",
             description = "Nhận thông tin đăng ký từ khách hàng, kiểm tra trùng lặp và tự động tạo/gửi mã OTP qua email xác thực."
     )
     @PostMapping("/register-request")
-    public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody CustomerCreateRequest request) {
-        authService.customerRegisterRequest(request);
+    public ResponseEntity<ApiResponse<String>> customerRegisterRequest(@RequestBody CustomerRegisterRequest request) {
+        customerService.customerRegisterRequest(request);
 
         ApiResponse<String> apiResponse = ApiResponse.<String>builder()
                 .code(200)
@@ -45,7 +47,7 @@ public class AuthController {
     )
     @PostMapping("/verify-otp")
     public ResponseEntity<ApiResponse<UserResponse>> verifyOtpAndRegisterCustomer(@RequestBody VerifyOtpRequest request) {
-        UserResponse response = authService.verifyOtpAndRegisterCustomer(request);
+        UserResponse response = customerService.verifyOtpAndRegisterCustomer(request);
 
         ApiResponse<UserResponse> apiResponse = ApiResponse.<UserResponse>builder()
                 .code(200)

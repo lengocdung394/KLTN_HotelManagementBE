@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.UserServiceImpl;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "Staff Management", description = "APIs quản lý nhân sự và phân quyền")
 @SecurityRequirement(name = "bearerAuth") //Giúp Swagger hiển thị khóa Bearer Token trên API này
 public class EmployeeController {
-    UserServiceImpl userService;
+    EmployeeServiceImpl userService;
 
     @Operation(summary = "Tạo tài khoản nhân sự cấp dưới")
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -21,6 +21,10 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
             "WHERE bu.hotel.id = :hotelId")
     List<Customer> findCustomersByHotelId(@Param("hotelId") Long hotelId);
     // Dùng Optional giúp bắt lỗi không tìm thấy thanh lịch hơn
-    Optional<Customer> findById(String id);
+    Optional<Customer> findByPhone(String phone);
+
+    Optional<Customer> findByCccd(String cccd);
+
+    Optional<Customer> findByEmail(String email);
 
 }

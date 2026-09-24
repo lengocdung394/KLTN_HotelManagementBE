@@ -9,6 +9,12 @@ import org.springframework.http.HttpStatusCode;
 @AllArgsConstructor
 public enum ErrorCode {
     // --- SYSTEM & AUTH ERRORS ---
+    ORDER_ALREADY_CANCELLED(1043, "Hóa đơn này đã bị hủy, không thể thanh toán", HttpStatus.BAD_REQUEST),
+   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_AMOUNT(1044, "Số tiền thanh toán không hợp lệ", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_PAYMENT(1040, "Số tiền khách đưa không đủ để thanh toán hóa đơn", HttpStatus.BAD_REQUEST),
+   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    //ORDER_NOT_FOUND(1042, "Không tìm thấy thông tin hóa đơn", HttpStatus.NOT_FOUND),
     INVALID_OTP(1003, "[1003] Invalid or expired OTP", HttpStatus.BAD_REQUEST),
     NEW_CUSTOMER(1000, "[10xx] New customer registration", HttpStatus.OK), // Nếu cần trả về dạng thông báo
     WALK_IN_CUSTOMER_NEEDS_PASSWORD(1001, "[10yy] Walk-in customer needs to set password", HttpStatus.OK),

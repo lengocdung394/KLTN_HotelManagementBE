@@ -1,69 +1,78 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 public class SurchargeCalculator {
-    /**
-     * Tính tiền phụ thu check-in sớm (tính trên ngày check-in đầu tiên)
-     *
-     * @param scheduledCheckInDate Ngày giờ nhận phòng dự kiến / quy chuẩn (ví dụ: 16/08/2026 14:00)
-     * @param actualCheckInTime    Thời gian khách thực tế nhận phòng
-     * @param nightlyRate          Giá phòng của đêm đó (1 đêm)
-     */
-    public static BigDecimal calculateEarlyCheckInFee(LocalDateTime scheduledCheckInDate, LocalDateTime actualCheckInTime, BigDecimal nightlyRate) {
-        // Nếu khách nhận phòng đúng giờ hoặc trễ hơn giờ chuẩn thì không mất phí sớm
-        if (actualCheckInTime == null || !actualCheckInTime.isBefore(scheduledCheckInDate)) {
+
+    public static BigDecimal calculateEarlyCheckInFee(LocalDateTime scheduledCheckIn,
+                                                      LocalDateTime actualCheckIn,
+                                                      BigDecimal nightlyRate) {
+        if (scheduledCheckIn == null || actualCheckIn == null || nightlyRate == null) {
             return BigDecimal.ZERO;
         }
 
-        // Chỉ xét khoảng thời gian sớm trong cùng ngày check-in
-        LocalTime actualTime = actualCheckInTime.toLocalTime();
-        LocalTime morning06 = LocalTime.of(6, 0);
-        LocalTime morning09 = LocalTime.of(9, 0);
-        LocalTime standard14 = LocalTime.of(14, 0); // Giờ chuẩn 14:00
-
-        if (actualTime.isBefore(morning06)) {
-            // Nhận phòng trước 06:00 sáng: Phụ thu 100%
-            return nightlyRate;
-        } else if (!actualTime.isAfter(morning09)) {
-            // Nhận phòng từ 06:00 – 09:00 sáng: Phụ thu 50%
-            return nightlyRate.multiply(BigDecimal.valueOf(0.5));
-        } else if (actualTime.isBefore(standard14)) {
-            // Nhận phòng từ 09:00 – 14:00: Phụ thu 30%
-            return nightlyRate.multiply(BigDecimal.valueOf(0.3));
+        if (!actualCheckIn.isBefore(scheduledCheckIn)) {
+            return BigDecimal.ZERO;
         }
 
-        return BigDecimal.ZERO;
+        long totalMinutesEarly = Duration.between(actualCheckIn, scheduledCheckIn).toMinutes();
+
+        long fullDays = totalMinutesEarly / (24L * 60L);
+        long remainingMinutes = totalMinutesEarly % (24L * 60L);
+
+        BigDecimal fee = BigDecimal.ZERO;
+
+        // Phần đúng số ngày
+        if (fullDays > 0) {
+            fee = fee.add(nightlyRate.multiply(BigDecimal.valueOf(fullDays)));
+        }
+
+        // Phần giờ còn lại trong ngày
+        if (remainingMinutes > 0) {
+            BigDecimal partialRate = nightlyRate
+                    .multiply(BigDecimal.valueOf(remainingMinutes))
+                    .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+
+            fee = fee.add(partialRate);
+        }
+
+        return fee.setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Tính tiền phụ thu check-out trễ (tính trên ngày check-out cuối cùng)
-     *
-     * @param scheduledCheckOutDate Ngày giờ trả phòng dự kiến / quy chuẩn (ví dụ: 20/08/2026 12:00)
-     * @param actualCheckOutTime    Thời gian khách thực tế trả phòng
-     * @param nightlyRate           Giá phòng của đêm đó (1 đêm)
-     */
-    public static BigDecimal calculateLateCheckOutFee(LocalDateTime scheduledCheckOutDate, LocalDateTime actualCheckOutTime, BigDecimal nightlyRate) {
-        // Nếu khách trả phòng trước hoặc đúng giờ chuẩn thì không mất phí trễ
-        if (actualCheckOutTime == null || !actualCheckOutTime.isAfter(scheduledCheckOutDate)) {
+    public static BigDecimal calculateLateCheckOutFee(LocalDateTime scheduledCheckOut,
+                                                      LocalDateTime actualCheckOut,
+                                                      BigDecimal nightlyRate) {
+        if (scheduledCheckOut == null || actualCheckOut == null || nightlyRate == null) {
             return BigDecimal.ZERO;
         }
 
-        LocalTime actualTime = actualCheckOutTime.toLocalTime();
-        LocalTime afternoon15 = LocalTime.of(15, 0);
-        LocalTime late18 = LocalTime.of(18, 0);
-
-        if (!actualTime.isAfter(afternoon15)) {
-            // Trả phòng từ 12:00 – 15:00: Phụ thu 30%
-            return nightlyRate.multiply(BigDecimal.valueOf(0.3));
-        } else if (!actualTime.isAfter(late18)) {
-            // Trả phòng từ 15:00 – 18:00: Phụ thu 50%
-            return nightlyRate.multiply(BigDecimal.valueOf(0.5));
-        } else {
-            // Trả phòng sau 18:00: Phụ thu 100%
-            return nightlyRate.multiply(BigDecimal.valueOf(1.0));
+        if (!actualCheckOut.isAfter(scheduledCheckOut)) {
+            return BigDecimal.ZERO;
         }
+
+        long totalMinutesLate = Duration.between(scheduledCheckOut, actualCheckOut).toMinutes();
+
+        long fullDays = totalMinutesLate / (24L * 60L);
+        long remainingMinutes = totalMinutesLate % (24L * 60L);
+
+        BigDecimal fee = BigDecimal.ZERO;
+
+        if (fullDays > 0) {
+            fee = fee.add(nightlyRate.multiply(BigDecimal.valueOf(fullDays)));
+        }
+
+        if (remainingMinutes > 0) {
+            BigDecimal partialRate = nightlyRate
+                    .multiply(BigDecimal.valueOf(remainingMinutes))
+                    .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+
+            fee = fee.add(partialRate);
+        }
+
+        return fee.setScale(2, RoundingMode.HALF_UP);
     }
 }

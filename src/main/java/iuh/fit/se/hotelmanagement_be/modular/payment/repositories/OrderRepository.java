@@ -16,4 +16,5 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Hàm tìm kiếm theo mã code đã viết chuẩn bằng Query thuần
     @Query("SELECT o FROM Order o JOIN o.paymentOrderCodes c WHERE c = :paymentOrderCode")
     Optional<Order> findByPaymentOrderCodesContaining(@Param("paymentOrderCode") Long paymentOrderCode);
+    Optional<Order> findById(@Param("id") String id);
 }

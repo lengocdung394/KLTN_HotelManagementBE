@@ -30,14 +30,17 @@ public class BookingExpiryScheduler {
         }
 
         for (Booking booking : expiredBookings) {
-            booking.setBookingStatus(BookingStatus.CANCELLED);
-            bookingRepository.save(booking);
+            if (booking.getBookingStatus().equals(BookingStatus.PENDING)) {
+                booking.setBookingStatus(BookingStatus.CANCELLED);
+                bookingRepository.save(booking);
 
-            if (booking.getHotel() != null) {
-                bookingSocketEmitter.emitRoomMatrixUpdate(booking.getHotel().getId());
-                log.info("Expired pending booking released: bookingId={}, hotelId={}",
-                        booking.getId(), booking.getHotel().getId());
+                if (booking.getHotel() != null) {
+                    bookingSocketEmitter.emitRoomMatrixUpdate(booking.getHotel().getId());
+                    log.info("Expired pending booking released: bookingId={}, hotelId={}",
+                            booking.getId(), booking.getHotel().getId());
+                }
             }
+
         }
     }
 }

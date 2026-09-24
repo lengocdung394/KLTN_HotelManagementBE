@@ -4,12 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CashPaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentResponse;
+import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentTransactionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.WebhookResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.PaymentService;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +26,7 @@ import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Optional;
 
@@ -29,6 +36,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final OrderRepository orderRepository;
     private final ObjectMapper objectMapper;
     private final PayOS payOS;
+    private final PaymentRepository paymentRepository;
 
     // Tự viết Constructor tường minh để khởi tạo đầy đủ các bean và thông tin cấu hình PayOS
     public PaymentServiceImpl(
@@ -36,10 +44,11 @@ public class PaymentServiceImpl implements PaymentService {
             ObjectMapper objectMapper,
             @Value("${CLIENT_ID}") String clientId,
             @Value("${API_KEY}") String apiKey,
-            @Value("${CHECKSUM_KEY}") String checksumKey
+            @Value("${CHECKSUM_KEY}") String checksumKey, PaymentRepository paymentRepository
     ) {
         this.orderRepository = orderRepository;
         this.objectMapper = objectMapper;
+        this.paymentRepository = paymentRepository;
         this.payOS = new PayOS(clientId, apiKey, checksumKey);
     }
 
@@ -166,5 +175,106 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("[Webhook] Đã gọi orderRepository.save(order.id={})", order.getId());
 
         return WebhookResponse.builder().error(0).message("Cập nhật đơn hàng thành công via Webhook").build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentTransactionResponse payWithCash(
+            CashPaymentRequest request
+    ) {
+        Order order = orderRepository.findById(request.getOrderId())
+                .orElseThrow(() ->
+                        new AppException(ErrorCode.ORDER_NOT_FOUND)
+                );
+
+        if (order.getOrderStatus() == OrderStatusType.CANCELLED) {
+            throw new AppException(
+                    ErrorCode.ORDER_ALREADY_CANCELLED
+            );
+        }
+
+        if (order.getOrderStatus() == OrderStatusType.PAID
+                || order.getOrderStatus() == OrderStatusType.CLOSED) {
+            throw new AppException(
+                    ErrorCode.ORDER_ALREADY_PAID
+            );
+        }
+
+        if (request.getAmountPaid() == null
+                || request.getAmountPaid().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(
+                    ErrorCode.INVALID_PAYMENT_AMOUNT
+            );
+        }
+
+        BigDecimal totalAmount = order.getTotalAmount();
+        BigDecimal amountPaid = request.getAmountPaid();
+
+        if (totalAmount == null
+                || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(
+                    ErrorCode.INVALID_PAYMENT_AMOUNT
+            );
+        }
+
+        if (amountPaid.compareTo(totalAmount) < 0) {
+            throw new AppException(
+                    ErrorCode.INSUFFICIENT_PAYMENT
+            );
+        }
+
+        BigDecimal changeAmount =
+                amountPaid.subtract(totalAmount);
+
+        PaymentTransaction receiptTransaction =
+                PaymentTransaction.builder()
+                        .order(order)
+                        .amount(amountPaid)
+                        .paymentType(PaymentType.CASH)
+                        .cashFlowType(CashFlowType.RECEIPT)
+                        .note(
+                                request.getNote() != null
+                                        ? request.getNote()
+                                        : "Thanh toán tiền mặt tại quầy"
+                        )
+                        .transactionDate(LocalDateTime.now())
+                        .build();
+
+        paymentRepository.save(receiptTransaction);
+
+        if (changeAmount.compareTo(BigDecimal.ZERO) > 0) {
+            PaymentTransaction changeTransaction =
+                    PaymentTransaction.builder()
+                            .order(order)
+                            .amount(changeAmount)
+                            .paymentType(PaymentType.CASH)
+                            .cashFlowType(CashFlowType.CHANGE)
+                            .note("Tiền thừa trả khách")
+                            .transactionDate(LocalDateTime.now())
+                            .build();
+
+            paymentRepository.save(changeTransaction);
+        }
+
+        // Quan trọng: cập nhật số tiền đã thanh toán
+        order.setPaidAmount(totalAmount);
+        order.setOrderStatus(OrderStatusType.PAID);
+        // cap nhat trang thai confirm
+        order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
+        orderRepository.save(order);
+
+        return PaymentTransactionResponse.builder()
+                .transactionId(receiptTransaction.getId())
+                .orderId(order.getId())
+                .totalAmount(totalAmount)
+                .amountPaid(amountPaid)
+                .changeAmount(changeAmount)
+                .paymentType("CASH")
+                .status(OrderStatusType.PAID.name())
+                .transactionDate(
+                        receiptTransaction.getTransactionDate()
+                )
+                .message("Thanh toán tiền mặt thành công")
+                .build();
     }
 }

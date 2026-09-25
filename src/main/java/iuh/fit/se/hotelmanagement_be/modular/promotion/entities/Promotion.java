@@ -87,6 +87,7 @@ public class Promotion {
     List<CustomerPromotion> customerPromotions;
 
 
+    @Builder.Default
     @Column(name = "is_exclusive")
     boolean isExclusive = false;
 

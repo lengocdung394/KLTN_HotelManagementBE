@@ -11,6 +11,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @EqualsAndHashCode(callSuper = false)
 @Data
@@ -37,4 +38,14 @@ public class PaymentTransaction {
     CashFlowType cashFlowType;
 
     String note;
+
+    @Column(name = "created_at")
+    LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+    }
 }

@@ -16,6 +16,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -225,5 +227,64 @@ public class AuthServiceImpl implements AuthService {
 
         account.setPassword(passwordEncoder.encode(request.getNewPassword()));
         accountRepository.save(account);
+    }
+
+    @Override
+    @Transactional
+    public void forgotPasswordRequest(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request) {
+        accountRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        String otpCode = otpService.generateOtpCode();
+
+        otpRepository.deleteByEmail(request.getEmail().trim());
+        OtpVerification otp = OtpVerification.builder()
+                .email(request.getEmail().trim())
+                .otpCode(otpCode)
+                .failedAttempts(0)
+                .verified(false)
+                .expiredAt(LocalDateTime.now().plusMinutes(5))
+                .build();
+        otpRepository.save(otp);
+
+        log.info(">>> [FORGOT PASSWORD OTP] Email: {}, OTP: {}", request.getEmail().trim(), otpCode);
+        try {
+            emailService.sendOtpEmail(request.getEmail().trim(), otpCode);
+        } catch (Exception e) {
+            log.warn(">>> Gửi email OTP thất bại: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        OtpVerification otp = otpRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.OTP_NOT_FOUND));
+
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.OTP_EXPIRED);
+        }
+
+        if (otp.getFailedAttempts() >= 3) {
+            throw new AppException(ErrorCode.OTP_LOCKED);
+        }
+
+        if (!otp.getOtpCode().equals(request.getOtp().trim())) {
+            otp.setFailedAttempts(otp.getFailedAttempts() + 1);
+            otpRepository.save(otp);
+            throw new RuntimeException("Mã OTP không chính xác");
+        }
+
+        Account account = accountRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+
+        otpRepository.deleteByEmail(request.getEmail().trim());
     }
 }

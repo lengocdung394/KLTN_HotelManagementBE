@@ -1,17 +1,23 @@
 package iuh.fit.se.hotelmanagement_be.config.rbac;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.PermissionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.*;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.*;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.BedType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomTypeBed;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -44,10 +50,29 @@ public class RbacInitializer implements CommandLineRunner {
     private final RoomTypeBedRepository roomTypeBedRepository;
     private final RoomRepository roomRepository;
     private final BedTypeRepository bedTypeRepository;
+    private final CustomerRepository customerRepository;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Override
-    @Transactional
     public void run(String... args) {
+
+        // ==========================================
+        // 0. ĐỒNG BỘ POSTGRESQL SEQUENCES TRÁNH DUPLICATE KEY
+        // ==========================================
+        try {
+            String[] tables = {"orders", "bookings", "booking_details", "booking_services", "payment_transactions", "rooms"};
+            String[] pks = {"order_id", "booking_id", "booking_detail_id", "booking_service_id", "payment_transaction_id", "room_id"};
+            for (int i = 0; i < tables.length; i++) {
+                try {
+                    String sql = String.format("SELECT setval(pg_get_serial_sequence('%s', '%s'), COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false);",
+                            tables[i], pks[i], pks[i], tables[i]);
+                    jdbcTemplate.execute(sql);
+                } catch (Exception ignored) {}
+            }
+            System.out.println(">>> [STARTUP] Đã đồng bộ tất cả PostgreSQL sequences về MAX(ID) + 1.");
+        } catch (Exception e) {
+            System.err.println(">>> [STARTUP WARN] Đồng bộ sequence: " + e.getMessage());
+        }
 
         // ==========================================
         // 1. KHỞI TẠO PERMISSIONS & ROLES (RBAC)
@@ -276,6 +301,133 @@ public class RbacInitializer implements CommandLineRunner {
                 ));
                 System.out.println(">>> [STARTUP] Đã phân bổ cấu trúc giường mặc định cho từng Loại phòng thành công.");
             }
+        }
+
+        // ==========================================
+        // 6. KHỞI TẠO KHÁCH HÀNG MẪU (NẾU CHƯA CÓ)
+        // ==========================================
+        try {
+            if (customerRepository.count() == 0) {
+                Role customerRole = roleRepository.findByName("ROLE_CUSTOMER").orElse(null);
+                Account customerAccount = accountRepository.findByEmail("customer@senviet.vn")
+                        .orElseGet(() -> accountRepository.save(
+                                Account.builder()
+                                        .email("customer@senviet.vn")
+                                        .password(passwordEncoder.encode("customer123"))
+                                        .roles(customerRole != null ? Set.of(customerRole) : Set.of())
+                                        .build()
+                        ));
+
+                Customer defaultCustomer = Customer.builder()
+                        .fullName("Huỳnh Văn Hiếu")
+                        .phone("0901234567")
+                        .email("customer@senviet.vn")
+                        .loyaltyTier(LoyaltyTier.BRONZE)
+                        .totalSpent(0.0)
+                        .totalBookings(0)
+                        .account(customerAccount)
+                        .build();
+                customerRepository.save(defaultCustomer);
+                System.out.println(">>> [STARTUP] Đã khởi tạo Khách hàng mẫu thành công.");
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [STARTUP WARN] Khởi tạo khách hàng mẫu thất bại: " + e.getMessage());
+        }
+
+        // ==========================================
+        // 7. KHỞI TẠO PHÒNG MẪU (NẾU CHƯA CÓ)
+        // ==========================================
+        try {
+            if (roomRepository.count() == 0) {
+                List<Floor> floors = floorRepository.findAll();
+                if (!floors.isEmpty()) {
+                    List<Room> initialRooms = new ArrayList<>();
+                    for (Floor floor : floors) {
+                        initialRooms.add(Room.builder()
+                                .floor(floor)
+                                .roomStatus(RoomStatus.READY)
+                                .roomType(RoomType.STANDARD)
+                                .price(1000000.0)
+                                .basePrice(1000000.0)
+                                .avatarUrl(List.of(RoomImage.builder()
+                                        .url("https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=900&auto=format&fit=crop")
+                                        .isDefault(true).build()))
+                                .amenities(Set.of())
+                                .build());
+
+                        initialRooms.add(Room.builder()
+                                .floor(floor)
+                                .roomStatus(RoomStatus.READY)
+                                .roomType(RoomType.DELUXE)
+                                .price(2000000.0)
+                                .basePrice(2000000.0)
+                                .avatarUrl(List.of(RoomImage.builder()
+                                        .url("https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=900&auto=format&fit=crop")
+                                        .isDefault(true).build()))
+                                .amenities(Set.of())
+                                .build());
+
+                        initialRooms.add(Room.builder()
+                                .floor(floor)
+                                .roomStatus(RoomStatus.READY)
+                                .roomType(RoomType.SUITE)
+                                .price(3000000.0)
+                                .basePrice(3000000.0)
+                                .avatarUrl(List.of(RoomImage.builder()
+                                        .url("https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=900&auto=format&fit=crop")
+                                        .isDefault(true).build()))
+                                .amenities(Set.of())
+                                .build());
+
+                        initialRooms.add(Room.builder()
+                                .floor(floor)
+                                .roomStatus(RoomStatus.READY)
+                                .roomType(RoomType.FAMILY)
+                                .price(3500000.0)
+                                .basePrice(3500000.0)
+                                .avatarUrl(List.of(RoomImage.builder()
+                                        .url("https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop")
+                                        .isDefault(true).build()))
+                                .amenities(Set.of())
+                                .build());
+                    }
+                    roomRepository.saveAll(initialRooms);
+                    System.out.println(">>> [STARTUP] Đã khởi tạo phòng mẫu thành công.");
+                }
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [STARTUP WARN] Khởi tạo phòng mẫu thất bại: " + e.getMessage());
+        }
+
+        // ==========================================
+        // 8. ĐẢM BẢO CHÍNH SÁCH GIÁ (POLICY) CHO TẤT CẢ KHÁCH SẠN
+        // ==========================================
+        try {
+            List<Hotel> allHotels = hotelRepository.findAll();
+            for (Hotel hotel : allHotels) {
+                for (RoomType rt : RoomType.values()) {
+                    if (branchRoomPolicyRepository.findByHotelIdAndRoomType(hotel.getId(), rt) == null) {
+                        double base = switch (rt) {
+                            case STANDARD -> 1000000.0;
+                            case DELUXE -> 2000000.0;
+                            case SUITE -> 3000000.0;
+                            case FAMILY -> 3500000.0;
+                        };
+                        branchRoomPolicyRepository.save(BranchRoomPolicy.builder()
+                                .hotel(hotel)
+                                .roomType(rt)
+                                .standardCapacity(rt == RoomType.FAMILY ? 4 : (rt == RoomType.SUITE ? 3 : 2))
+                                .maxExtraGuests(rt == RoomType.FAMILY ? 4 : (rt == RoomType.DELUXE || rt == RoomType.SUITE ? 3 : 2))
+                                .extraAdultFee(200000.0)
+                                .extraChildFee(100000.0)
+                                .basePrice(base)
+                                .build());
+                    }
+                }
+            }
+            System.out.println(">>> [STARTUP] Đã đồng bộ BranchRoomPolicy cho toàn bộ khách sạn.");
+        } catch (Exception e) {
+            System.err.println(">>> [STARTUP WARN] Đồng bộ BranchRoomPolicy thất bại: " + e.getMessage());
         }
     }
 

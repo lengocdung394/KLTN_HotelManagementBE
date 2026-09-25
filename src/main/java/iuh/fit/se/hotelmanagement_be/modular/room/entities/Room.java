@@ -43,6 +43,17 @@ public class Room {
     @Column(name = "room_type")
     RoomType roomType;
 
+    @Column(name = "room_number", length = 20)
+    String roomNumber;
+
+    @Column(name = "price")
+    @Builder.Default
+    Double price = 0.0;
+
+    @Column(name = "base_price")
+    @Builder.Default
+    Double basePrice = 0.0;
+
     // Tien ich
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

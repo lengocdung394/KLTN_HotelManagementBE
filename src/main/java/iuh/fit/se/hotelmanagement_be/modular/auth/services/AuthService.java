@@ -24,4 +24,8 @@ public interface AuthService {
     CustomerProfileResponse updateMyCustomerProfile(CustomerUpdateProfileRequest request);
 
     void changeCustomerPassword(ChangePasswordRequest request);
+
+    void forgotPasswordRequest(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request);
+
+    void resetPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordRequest request);
 }

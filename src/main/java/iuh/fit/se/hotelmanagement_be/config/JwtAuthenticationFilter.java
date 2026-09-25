@@ -58,27 +58,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // 3. Tách lấy chuỗi JWT (bỏ 7 ký tự chữ "Bearer ")
         jwt = authHeader.substring(7);
 
-        // 4. Giải mã JWT để lấy email người dùng
-        userEmail = jwtService.extractUsername(jwt);
+        // 4. Giải mã JWT và xác thực người dùng
+        try {
+            userEmail = jwtService.extractUsername(jwt);
 
-        // 5. Nếu lấy được email và người dùng chưa được xác thực trong phiên làm việc này
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-            System.out.println(">>> userEmail from token: " + userEmail);
-            System.out.println(">>> userDetails.getUsername(): " + userDetails.getUsername());
-            System.out.println(">>> isTokenValid: " + jwtService.isTokenValid(jwt, userDetails));
-            // 6. Kiểm tra xem Token có chuẩn và chưa hết hạn không
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            // 5. Nếu lấy được email và người dùng chưa được xác thực trong phiên làm việc này
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+                // 6. Kiểm tra xem Token có chuẩn và chưa hết hạn không
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                // 7. Xác nhận người dùng hợp lệ vào Spring Security Context
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    // 7. Xác nhận người dùng hợp lệ vào Spring Security Context
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (Exception e) {
+            System.err.println(">>> [JWT] Token không hợp lệ hoặc đã hết hạn: " + e.getMessage());
         }
 
         // 8. Chuyển request sang Filter tiếp theo

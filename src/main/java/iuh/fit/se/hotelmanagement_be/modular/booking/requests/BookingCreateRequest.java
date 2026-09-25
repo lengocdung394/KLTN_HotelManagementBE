@@ -20,6 +20,9 @@ public class BookingCreateRequest {
     @NotNull(message = "Mã khách hàng không được để trống")
     Long customerId;
 
+    // Mã khách sạn
+    Long hotelId;
+
     // Thông tin nhân viên (Nếu như là đặt tài quầy)
 //    @NotNull(message = "Mã nhân viên không được để trống")
     Long employeeId;

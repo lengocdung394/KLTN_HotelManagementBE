@@ -82,8 +82,12 @@ public enum ErrorCode {
     // Ví dụ các lỗi hỗ trợ khác đã nhắc tới trước đó:
     INVALID_BOOKING_DATE(1052, "Thời gian nhận phòng phải trước thời gian trả phòng", HttpStatus.BAD_REQUEST),
     ROOM_NOT_FOUND(1053, "Không tìm thấy thông tin phòng", HttpStatus.NOT_FOUND),
-    ROOM_ALREADY_BOOKED(1054, "Phòng đã có người đặt trong khoảng thời gian này", HttpStatus.CONFLICT),
-    BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND);
+    BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND),
+    // --- LỖI HÓA ĐƠN & THANH TOÁN (9xxx) ---
+    ORDER_NOT_FOUND(9001, "[9001] Không tìm thấy hóa đơn thanh toán", HttpStatus.NOT_FOUND),
+    ORDER_ALREADY_CLOSED(9002, "[9002] Hóa đơn này đã được quyết toán và đóng", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_AMOUNT(9003, "[9003] Số tiền thanh toán phải lớn hơn 0", HttpStatus.BAD_REQUEST),
+    PAYMENT_EXCEEDS_REMAINING(9004, "[9004] Số tiền thanh toán vượt quá số tiền còn nợ của hóa đơn", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

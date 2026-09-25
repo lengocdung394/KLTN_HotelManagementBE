@@ -16,6 +16,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class BookingResponse {
     Long bookingId;
+    Long orderId;
     Long customerId;
     String customerName;
     BookingStatus bookingStatus;

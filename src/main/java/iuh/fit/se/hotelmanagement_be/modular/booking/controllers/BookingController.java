@@ -20,7 +20,13 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
 public class BookingController {
 
-    BookingService  bookingService;
+    BookingService bookingService;
+    iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository roomRepository;
+
+    @GetMapping("/available-rooms")
+    public ResponseEntity<?> getAvailableRooms() {
+        return ResponseEntity.ok(roomRepository.findAll());
+    }
 
     /**
      * Endpoint 1: Khách hàng tự đặt phòng trực tuyến (Online)

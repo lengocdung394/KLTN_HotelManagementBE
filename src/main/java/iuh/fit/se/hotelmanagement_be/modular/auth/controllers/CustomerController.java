@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @RestController
-@RequestMapping("/customer")
+@RequestMapping({"/customer", "/users"})
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Tag(name = "Customer", description = "APIs dành cho khách hàng: Hồ sơ, Loyalty, Đổi mật khẩu")

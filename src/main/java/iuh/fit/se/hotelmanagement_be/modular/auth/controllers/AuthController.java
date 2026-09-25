@@ -11,6 +11,7 @@ import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -88,6 +89,32 @@ public class AuthController {
                 .build();
 
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @Operation(
+            summary = "Yêu cầu đặt lại mật khẩu (Gửi OTP qua email)",
+            description = "Khách hàng nhập email, hệ thống kiểm tra và gửi mã OTP 6 số để xác thực đặt lại mật khẩu."
+    )
+    @PostMapping("/forgot-password/request")
+    public ResponseEntity<ApiResponse<String>> forgotPasswordRequest(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPasswordRequest(request);
+        return ResponseEntity.ok(ApiResponse.<String>builder()
+                .code(200)
+                .message("Mã OTP khôi phục mật khẩu đã được gửi đến email của bạn!")
+                .build());
+    }
+
+    @Operation(
+            summary = "Xác nhận OTP và đổi mật khẩu mới",
+            description = "Khách hàng nhập mã OTP và mật khẩu mới để hoàn tất khôi phục tài khoản."
+    )
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(200)
+                .message("Đặt lại mật khẩu thành công! Bạn có thể đăng nhập ngay.")
+                .build());
     }
 
 }

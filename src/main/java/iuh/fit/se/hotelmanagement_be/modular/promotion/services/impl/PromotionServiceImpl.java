@@ -8,7 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -171,8 +170,8 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     public PageResponse<PromotionResponse> getAllPromotions(Long hotelId,
-            PromotionStatus status, PromotionType type, String keyword,
-            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+                                                            PromotionStatus status, PromotionScope type, String keyword,
+                                                            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
 
         String kw = (keyword != null && keyword.isBlank()) ? null : keyword;
         String statusStr = (status != null) ? status.name() : null;

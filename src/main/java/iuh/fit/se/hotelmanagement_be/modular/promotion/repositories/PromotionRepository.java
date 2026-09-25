@@ -2,7 +2,6 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

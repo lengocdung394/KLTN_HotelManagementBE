@@ -12,7 +12,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 
 public interface CustomerService {
 
-    Customer createWalkInCustomer(WalkInCustomerRequest request);
+    Customer createWalkInCustomer(WalkInCustomerRequest request, Long hotelId);
 
     CustomerFindByIdResponse getCustomerById(String id);
 

@@ -1,12 +1,10 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ClaimPromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import org.springframework.data.domain.Pageable;
@@ -24,7 +22,7 @@ public interface PromotionService {
     PageResponse<PromotionResponse> getAllPromotions(
             Long hotelId,
             PromotionStatus status,
-            PromotionType type,
+            PromotionScope type,
             String keyword,
             LocalDateTime startDate,
             LocalDateTime endDate,

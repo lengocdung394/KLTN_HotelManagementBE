@@ -28,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -42,26 +43,38 @@ public class CustomerServiceImpl implements CustomerService {
     EmailService emailService;
     RoleRepository roleRepository;
     PasswordEncoder passwordEncoder;
+    CustomerSocketEmitter customerSocketEmitter;
 
     @Override
-    public Customer createWalkInCustomer(WalkInCustomerRequest request) {
-        // 1. Kiểm tra xem khách hàng đã tồn tại dựa vào SĐT hoặc CCCD chưa
-        if (customerRepository.existsByPhone(request.getPhone())) {
+    public Customer createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
+        // 1. Kiểm tra logic trùng SĐT hoặc CCCD (như đã bàn ở trên)
+        Optional<Customer> customerByPhone = customerRepository.findByPhone(request.getPhone());
+        Optional<Customer> customerByCccd = customerRepository.findByCccd(request.getCccd());
+
+        if (customerByPhone.isPresent() && customerByCccd.isPresent()
+                && customerByPhone.get().getId().equals(customerByCccd.get().getId())) {
+            return customerByPhone.get(); // Khách cũ load lại trang
+        }
+        if (customerByPhone.isPresent()) {
             throw new AppException(ErrorCode.PHONE_EXISTED);
         }
-        if (customerRepository.existsByCccd(request.getCccd())) {
+        if (customerByCccd.isPresent()) {
             throw new AppException(ErrorCode.CCCD_EXISTED);
         }
 
-        // 2. Khởi tạo đối tượng Customer mới
+        // 2. Tạo mới khách hàng
         Customer customer = new Customer();
         customer.setFullName(request.getFullName());
         customer.setPhone(request.getPhone());
         customer.setCccd(request.getCccd());
         customer.setRegistered(false);
         customer.setAccount(null);
-        // 3. Lưu vào Database (Mã ID dạng CUS_YYYYMMDD_XXXXXX sẽ tự động sinh nhờ @PrePersist)
-        return customerRepository.save(customer);
+
+        Customer savedCustomer = customerRepository.save(customer);
+
+        customerSocketEmitter.emitCustomerCreated(hotelId, customer);
+
+        return savedCustomer;
     }
 
     @Override

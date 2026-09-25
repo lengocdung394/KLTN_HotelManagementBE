@@ -3,7 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.responses;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -22,7 +22,7 @@ public class PromotionResponse {
     String code;
     String name;
     String description;
-    PromotionType type;
+    PromotionScope type;
     BigDecimal discountValue;
     BigDecimal maxDiscountAmount;
     BigDecimal minBookingValue;

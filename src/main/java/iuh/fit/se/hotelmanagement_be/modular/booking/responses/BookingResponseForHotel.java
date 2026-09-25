@@ -22,6 +22,16 @@ public class BookingResponseForHotel {
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
     LocalDateTime createdAt;
+    // Tiền đã thanh toán
+    BigDecimal  paidAmount;
+    BigDecimal  remainingAmount;
+
+    // Lam ro phan tien giam giá
+    BigDecimal discountRoomAmount;     // Số tiền được giảm cho phòng
+    BigDecimal discountServiceAmount;  // Số tiền được giảm cho dịch vụ
+    BigDecimal discountAmountTotal;    // Số tiền giảm trừ thẳng vào tổng hóa đơn chung
+
+    // Tiền thiếu lại khách hàng nếu có
     // --- Bổ sung thêm các trường tiền nong từ Order ---
     BigDecimal roomTotal;       // Tổng tiền phòng
     BigDecimal serviceTotal;    // Tổng tiền dịch vụ

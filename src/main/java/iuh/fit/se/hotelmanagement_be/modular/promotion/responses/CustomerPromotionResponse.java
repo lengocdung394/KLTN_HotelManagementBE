@@ -1,7 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.responses;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 public class CustomerPromotionResponse {
 
     @Schema(description = "ID của bản ghi CustomerPromotion", example = "10")
-    Long id;
+    String id;
 
     @Schema(description = "Mã voucher thực tế để khách nhập/áp dụng khi Booking", example = "AUTUMN2026")
     String voucherCode;
@@ -44,7 +44,7 @@ public class CustomerPromotionResponse {
     String description;
 
     @Schema(description = "Loại giảm giá (PERCENTAGE / FIXED_AMOUNT)", example = "PERCENTAGE")
-    PromotionType type;
+    PromotionScope type;
 
     @Schema(description = "Giá trị giảm (% hoặc số tiền)", example = "15.00")
     BigDecimal discountValue;

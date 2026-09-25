@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PromotionGetListByCustomerResponse {
-    Long id;
+    String id;
     String code;
     String name;
     String description;          // Mô tả chi tiết mã giảm giá

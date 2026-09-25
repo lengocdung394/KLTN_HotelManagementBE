@@ -1,7 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.requests;
 
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 import lombok.AccessLevel;
@@ -32,7 +32,7 @@ public class CreatePromotionRequest {
 
     @NotNull(message = "Loại khuyến mãi không được để trống")
     @Schema(example = "PERCENTAGE")
-    PromotionType type;
+    PromotionScope type;
 
     @NotNull(message = "Giá trị giảm không được để trống")
     @DecimalMin(value = "0.01", message = "Giá trị giảm phải lớn hơn 0")

@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PromotionResponse {
 
-    Long id;
+    String id;
     String code;
     String name;
     String description;

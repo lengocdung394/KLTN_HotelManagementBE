@@ -37,6 +37,7 @@ public class JwtService {
             extraClaims.put("fullName", emp.getFullName());
             extraClaims.put("phone", emp.getPhone());
             extraClaims.put("position", emp.getPosition());
+            extraClaims.put("id", emp.getId()); // cai này là mã nhân viên
 
             // Lấy thông tin Hotel trực thuộc
             if (emp.getHotel() != null) {
@@ -56,6 +57,7 @@ public class JwtService {
             extraClaims.put("position", "Khách hàng");
             extraClaims.put("hotelId", null);
             extraClaims.put("hotelName", null);
+            extraClaims.put("id", cust.getId());
         }
 
         // 3. Đút danh sách Roles vào Token cho Frontend kiểm tra quyền

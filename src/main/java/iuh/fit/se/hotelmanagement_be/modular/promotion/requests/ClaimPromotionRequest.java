@@ -9,5 +9,5 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ClaimPromotionRequest {
     @NotNull(message = "ID khuyến mãi không được để trống")
-    Long promotionId;
+    String promotionId;
 }

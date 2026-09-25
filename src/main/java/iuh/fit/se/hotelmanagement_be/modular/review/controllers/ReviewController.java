@@ -52,7 +52,7 @@ public class ReviewController {
 
     @Operation(summary = "Kiểm tra đánh giá theo mã booking")
     @GetMapping("/booking/{bookingId}")
-    public ResponseEntity<ApiResponse<ReviewResponse>> getReviewByBookingId(@PathVariable Long bookingId) {
+    public ResponseEntity<ApiResponse<ReviewResponse>> getReviewByBookingId(@PathVariable String bookingId) {
         ReviewResponse response = reviewService.getReviewByBookingId(bookingId);
         return ResponseEntity.ok(ApiResponse.<ReviewResponse>builder()
                 .code(1000)

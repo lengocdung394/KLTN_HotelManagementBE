@@ -10,13 +10,13 @@ public interface HotelServiceService {
 
     List<ServiceResponse> getAllServices(Long hotelId, String category, Boolean activeOnly);
 
-    ServiceResponse getServiceById(Long id);
+    ServiceResponse getServiceById(String id);
 
     ServiceResponse createService(CreateServiceRequest request);
 
-    ServiceResponse updateService(Long id, UpdateServiceRequest request);
+    ServiceResponse updateService(String id, UpdateServiceRequest request);
 
-    void deleteService(Long id);
+    void deleteService(String id);
 
-    ServiceResponse toggleServiceStatus(Long id);
+    ServiceResponse toggleServiceStatus(String id);
 }

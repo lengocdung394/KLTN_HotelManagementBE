@@ -74,7 +74,7 @@ public class PromotionController {
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết khuyến mãi theo ID")
     public ResponseEntity<ApiResponse<PromotionResponse>> getById(
-            @Parameter(description = "ID của khuyến mãi") @PathVariable Long id) {
+            @Parameter(description = "ID của khuyến mãi") @PathVariable String id) {
 
         return ResponseEntity.ok(ApiResponse.<PromotionResponse>builder()
                 .code(1000)
@@ -141,7 +141,7 @@ public class PromotionController {
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật thông tin khuyến mãi")
     public ResponseEntity<ApiResponse<PromotionResponse>> update(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Parameter(
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = UpdatePromotionRequest.class))
@@ -163,7 +163,7 @@ public class PromotionController {
     @Operation(summary = "Thay đổi trạng thái khuyến mãi",
                description = "DRAFT→ACTIVE/INACTIVE | ACTIVE→INACTIVE/EXPIRED | INACTIVE→ACTIVE/EXPIRED")
     public ResponseEntity<ApiResponse<PromotionResponse>> changeStatus(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody ChangeStatusRequest request) {
 
         return ResponseEntity.ok(ApiResponse.<PromotionResponse>builder()
@@ -178,7 +178,7 @@ public class PromotionController {
     // ============================================================
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa khuyến mãi (soft delete)")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         promotionService.deletePromotion(id);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .code(1000)

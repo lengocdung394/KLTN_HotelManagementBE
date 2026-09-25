@@ -6,15 +6,13 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateProfile
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 
-public interface AuthService {
-    // Bước 1: Kiểm tra email + lưu OTP tạm + gửi mail
-    void customerRegisterRequest(CustomerCreateRequest request);
+import java.util.List;
 
-    // Bước 2: Kiểm tra OTP + lưu User chính thức vào DB + trả về thông tin User
-    UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request);
+public interface AuthService {
 
     AuthenticationResponse login(UserLoginRequest request);
 
@@ -28,4 +26,8 @@ public interface AuthService {
     void forgotPasswordRequest(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request);
 
     void resetPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordRequest request);
+
+    List<CustomerGetOneResponse> getAllCustomers();
+
+    List<CustomerGetOneResponse> getCustomersByHotelId(Long hotelId);
 }

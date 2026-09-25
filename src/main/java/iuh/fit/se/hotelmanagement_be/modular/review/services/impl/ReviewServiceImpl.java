@@ -155,7 +155,7 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReviewResponse getReviewByBookingId(Long bookingId) {
+    public ReviewResponse getReviewByBookingId(String bookingId) {
         return reviewRepository.findByBookingId(bookingId)
                 .map(this::toReviewResponse)
                 .orElse(null);

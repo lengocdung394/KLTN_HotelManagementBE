@@ -11,6 +11,6 @@ import java.util.List;
 @Repository
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
 
-    @Query("SELECT pt FROM PaymentTransaction pt WHERE pt.order.id = :orderId ORDER BY pt.createdAt DESC")
-    List<PaymentTransaction> findByOrderId(@Param("orderId") Long orderId);
+    @Query("SELECT pt FROM PaymentTransaction pt WHERE pt.order.id = :orderId ORDER BY pt.id DESC")
+    List<PaymentTransaction> findByOrderId(@Param("orderId") String orderId);
 }

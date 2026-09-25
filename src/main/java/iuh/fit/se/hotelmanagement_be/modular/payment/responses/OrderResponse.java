@@ -16,14 +16,14 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Schema(description = "Thông tin chi tiết hóa đơn thanh toán")
 public class OrderResponse {
-    @Schema(description = "Mã hóa đơn", example = "1")
-    Long id;
+    @Schema(description = "Mã hóa đơn", example = "ORD202609251234")
+    String id;
 
-    @Schema(description = "Mã đơn đặt phòng liên kết", example = "101")
-    Long bookingId;
+    @Schema(description = "Mã đơn đặt phòng liên kết", example = "BK12345")
+    String bookingId;
 
-    @Schema(description = "ID khách hàng", example = "1")
-    Long customerId;
+    @Schema(description = "ID khách hàng", example = "CUST123")
+    String customerId;
 
     @Schema(description = "Họ tên khách hàng", example = "Nguyễn Văn A")
     String customerName;

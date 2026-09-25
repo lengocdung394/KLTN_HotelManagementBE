@@ -224,6 +224,8 @@ public class RoomServiceImpl implements RoomService {
             return RoomResponse.builder()
                     .id(room.getId())
                     .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
+                    // lay ra so phong
+                    .roomNumber(room.getRoomNumber())
                     .floorNumber(room.getFloor().getFloorNumber())
                     .nameBuilding(room.getFloor().getBuilding().getName())
                     .roomStatus(room.getRoomStatus())
@@ -232,7 +234,7 @@ public class RoomServiceImpl implements RoomService {
                     .amenities(room.getAmenities())
                     .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
                     // gia phong final tien phong + dich vu
-                    .totalPrice(room.calculateRoomTotalPrice(room, policy) + room.getTotalAmenitiesPrice())
+                    .totalPrice(room.calculateRoomTotalPrice(room, policy))
                     .defaultImageUrl(room.getDefaultImageUrl())
                     .beds(bedResponses)
                     .standardCapacity(policy.getStandardCapacity())

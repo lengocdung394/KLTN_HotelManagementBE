@@ -2,15 +2,34 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+
+import java.util.List;
 import java.util.Optional;
 
-public interface CustomerRepository extends JpaRepository<Customer, Long> {
+public interface CustomerRepository extends JpaRepository<Customer, String> {
     boolean existsByPhone(String phone);
 
     boolean existsByCccd(String cccd);
 
+    // Lấy danh sách khách hàng theo chi nhánh thông qua Room -> Floor -> Building -> Hotel
+    @Query("SELECT DISTINCT b.customer FROM Booking b " +
+            "JOIN b.bookingDetails bd " +
+            "JOIN bd.room r " +
+            "JOIN r.floor f " +
+            "JOIN f.building bu " +
+            "WHERE bu.hotel.id = :hotelId")
+    List<Customer> findCustomersByHotelId(@Param("hotelId") Long hotelId);
+
+    // Dùng Optional giúp bắt lỗi không tìm thấy thanh lịch hơn
+    Optional<Customer> findByPhone(String phone);
+
+    Optional<Customer> findByCccd(String cccd);
+
     Optional<Customer> findByEmail(String email);
 
-    Optional<Customer> findByAccount(iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account account);
+    Optional<Customer> findByAccount(Account account);
 }

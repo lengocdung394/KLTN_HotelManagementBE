@@ -37,7 +37,7 @@ public class OrderController {
             description = "Truy vấn thông tin chi tiết hóa đơn, tiền phòng, tiền dịch vụ, giảm giá, số tiền đã trả và các giao dịch"
     )
     public ResponseEntity<ApiResponse<OrderResponse>> getById(
-            @Parameter(description = "ID của hóa đơn", example = "1") @PathVariable Long id) {
+            @Parameter(description = "ID của hóa đơn", example = "ORD202609251234") @PathVariable String id) {
 
         return ResponseEntity.ok(ApiResponse.<OrderResponse>builder()
                 .code(1000)
@@ -52,7 +52,7 @@ public class OrderController {
             description = "Tra cứu hóa đơn tương ứng với đơn đặt phòng cụ thể"
     )
     public ResponseEntity<ApiResponse<OrderResponse>> getByBookingId(
-            @Parameter(description = "ID của đơn đặt phòng", example = "101") @PathVariable Long bookingId) {
+            @Parameter(description = "ID của đơn đặt phòng", example = "BK12345") @PathVariable String bookingId) {
 
         return ResponseEntity.ok(ApiResponse.<OrderResponse>builder()
                 .code(1000)
@@ -102,7 +102,7 @@ public class OrderController {
             description = "Nhân viên/Lễ tân chủ động đóng hóa đơn khi hoàn tất thủ tục trả phòng"
     )
     public ResponseEntity<ApiResponse<OrderResponse>> closeOrder(
-            @Parameter(description = "ID của hóa đơn", example = "1") @PathVariable Long id) {
+            @Parameter(description = "ID của hóa đơn", example = "ORD202609251234") @PathVariable String id) {
 
         return ResponseEntity.ok(ApiResponse.<OrderResponse>builder()
                 .code(1000)

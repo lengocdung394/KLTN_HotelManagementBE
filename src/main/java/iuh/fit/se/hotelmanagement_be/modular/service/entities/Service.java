@@ -6,6 +6,9 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
 @EqualsAndHashCode()
 @Data
 @SuperBuilder
@@ -16,9 +19,8 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "services")
 public class Service {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "service_id")
-    Long id;
+    String id;
 
     @Column(nullable = false)
     String name;
@@ -42,4 +44,14 @@ public class Service {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id")
     Hotel hotel;
+
+    // --- TỰ ĐỘNG SINH MÃ DỊCH VỤ TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            this.id = "SRV" + dateStr + randomNum; // Ví dụ: SRV202609228492
+        }
+    }
 }

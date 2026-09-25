@@ -1,7 +1,9 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -23,9 +25,8 @@ import java.util.List;
 @Table(name = "orders")
 public class Order {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "order_id")
-    Long id;
+    String id;
 
     LocalDateTime issueDate;
 
@@ -44,32 +45,51 @@ public class Order {
     BigDecimal paidAmount;
 
     OrderStatusType orderStatus;
+//    @Column(name = "payment_order_code", unique = true)
+//    Long paymentOrderCode;
 
+    // Trong Order.java
+    @ElementCollection
+    @CollectionTable(name = "order_payment_codes", joinColumns = @JoinColumn(name = "order_id"))
+    @Column(name = "payment_order_code")
+    List<Long> paymentOrderCodes;
 
     @OneToOne(mappedBy = "order")
     Booking booking;
 
-
+    BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
+    // 💡 MỚI THÊM: Thêm field này để Hibernate tạo cột dưới Database
+    BigDecimal totalAmount;
 
+    // CHỈNH SỬA: Sửa lại hàm get để trả về giá trị của field hoặc tính toán nếu field trống
     public BigDecimal getTotalAmount() {
+        if (this.totalAmount != null && this.totalAmount.compareTo(BigDecimal.ZERO) > 0) {
+            return this.totalAmount;
+        }
+        return calculateActualTotal();
+    }
+
+    // Hàm nội bộ dùng để tính toán tổng tiền từ các khoản thành phần
+    private BigDecimal calculateActualTotal() {
         BigDecimal roomTotal = roomTotalAmount != null ? roomTotalAmount : BigDecimal.ZERO;
         BigDecimal serviceTotal = serviceTotalAmount != null ? serviceTotalAmount : BigDecimal.ZERO;
+        BigDecimal surchargeTotal = surchargeTotalAmount != null ? surchargeTotalAmount : BigDecimal.ZERO;
         BigDecimal discRoom = discountRoomAmount != null ? discountRoomAmount : BigDecimal.ZERO;
         BigDecimal discService = discountServiceAmount != null ? discountServiceAmount : BigDecimal.ZERO;
         BigDecimal discTotal = discountAmountTotal != null ? discountAmountTotal : BigDecimal.ZERO;
 
         BigDecimal finalRoom = roomTotal.subtract(discRoom);
         BigDecimal finalService = serviceTotal.subtract(discService);
-        BigDecimal subTotal = finalRoom.add(finalService);
+        BigDecimal subTotal = finalRoom.add(finalService).add(surchargeTotal);
 
-        // Đảm bảo tổng tiền không bị âm
         return subTotal.subtract(discTotal).max(BigDecimal.ZERO);
     }
 
+
     public BigDecimal getRemainingAmount() {
-        BigDecimal total = getTotalAmount();
+        BigDecimal total = getTotalAmount(); // Hàm này giờ sẽ lấy từ field totalAmount ra rất nhanh
         BigDecimal paid = paidAmount != null ? paidAmount : BigDecimal.ZERO;
 
         return total.subtract(paid).max(BigDecimal.ZERO);
@@ -79,6 +99,43 @@ public class Order {
         if (getRemainingAmount().compareTo(BigDecimal.ZERO) == 0 && this.orderStatus == OrderStatusType.OPEN) {
             this.orderStatus = OrderStatusType.CLOSED;
             this.closeDate = LocalDateTime.now();
+        }
+    }
+
+    public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
+        PaymentTransaction transaction = PaymentTransaction.builder()
+                .amount(amountPaid)
+                .transactionDate(LocalDateTime.now())
+                .paymentType(paymentType)
+                .cashFlowType(CashFlowType.RECEIPT)
+                .note("PayOS Webhook Ref: " + paymentLinkId)
+                .order(this)
+                .build();
+
+        if (this.paymentTransactions == null) {
+            this.paymentTransactions = new java.util.ArrayList<>();
+        }
+        this.paymentTransactions.add(transaction);
+
+        BigDecimal currentPaid = this.paidAmount != null ? this.paidAmount : BigDecimal.ZERO;
+        this.setPaidAmount(currentPaid.add(amountPaid));
+
+        this.operation(); // Kích hoạt logic đóng phòng/đóng đơn của bạn
+    }
+
+    // --- TỰ ĐỘNG SINH MÃ ORDER TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.issueDate == null) {
+            this.issueDate = LocalDateTime.now();
+        }
+        if (this.orderStatus == null) {
+            this.orderStatus = OrderStatusType.OPEN;
+        }
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            this.id = "ORD" + dateStr + randomNum; // Ví dụ: ORD202609228492
         }
     }
 }

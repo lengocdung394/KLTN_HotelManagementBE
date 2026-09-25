@@ -37,7 +37,7 @@ public class CustomerPromotionController {
 
     public ApiResponse<List<PromotionGetListByCustomerResponse>> getSavedPromotionsByCustomer(
             @Parameter(description = "ID của khách hàng cần tra cứu kho voucher", example = "1")
-            @PathVariable Long customerId) {
+            @PathVariable String customerId) {
 
         List<PromotionGetListByCustomerResponse> promotions = customerPromotionService.getPromotionsByCustomerId(customerId);
         return ApiResponse.<List<PromotionGetListByCustomerResponse>>builder()

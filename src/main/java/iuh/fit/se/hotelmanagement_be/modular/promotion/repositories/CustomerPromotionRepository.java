@@ -9,7 +9,7 @@ import java.util.Optional;
 @Repository
 public interface CustomerPromotionRepository extends JpaRepository<CustomerPromotion, Long> {
 
-    boolean existsByCustomerIdAndPromotionId(Long customerId, Long promotionId);
-    Optional<CustomerPromotion> findByUniqueCodeAndCustomerId(String uniqueCode, Long customerId);
-    List<CustomerPromotion> findByCustomerId(Long customerId);
+    boolean existsByCustomerIdAndPromotionId(String customerId, String promotionId);
+    Optional<CustomerPromotion> findByUniqueCodeAndCustomerId(String uniqueCode, String customerId);
+    List<CustomerPromotion> findByCustomerId(String customerId);
 }

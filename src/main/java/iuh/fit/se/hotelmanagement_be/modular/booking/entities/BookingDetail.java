@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
@@ -7,6 +8,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -54,4 +56,25 @@ public class BookingDetail {
     Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
     Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
+
+    // Trang  thai cua bookingdetail
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    BookingStatusType status; // Ví dụ: PENDING, CHECKED_IN, CHECKED_OUT, CANCELLED
+
+    LocalDateTime actualCheckInTime;  // Thời gian khách thực tế nhận phòng
+    LocalDateTime actualCheckOutTime; // Thời gian khách thực tế trả phòng
+
+    BigDecimal earlyCheckInFee = BigDecimal.ZERO;  // Phí check-in sớm
+    BigDecimal lateCheckOutFee = BigDecimal.ZERO; // Phí check-out muộn
+    BigDecimal otherSurcharges = BigDecimal.ZERO;  // Các phụ thu khác (nếu có)
+
+    //
+    // MỚI THÊM: Lưu lại chính xác thời điểm phòng này bị bấm hủy
+    @Column(name = "cancelled_at")
+    LocalDateTime cancelledAt;
+
+    // MỚI THÊM: Ai là người thực hiện hủy phòng này (Nhân viên nào)
+    @Column(name = "cancelled_by")
+    String cancelledBy;
 }

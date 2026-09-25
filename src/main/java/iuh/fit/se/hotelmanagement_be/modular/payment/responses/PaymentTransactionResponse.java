@@ -17,10 +17,17 @@ import java.time.LocalDateTime;
 @Schema(description = "Thông tin chi tiết giao dịch thanh toán")
 public class PaymentTransactionResponse {
     Long id;
-    Long orderId;
+    Long transactionId;
+    String orderId;
     BigDecimal amount;
-    PaymentType paymentType;
+    BigDecimal totalAmount;
+    BigDecimal amountPaid;
+    BigDecimal changeAmount;
+    String paymentType;
     CashFlowType cashFlowType;
+    String status;
     String note;
     LocalDateTime createdAt;
+    LocalDateTime transactionDate;
+    String message;
 }

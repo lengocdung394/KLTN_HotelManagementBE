@@ -14,7 +14,7 @@ import lombok.experimental.FieldDefaults;
 @Schema(description = "Yêu cầu tạo đánh giá kỳ nghỉ")
 public class ReviewCreateRequest {
     @NotNull(message = "Mã đặt phòng không được để trống")
-    Long bookingId;
+    String bookingId;
 
     @NotNull(message = "Điểm đánh giá không được để trống")
     @Min(value = 1, message = "Điểm đánh giá tối thiểu là 1 sao")

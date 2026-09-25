@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
@@ -26,9 +27,8 @@ import java.util.List;
 @Table(name = "bookings")
 public class Booking {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "booking_id")
-    Long id;
+    String id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
@@ -64,20 +64,29 @@ public class Booking {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     Promotion promotion;
-
+    // Thêm liên kết tới Chi nhánh/Khách sạn
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hotel_id", nullable = false)
+    Hotel hotel; // Hoặc Branch branch; tùy theo tên entity của bạn
 
     //
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "order_id", referencedColumnName = "order_id")
     private Order order;
 
-
-
+    // ma booking thay doi
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         if (this.bookingStatus == null) {
             this.bookingStatus = BookingStatus.PENDING;
+        }
+
+        // Tự động sinh mã ID dạng String ngay trước khi insert vào database
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000; // 4 số ngẫu nhiên để tránh trùng
+            this.id = "BK" + dateStr + randomNum; // Ví dụ: BK202609228492
         }
     }
 

@@ -19,8 +19,8 @@ import java.math.BigDecimal;
 public class PaymentCreateRequest {
 
     @NotNull(message = "Mã hóa đơn không được để trống")
-    @Schema(description = "ID của hóa đơn (Order ID)", example = "1")
-    Long orderId;
+    @Schema(description = "ID của hóa đơn (Order ID)", example = "ORD202609251234")
+    String orderId;
 
     @NotNull(message = "Số tiền thanh toán không được để trống")
     @DecimalMin(value = "0.01", message = "Số tiền thanh toán phải lớn hơn 0")

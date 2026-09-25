@@ -39,14 +39,14 @@ public class OrderServiceImpl implements OrderService {
     BookingRepository bookingRepository;
 
     @Override
-    public OrderResponse getOrderById(Long orderId) {
+    public OrderResponse getOrderById(String orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
         return toOrderResponse(order);
     }
 
     @Override
-    public OrderResponse getOrderByBookingId(Long bookingId) {
+    public OrderResponse getOrderByBookingId(String bookingId) {
         Order order = orderRepository.findByBookingId(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
         return toOrderResponse(order);
@@ -122,7 +122,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse closeOrder(Long orderId) {
+    public OrderResponse closeOrder(String orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
@@ -138,8 +138,8 @@ public class OrderServiceImpl implements OrderService {
         Booking booking = order.getBooking();
         String customerName = null;
         String customerPhone = null;
-        Long customerId = null;
-        Long bookingId = null;
+        String customerId = null;
+        String bookingId = null;
 
         if (booking != null) {
             bookingId = booking.getId();
@@ -181,7 +181,7 @@ public class OrderServiceImpl implements OrderService {
                 .id(tx.getId())
                 .orderId(tx.getOrder() != null ? tx.getOrder().getId() : null)
                 .amount(tx.getAmount())
-                .paymentType(tx.getPaymentType())
+                .paymentType(tx.getPaymentType() != null ? tx.getPaymentType().name() : null)
                 .cashFlowType(tx.getCashFlowType())
                 .note(tx.getNote())
                 .createdAt(tx.getCreatedAt())

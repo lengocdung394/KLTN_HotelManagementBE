@@ -9,13 +9,13 @@ import java.util.List;
 
 public interface OrderService {
 
-    OrderResponse getOrderById(Long orderId);
+    OrderResponse getOrderById(String orderId);
 
-    OrderResponse getOrderByBookingId(Long bookingId);
+    OrderResponse getOrderByBookingId(String bookingId);
 
     List<OrderResponse> getOrdersByStatus(OrderStatusType status);
 
     PaymentTransactionResponse processPayment(PaymentCreateRequest request);
 
-    OrderResponse closeOrder(Long orderId);
+    OrderResponse closeOrder(String orderId);
 }

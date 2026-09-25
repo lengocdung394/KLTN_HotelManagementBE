@@ -3,16 +3,18 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ChangePasswordRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateProfileRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerProfileResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.*;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.CustomerService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,7 @@ import java.util.List;
 public class CustomerController {
 
     AuthService authService;
+    CustomerService customerService;
 
     @Operation(summary = "Lấy danh sách tất cả loại khách hàng (LoyaltyTier)")
     @GetMapping("/types")
@@ -39,6 +42,7 @@ public class CustomerController {
                 .result(loyaltyTier)
                 .build());
     }
+
 
     @Operation(summary = "Lấy thông tin hồ sơ của khách hàng đang đăng nhập")
     @SecurityRequirement(name = "bearerAuth")
@@ -79,4 +83,71 @@ public class CustomerController {
                 .message("Đổi mật khẩu thành công")
                 .build());
     }
+
+    // Luong tao khach hang tai quay
+    @PostMapping("/walk-in")
+    public ResponseEntity<Customer> createWalkInCustomer(@RequestBody @Valid WalkInCustomerRequest request) {
+        Customer newCustomer = customerService.createWalkInCustomer(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(newCustomer);
+    }
+
+    // Tìm kiếm khách hàng thông qua mã khách hàng
+    @GetMapping("/findByIdCustomer/{id}")
+    public ResponseEntity<CustomerFindByIdResponse> getCustomerById(@PathVariable String id) {
+        CustomerFindByIdResponse customer = customerService.getCustomerById(id);
+        return ResponseEntity.ok(customer);
+    }
+
+    /**
+     * 1. Yêu cầu đăng ký / kích hoạt tài khoản
+     * Phân loại: NEW_CUSTOMER hoặc WALK_IN_CUSTOMER_NEEDS_PASSWORD và gửi OTP
+     */
+    @PostMapping("/register-request")
+    public ResponseEntity<ApiResponse<CustomerRegisterResponse>> registerRequest(
+            @Valid @RequestBody CustomerRegisterRequest request
+    ) {
+        CustomerRegisterResponse response = customerService.customerRegisterRequest(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.<CustomerRegisterResponse>builder()
+                        .code(1000) // Hoặc HttpStatus.OK.value() tùy chuẩn project của ông
+                        .message("Yêu cầu đăng ký thành công")
+                        .result(response)
+                        .build()
+        );
+    }
+
+    /**
+     * 2. Xác thực OTP và hoàn tất đăng ký (tạo mật khẩu mới)
+     */
+    @PostMapping("/verify-register")
+    public ResponseEntity<ApiResponse<UserResponse>> verifyAndRegister(
+            @Valid @RequestBody VerifyOtpRequest request
+    ) {
+        UserResponse response = customerService.verifyOtpAndRegisterCustomer(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.<UserResponse>builder()
+                        .code(1000)
+                        .message("Đăng ký tài khoản thành công")
+                        .result(response)
+                        .build()
+        );
+    }
+    @PostMapping("/check-registration")
+    public ResponseEntity<ApiResponse<CustomerCheckResponse>> checkRegistration(
+            @Valid @RequestBody CustomerCheckRequest request
+    ) {
+        CustomerCheckResponse response =
+                customerService.checkCustomer(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.<CustomerCheckResponse>builder()
+                        .code(1000)
+                        .message("Kiểm tra hồ sơ thành công")
+                        .result(response)
+                        .build()
+        );
+    }
+
 }

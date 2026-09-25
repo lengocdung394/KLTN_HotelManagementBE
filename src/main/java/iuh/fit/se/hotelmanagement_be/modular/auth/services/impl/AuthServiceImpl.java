@@ -11,8 +11,10 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -23,7 +25,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -43,75 +47,75 @@ public class AuthServiceImpl implements AuthService {
     final org.springframework.security.authentication.AuthenticationManager authenticationManager;
     RoleRepository roleRepository;
 
-    @Override
-    public void customerRegisterRequest(CustomerCreateRequest request) {
-        LocalDateTime now = LocalDateTime.now();
-        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
-            throw new AppException(ErrorCode.PHONE_OTP_PENDING);
-        }
-        if (accountRepository.existsByEmail(request.getEmail())) {
-            throw new AppException(ErrorCode.EMAIL_EXISTED);
-        }
-
-        if (customerRepository.existsByPhone(request.getPhone())) {
-            throw new AppException(ErrorCode.PHONE_EXISTED);
-        }
-
-        if (otpRepository.existsByEmailAndExpiredAtAfter(request.getEmail(), now)) {
-            throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
-        }
-
-
-        if (request.getCccd() != null && customerRepository.existsByCccd(request.getCccd())) {
-            throw new AppException(ErrorCode.CCCD_EXISTED);
-        }
-
-        String otpCode = otpService.generateOtpCode();
-        otpService.saveOtp(request.getEmail(), otpCode, request);
-        emailService.sendOtpEmail(request.getEmail(), otpCode);
-    }
-
-
-    @Override
-    @Transactional
-    public UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request) {
-        boolean isValid = otpService.validateOtp(request.getEmail(), request.getOtp());
-        if (!isValid) {
-            throw new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn");
-        }
-
-        OtpVerification pendingUser = otpService.getPendingRegistration(request.getEmail());
-
-        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
-                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy cấu hình quyền ROLE_CUSTOMER"));
-
-        // 1. Tạo Account trước
-        Account account = Account.builder()
-                .email(pendingUser.getEmail())
-                .password(passwordEncoder.encode(pendingUser.getPassword()))
-                .roles(Set.of(customerRole))
-                .build();
-
-        // 2. Tạo Customer giữ khóa ngoại account
-        Customer customer = Customer.builder()
-                .fullName(pendingUser.getFullName())
-                .phone(pendingUser.getPhone())
-                .cccd(pendingUser.getCccd())
-                .email(pendingUser.getEmail())
-                .account(account) // Gán account vào Customer
-                .build();
-
-        // 3. Lưu Customer (sẽ tự động Cascade lưu Account)
-        Customer savedCustomer = customerRepository.save(customer);
-
-        otpService.clearOtp(request.getEmail());
-
-        return UserResponse.builder()
-                .id(savedCustomer.getId())
-                .fullName(savedCustomer.getFullName())
-                .email(savedCustomer.getAccount().getEmail())
-                .build();
-    }
+//    @Override
+//    public void customerRegisterRequest(CustomerCreateRequest request) {
+//        LocalDateTime now = LocalDateTime.now();
+//        if (otpRepository.existsByPhoneAndExpiredAtAfter(request.getPhone(), now)) {
+//            throw new AppException(ErrorCode.PHONE_OTP_PENDING);
+//        }
+//        if (accountRepository.existsByEmail(request.getEmail())) {
+//            throw new AppException(ErrorCode.EMAIL_EXISTED);
+//        }
+//
+//        if (customerRepository.existsByPhone(request.getPhone())) {
+//            throw new AppException(ErrorCode.PHONE_EXISTED);
+//        }
+//
+//        if (otpRepository.existsByEmailAndExpiredAtAfter(request.getEmail(), now)) {
+//            throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
+//        }
+//
+//
+//        if (request.getCccd() != null && customerRepository.existsByCccd(request.getCccd())) {
+//            throw new AppException(ErrorCode.CCCD_EXISTED);
+//        }
+//
+//        String otpCode = otpService.generateOtpCode();
+//        otpService.saveOtp(request.getEmail(), otpCode, request);
+//        emailService.sendOtpEmail(request.getEmail(), otpCode);
+//    }
+//
+//
+//    @Override
+//    @Transactional
+//    public UserResponse verifyOtpAndRegisterCustomer(VerifyOtpRequest request) {
+//        boolean isValid = otpService.validateOtp(request.getEmail(), request.getOtp());
+//        if (!isValid) {
+//            throw new RuntimeException("Mã OTP không hợp lệ hoặc đã hết hạn");
+//        }
+//
+//        OtpVerification pendingUser = otpService.getPendingRegistration(request.getEmail());
+//
+//        Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
+//                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy cấu hình quyền ROLE_CUSTOMER"));
+//
+//        // 1. Tạo Account trước
+//        Account account = Account.builder()
+//                .email(pendingUser.getEmail())
+//                .password(passwordEncoder.encode(pendingUser.getPassword()))
+//                .roles(Set.of(customerRole))
+//                .build();
+//
+//        // 2. Tạo Customer giữ khóa ngoại account
+//        Customer customer = Customer.builder()
+//                .fullName(pendingUser.getFullName())
+//                .phone(pendingUser.getPhone())
+//                .cccd(pendingUser.getCccd())
+//                .email(pendingUser.getEmail())
+//                .account(account) // Gán account vào Customer
+//                .build();
+//
+//        // 3. Lưu Customer (sẽ tự động Cascade lưu Account)
+//        Customer savedCustomer = customerRepository.save(customer);
+//
+//        otpService.clearOtp(request.getEmail());
+//
+//        return UserResponse.builder()
+//                .id(savedCustomer.getId())
+//                .fullName(savedCustomer.getFullName())
+//                .email(savedCustomer.getAccount().getEmail())
+//                .build();
+//    }
 
     @Override
     public AuthenticationResponse login(UserLoginRequest request) {
@@ -131,19 +135,27 @@ public class AuthServiceImpl implements AuthService {
 
         String jwtToken = jwtService.generateToken(account);
 
-        // Xác định thông tin hiển thị (Employee hay Customer)
         String fullName = "";
         String position = "";
+        String id = null;
 
         if (account.getEmployee() != null) {
             fullName = account.getEmployee().getFullName();
             position = account.getEmployee().getPosition();
+            id = account.getEmployee().getId();
         } else if (account.getCustomer() != null) {
             fullName = account.getCustomer().getFullName();
+            id = account.getCustomer().getId();
             position = "Khách hàng";
+        } else {
+            // Trường hợp tài khoản là Admin thuần túy (không có Employee, không có Customer)
+            fullName = "Quản trị hệ thống"; // Hoặc lấy từ đâu đó
+            position = "Admin";
+            id = account.getId(); // Lấy ID của chính Account luôn
         }
 
         return AuthenticationResponse.builder()
+                .id(id)
                 .token(jwtToken)
                 .email(account.getEmail())
                 .fullName(fullName)
@@ -286,5 +298,53 @@ public class AuthServiceImpl implements AuthService {
         accountRepository.save(account);
 
         otpRepository.deleteByEmail(request.getEmail().trim());
+    }
+
+    @Override
+    public List<CustomerGetOneResponse> getAllCustomers() {
+        log.info("==> [API] Đang lấy danh sách tất cả khách hàng trong hệ thống...");
+        List<Customer> customers = customerRepository.findAll();
+        log.info("==> [SUCCESS] Tìm thấy tổng cộng {} khách hàng.", customers.size());
+
+        return customers.stream()
+                .map(this::mapToCustomerResponse)
+                .toList();
+    }
+
+    @Override
+    public List<CustomerGetOneResponse> getCustomersByHotelId(Long hotelId) {
+        log.info("==> [API] Đang lấy danh sách khách hàng theo chi nhánh hotelId: {}...", hotelId);
+        List<Customer> customers = customerRepository.findCustomersByHotelId(hotelId);
+        log.info("==> [SUCCESS] Tìm thấy {} khách hàng cho chi nhánh hotelId: {}.", customers.size(), hotelId);
+
+        return customers.stream()
+                .map(this::mapToCustomerResponse)
+                .toList();
+    }
+
+    private CustomerGetOneResponse mapToCustomerResponse(Customer customer) {
+        log.debug("Đang map dữ liệu cho khách hàng ID: {}", customer.getId());
+
+        int totalBookings = (customer.getBookings() != null) ? customer.getBookings().size() : 0;
+        BigDecimal totalSpent = BigDecimal.ZERO;
+
+        if (customer.getBookings() != null) {
+            for (Booking booking : customer.getBookings()) {
+                if (booking.getOrder() != null && booking.getOrder().getTotalAmount() != null) {
+                    totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
+                }
+            }
+        }
+
+        return CustomerGetOneResponse.builder()
+                .id(customer.getId())
+                .fullName(customer.getFullName())
+                .phone(customer.getPhone())
+                .email(customer.getEmail())
+                .cccd(customer.getCccd())
+                .loyaltyTier(customer.getLoyaltyTier())
+                .totalSpent(totalSpent)
+                .totalBookings(totalBookings)
+                .build();
     }
 }

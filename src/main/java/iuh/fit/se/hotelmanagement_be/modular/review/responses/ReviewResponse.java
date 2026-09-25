@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ReviewResponse {
     Long id;
-    Long bookingId;
-    Long customerId;
+    String bookingId;
+    String customerId;
     String customerName;
     Long hotelId;
     String hotelName;

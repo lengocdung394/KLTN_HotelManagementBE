@@ -9,6 +9,16 @@ import org.springframework.http.HttpStatusCode;
 @AllArgsConstructor
 public enum ErrorCode {
     // --- SYSTEM & AUTH ERRORS ---
+    ORDER_ALREADY_CANCELLED(1043, "Hóa đơn này đã bị hủy, không thể thanh toán", HttpStatus.BAD_REQUEST),
+   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_AMOUNT(1044, "Số tiền thanh toán không hợp lệ", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_PAYMENT(1040, "Số tiền khách đưa không đủ để thanh toán hóa đơn", HttpStatus.BAD_REQUEST),
+   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    //ORDER_NOT_FOUND(1042, "Không tìm thấy thông tin hóa đơn", HttpStatus.NOT_FOUND),
+    INVALID_OTP(1003, "[1003] Invalid or expired OTP", HttpStatus.BAD_REQUEST),
+    NEW_CUSTOMER(1000, "[10xx] New customer registration", HttpStatus.OK), // Nếu cần trả về dạng thông báo
+    WALK_IN_CUSTOMER_NEEDS_PASSWORD(1001, "[10yy] Walk-in customer needs to set password", HttpStatus.OK),
+    CUSTOMER_ALREADY_REGISTERED(1002, "[1002] Customer already registered", HttpStatus.BAD_REQUEST),
     UNCATEGORIZED(9999, "[9999] Uncategorized exception", HttpStatus.INTERNAL_SERVER_ERROR),
     USERNAME_EXISTED(1001, "[1001] Username existed", HttpStatus.BAD_REQUEST),
     USERNAME_NOT_FOUND(1002, "[1002] Username not found", HttpStatus.NOT_FOUND),
@@ -24,8 +34,7 @@ public enum ErrorCode {
     // --- HOTEL ERRORS (5xxx) ---
     HOTEL_NOT_FOUND(5001, "[5001] Hotel branch not found", HttpStatus.NOT_FOUND),
     MANAGER_HOTEL_NOT_ASSIGNED(5002, "[5002] Manager account is not assigned to any hotel branch", HttpStatus.BAD_REQUEST),
-
-    // --- PROMOTION ERRORS (6xxx) ---
+    //--- PROMOTION ERRORS (6xxx) ---
     PROMOTION_NOT_FOUND(6001, "[6001] Promotion program not found", HttpStatus.NOT_FOUND),
     PROMOTION_CODE_EXISTED(6002, "[6002] Promotion code already exists", HttpStatus.BAD_REQUEST),
     PROMOTION_EXPIRED(6003, "[6003] Promotion program has expired or not started yet", HttpStatus.BAD_REQUEST),
@@ -78,16 +87,28 @@ public enum ErrorCode {
     SERVICE_NOT_FOUND(5005, "[5005] Service not found", HttpStatus.NOT_FOUND),
     EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type",HttpStatus.BAD_REQUEST ),
     // bookingdetail
+    CANNOT_UPDATE_CANCELLED_ROOM(400, "Không thể cập nhật thông tin của phòng đã bị hủy.", HttpStatus.BAD_REQUEST),
     BOOKING_DETAILS_REQUIRED(5004, "[5004] Booking details cannot be empty", HttpStatus.BAD_REQUEST),
     // Ví dụ các lỗi hỗ trợ khác đã nhắc tới trước đó:
     INVALID_BOOKING_DATE(1052, "Thời gian nhận phòng phải trước thời gian trả phòng", HttpStatus.BAD_REQUEST),
     ROOM_NOT_FOUND(1053, "Không tìm thấy thông tin phòng", HttpStatus.NOT_FOUND),
     BRANCH_POLICY_NOT_FOUND(1055, "Không tìm thấy chính sách giá cho loại phòng này tại chi nhánh", HttpStatus.NOT_FOUND),
-    // --- LỖI HÓA ĐƠN & THANH TOÁN (9xxx) ---
-    ORDER_NOT_FOUND(9001, "[9001] Không tìm thấy hóa đơn thanh toán", HttpStatus.NOT_FOUND),
+    ROOM_ALREADY_BOOKED(1054, "Phòng đã có người đặt trong khoảng thời gian này", HttpStatus.CONFLICT),
+    CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM(1002, "Cannot cancel service because the room booking has already been cancelled!", HttpStatus.BAD_REQUEST),
+    BOOKING_SERVICE_DETAIL_NOT_FOUND(1003, "Booking service detail profile could not be found within this room!", HttpStatus.BAD_REQUEST),
+    CANNOT_CHANGE_CANCELLED_ROOM(1004, "Cannot change a room that has already been cancelled", HttpStatus.BAD_REQUEST),
+    CANNOT_UPDATE_DATE_FOR_CANCELLED_ROOM(1005, "Cannot update dates for a room that has already been cancelled", HttpStatus.BAD_REQUEST),
+    CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM(400, "Cannot add service to a cancelled room detail", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_FOUND(1001, "Hotel order profile could not be found!", HttpStatus.NOT_FOUND),
+    ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),
+    ORDER_ALREADY_PAID(1003, "This room order has already been completely paid for!", HttpStatus.BAD_REQUEST),
     ORDER_ALREADY_CLOSED(9002, "[9002] Hóa đơn này đã được quyết toán và đóng", HttpStatus.BAD_REQUEST),
-    INVALID_PAYMENT_AMOUNT(9003, "[9003] Số tiền thanh toán phải lớn hơn 0", HttpStatus.BAD_REQUEST),
-    PAYMENT_EXCEEDS_REMAINING(9004, "[9004] Số tiền thanh toán vượt quá số tiền còn nợ của hóa đơn", HttpStatus.BAD_REQUEST);
+    PAYMENT_EXCEEDS_REMAINING(9004, "[9004] Số tiền thanh toán vượt quá số tiền còn nợ của hóa đơn", HttpStatus.BAD_REQUEST),
+    WEBHOOK_VERIFICATION_FAILED(1004, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST),
+    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST ),
+    BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
+    BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
+    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

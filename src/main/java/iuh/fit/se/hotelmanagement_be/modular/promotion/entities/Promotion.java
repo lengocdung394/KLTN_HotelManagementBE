@@ -11,6 +11,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Data
@@ -28,8 +29,7 @@ import java.util.List;
 public class Promotion {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    String id;
 
     @Column(name = "code", nullable = false, unique = true, length = 50)
     String code;
@@ -59,11 +59,11 @@ public class Promotion {
     @Column(name = "end_date", nullable = false)
     LocalDateTime endDate;
 
-    @Column(name = "usage_limit")
+    @Column(name = "usage_limit") // so luong  khuyen mai duoc tung ra
     Integer usageLimit;
 
     @Builder.Default
-    @Column(name = "used_count", nullable = false)
+    @Column(name = "used_count", nullable = false) // so luot khuyen mai da duoc dung
     Integer usedCount = 0;
 
     @Enumerated(EnumType.STRING)
@@ -100,4 +100,14 @@ public class Promotion {
 
     @Column(name = "image_url")
     String imageUrl;
+
+    // --- TỰ ĐỘNG SINH MÃ KHUYẾN MÃI TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 9000) + 1000;
+            this.id = "PRO" + dateStr + randomNum; // Ví dụ: PRO202609228492
+        }
+    }
 }

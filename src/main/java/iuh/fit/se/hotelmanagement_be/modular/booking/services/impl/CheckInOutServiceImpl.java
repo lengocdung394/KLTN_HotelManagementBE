@@ -4,10 +4,10 @@ import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.SurchargeCalculator;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.CheckInOutRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
@@ -46,6 +46,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     BookingRepository bookingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     BookingService bookingService;
+    BookingDetailRepository bookingDetailRepository;
 
     // 💡 LUỒNG XỬ LÝ LINH HOẠT CHO DANH SÁCH CHECK-IN
     @Override
@@ -119,21 +120,34 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     }
 
     private BigDecimal getDailyRoomPrice(Room room, LocalDate date, Long hotelId, BranchRoomPolicy policy) {
+
         Optional<RoomSeasonalRate> seasonalRateOpt =
+
                 roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), date);
 
+
         double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
+
         double dailyRoomPrice;
 
+
         if (seasonalRateOpt.isPresent()) {
+
             dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
+
         } else {
+
             double basePrice = policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
+
             dailyRoomPrice = basePrice + amenitiesPrice;
+
         }
 
+
         return BigDecimal.valueOf(dailyRoomPrice);
+
     }
+
     @Transactional
     @Override
     public BookingResponse processBulkCheckIn(String bookingId, List<Long> bookingDetailIds, String employeeId) {
@@ -155,28 +169,37 @@ public class CheckInOutServiceImpl implements CheckInOutService {
             }
 
             Room room = targetDetail.getRoom();
+
+            // Thời điểm check-in thực tế của đơn hiện tại đang xử lý
+            LocalDateTime currentEffectiveCheckIn = targetDetail.getCheckinTime() != null && now.isBefore(targetDetail.getCheckinTime())
+                    ? now // Nếu check-in sớm thì lấy 'now'
+                    : (targetDetail.getCheckinTime() != null ? targetDetail.getCheckinTime() : now);
+
+            boolean isRoomBusy = bookingDetailRepository.existsOverlappingActiveBooking(
+                    room.getId(),
+                    currentEffectiveCheckIn,
+                    targetDetail.getCheckoutTime(),
+                    targetDetail.getId()
+            );
+
+            if (isRoomBusy) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_OCCUPIED_OR_BOOKED);
+            }
+
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-
-            LocalDate checkInDate = targetDetail.getCheckinTime() != null
-                    ? targetDetail.getCheckinTime().toLocalDate()
-                    : now.toLocalDate();
-
             BranchRoomPolicy policy = branchRoomPolicyRepository
                     .findByHotelIdAndRoomType(hotelId, room.getRoomType());
 
-            BigDecimal roomPrice = BigDecimal.ZERO;
-            if (policy != null) {
-                roomPrice = getDailyRoomPrice(room, checkInDate, hotelId, policy);
-            }
-
+            // 2. Cập nhật trạng thái chi tiết phòng thành CHECKED_IN và lưu giờ thực tế khách nhận phòng
             targetDetail.setStatus(BookingStatusType.CHECKED_IN);
             targetDetail.setActualCheckInTime(now);
 
+            // 3. Tính tiền phụ thu check-in sớm (bằng lambda function lấy đúng giá từng ngày)
             if (targetDetail.getCheckinTime() != null && now.isBefore(targetDetail.getCheckinTime())) {
                 BigDecimal earlyFee = SurchargeCalculator.calculateEarlyCheckInFee(
                         targetDetail.getCheckinTime(),
                         now,
-                        roomPrice
+                        date -> getDailyRoomPrice(room, date, hotelId, policy)
                 );
 
                 if (earlyFee != null && earlyFee.compareTo(BigDecimal.ZERO) > 0) {
@@ -186,13 +209,26 @@ public class CheckInOutServiceImpl implements CheckInOutService {
             }
         }
 
+        // 4. Cập nhật tổng tiền phụ thu và tổng tiền Order... (phần giữ nguyên như cũ)
         if (batchEarlyFeeTotal.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal currentSurchargeTotal = order.getSurchargeTotalAmount() != null
                     ? order.getSurchargeTotalAmount()
                     : BigDecimal.ZERO;
 
-            order.setSurchargeTotalAmount(currentSurchargeTotal.add(batchEarlyFeeTotal));
+            BigDecimal newSurchargeTotal = currentSurchargeTotal.add(batchEarlyFeeTotal);
+            order.setSurchargeTotalAmount(newSurchargeTotal);
             order.setOrderStatus(OrderStatusType.OPEN);
+
+            BigDecimal roomTotal = order.getRoomTotalAmount() != null ? order.getRoomTotalAmount() : BigDecimal.ZERO;
+            BigDecimal serviceTotal = order.getServiceTotalAmount() != null ? order.getServiceTotalAmount() : BigDecimal.ZERO;
+            BigDecimal discount = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
+
+            BigDecimal newTotalAmount = roomTotal.add(serviceTotal).add(newSurchargeTotal).subtract(discount);
+            order.setTotalAmount(newTotalAmount);
+
+            BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
+            BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
+            order.setRemainingAmount(remainingAmount);
         }
 
         boolean allCheckedIn = booking.getBookingDetails().stream()
@@ -248,18 +284,18 @@ public class CheckInOutServiceImpl implements CheckInOutService {
             targetDetail.setStatus(BookingStatusType.CHECKED_OUT);
             targetDetail.setActualCheckOutTime(now);
 
-            if (targetDetail.getCheckoutTime() != null && now.isAfter(targetDetail.getCheckoutTime())) {
-                BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
-                        targetDetail.getCheckoutTime(),
-                        now,
-                        roomPrice
-                );
-
-                if (lateFee != null && lateFee.compareTo(BigDecimal.ZERO) > 0) {
-                    targetDetail.setLateCheckOutFee(lateFee);
-                    batchLateFeeTotal = batchLateFeeTotal.add(lateFee);
-                }
-            }
+//            if (targetDetail.getCheckoutTime() != null && now.isAfter(targetDetail.getCheckoutTime())) {
+//                BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
+//                        targetDetail.getCheckoutTime(),
+//                        now,
+//                        roomPrice
+//                );
+//
+//                if (lateFee != null && lateFee.compareTo(BigDecimal.ZERO) > 0) {
+//                    targetDetail.setLateCheckOutFee(lateFee);
+//                    batchLateFeeTotal = batchLateFeeTotal.add(lateFee);
+//                }
+//            }
         }
 
         if (batchLateFeeTotal.compareTo(BigDecimal.ZERO) > 0) {

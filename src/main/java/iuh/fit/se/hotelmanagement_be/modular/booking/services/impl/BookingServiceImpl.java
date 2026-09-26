@@ -661,10 +661,20 @@ public class BookingServiceImpl implements BookingService {
                         return true;
                     })
                     .map(detail -> {
+                        // 1. Ưu tiên lấy mốc thời gian thực tế nếu có, nếu chưa có thì dùng giờ dự kiến
+                        LocalDateTime effectiveCheckIn = detail.getActualCheckInTime() != null
+                                ? detail.getActualCheckInTime()
+                                : detail.getCheckinTime();
+
+                        LocalDateTime effectiveCheckOut = detail.getActualCheckOutTime() != null
+                                ? detail.getActualCheckOutTime()
+                                : detail.getCheckoutTime();
+
+                        // 2. Tính toán danh sách ngày bị chiếm (occupiedDates) dựa trên mốc thực tế này
                         List<LocalDate> dates = new ArrayList<>();
-                        if (detail.getCheckinTime() != null && detail.getCheckoutTime() != null) {
-                            LocalDate current = detail.getCheckinTime().toLocalDate();
-                            LocalDate end = detail.getCheckoutTime().toLocalDate();
+                        if (effectiveCheckIn != null && effectiveCheckOut != null) {
+                            LocalDate current = effectiveCheckIn.toLocalDate();
+                            LocalDate end = effectiveCheckOut.toLocalDate();
                             while (!current.isAfter(end)) {
                                 dates.add(current);
                                 current = current.plusDays(1);
@@ -676,12 +686,13 @@ public class BookingServiceImpl implements BookingService {
                                 .customerName(detail.getBooking() != null && detail.getBooking().getCustomer() != null
                                         ? detail.getBooking().getCustomer().getFullName()
                                         : "Khách tại quầy")
-                                .checkinTime(detail.getCheckinTime())
-                                .checkoutTime(detail.getCheckoutTime())
+                                .checkinTime(effectiveCheckIn)   // Trả về giờ thực tế lên matrix
+                                .checkoutTime(effectiveCheckOut) // Trả về giờ thực tế lên matrix
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
                                 .occupiedDates(dates)
                                 .build();
                     })
+
                     .collect(Collectors.toList());
 
             return RoomMatrixResponse.builder()

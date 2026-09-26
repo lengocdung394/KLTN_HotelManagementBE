@@ -67,6 +67,7 @@ public enum ErrorCode {
     PROMOTION_MIN_ROOM_NOT_MET(1056, "Tiền phòng chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
     PROMOTION_MIN_SERVICE_NOT_MET(1057, "Tiền dịch vụ chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
     //otp
+    ROOM_ALREADY_OCCUPIED_OR_BOOKED(400, "Phòng này hiện đang có khách ở hoặc đã bị trùng lịch đặt phòng!", HttpStatus.BAD_REQUEST),
     OTP_NOT_FOUND(1021, "[1021] Không tìm thấy thông tin hợp lệ", HttpStatus.BAD_REQUEST),
     OTP_ALREADY_VERIFIED(1022, "[1022] Tài khoản đã được xác thực thành công trước đó", HttpStatus.BAD_REQUEST),
     OTP_LOCKED(1023, "[1023] Mã OTP đã bị khóa do nhập sai quá 3 lần", HttpStatus.BAD_REQUEST),

@@ -3,15 +3,17 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.function.Function;
 
 public class SurchargeCalculator {
 
     public static BigDecimal calculateEarlyCheckInFee(LocalDateTime scheduledCheckIn,
                                                       LocalDateTime actualCheckIn,
-                                                      BigDecimal nightlyRate) {
-        if (scheduledCheckIn == null || actualCheckIn == null || nightlyRate == null) {
+                                                      Function<LocalDate, BigDecimal> dailyRateProvider) {
+        if (scheduledCheckIn == null || actualCheckIn == null || dailyRateProvider == null) {
             return BigDecimal.ZERO;
         }
 
@@ -19,25 +21,48 @@ public class SurchargeCalculator {
             return BigDecimal.ZERO;
         }
 
-        long totalMinutesEarly = Duration.between(actualCheckIn, scheduledCheckIn).toMinutes();
-
-        long fullDays = totalMinutesEarly / (24L * 60L);
-        long remainingMinutes = totalMinutesEarly % (24L * 60L);
-
         BigDecimal fee = BigDecimal.ZERO;
+        LocalDateTime currentPointer = actualCheckIn;
+        LocalDate scheduledDate = scheduledCheckIn.toLocalDate();
 
-        // Phần đúng số ngày
-        if (fullDays > 0) {
-            fee = fee.add(nightlyRate.multiply(BigDecimal.valueOf(fullDays)));
-        }
+        while (currentPointer.isBefore(scheduledCheckIn)) {
+            LocalDate currentDate = currentPointer.toLocalDate();
+            BigDecimal dailyRate = dailyRateProvider.apply(currentDate); // Lấy đúng giá phòng của ngày hiện tại
 
-        // Phần giờ còn lại trong ngày
-        if (remainingMinutes > 0) {
-            BigDecimal partialRate = nightlyRate
-                    .multiply(BigDecimal.valueOf(remainingMinutes))
-                    .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+            LocalDateTime endOfDay = currentDate.plusDays(1).atStartOfDay(); // 00:00 ngày hôm sau
+            LocalDateTime targetLimit = endOfDay.isBefore(scheduledCheckIn) ? endOfDay : scheduledCheckIn;
 
-            fee = fee.add(partialRate);
+            long minutesInThisDay = Duration.between(currentPointer, targetLimit).toMinutes();
+
+            if (currentDate.equals(scheduledDate)) {
+                // Đây là ngày diễn ra lịch check-in dự kiến (ví dụ ngày 10/09)
+                // Áp dụng đúng các mốc quy định giờ check-in sớm:
+                LocalTime actualTime = currentPointer.toLocalTime();
+                BigDecimal partialFee = BigDecimal.ZERO;
+
+                if (actualTime.isBefore(LocalTime.of(6, 0))) {
+                    partialFee = dailyRate; // Trước 06:00 sáng: 100% giá 1 đêm
+                } else if (!actualTime.isAfter(LocalTime.of(9, 0))) {
+                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.5)); // Từ 06:00 – 09:00: 50%
+                } else {
+                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.3)); // Từ 09:00 – 14:00: 30%
+                }
+                fee = fee.add(partialFee);
+            } else {
+                // Các ngày trước đó (như ngày 09/09 trong ví dụ của bạn)
+                if (minutesInThisDay >= 1440) {
+                    // Đủ nguyên 1 ngày -> Tính 100% giá của ngày đó
+                    fee = fee.add(dailyRate);
+                } else {
+                    // Phần giờ lẻ của những ngày trước đó (tính tỷ lệ thuận theo số phút)
+                    BigDecimal partialRate = dailyRate
+                            .multiply(BigDecimal.valueOf(minutesInThisDay))
+                            .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+                    fee = fee.add(partialRate);
+                }
+            }
+
+            currentPointer = targetLimit;
         }
 
         return fee.setScale(2, RoundingMode.HALF_UP);
@@ -45,8 +70,8 @@ public class SurchargeCalculator {
 
     public static BigDecimal calculateLateCheckOutFee(LocalDateTime scheduledCheckOut,
                                                       LocalDateTime actualCheckOut,
-                                                      BigDecimal nightlyRate) {
-        if (scheduledCheckOut == null || actualCheckOut == null || nightlyRate == null) {
+                                                      Function<LocalDate, BigDecimal> dailyRateProvider) {
+        if (scheduledCheckOut == null || actualCheckOut == null || dailyRateProvider == null) {
             return BigDecimal.ZERO;
         }
 
@@ -54,23 +79,44 @@ public class SurchargeCalculator {
             return BigDecimal.ZERO;
         }
 
-        long totalMinutesLate = Duration.between(scheduledCheckOut, actualCheckOut).toMinutes();
-
-        long fullDays = totalMinutesLate / (24L * 60L);
-        long remainingMinutes = totalMinutesLate % (24L * 60L);
-
         BigDecimal fee = BigDecimal.ZERO;
+        LocalDateTime currentPointer = scheduledCheckOut;
+        LocalDate scheduledDate = scheduledCheckOut.toLocalDate();
 
-        if (fullDays > 0) {
-            fee = fee.add(nightlyRate.multiply(BigDecimal.valueOf(fullDays)));
-        }
+        while (currentPointer.isBefore(actualCheckOut)) {
+            LocalDate currentDate = currentPointer.toLocalDate();
+            BigDecimal dailyRate = dailyRateProvider.apply(currentDate);
 
-        if (remainingMinutes > 0) {
-            BigDecimal partialRate = nightlyRate
-                    .multiply(BigDecimal.valueOf(remainingMinutes))
-                    .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+            LocalDateTime nextDay = currentDate.plusDays(1).atStartOfDay();
+            LocalDateTime targetLimit = nextDay.isBefore(actualCheckOut) ? nextDay : actualCheckOut;
 
-            fee = fee.add(partialRate);
+            long minutesInThisDay = Duration.between(currentPointer, targetLimit).toMinutes();
+
+            if (currentDate.equals(scheduledDate)) {
+                // Ngày checkout dự kiến, áp dụng mốc giờ trễ
+                LocalTime actualTime = actualCheckOut.toLocalTime();
+                BigDecimal partialFee = BigDecimal.ZERO;
+
+                if (actualTime.isBefore(LocalTime.of(15, 0))) {
+                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.3)); // 12:00 – 15:00: 30%
+                } else if (actualTime.isBefore(LocalTime.of(18, 0))) {
+                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.5)); // 15:00 – 18:00: 50%
+                } else {
+                    partialFee = dailyRate; // Sau 18:00: 100%
+                }
+                fee = fee.add(partialFee);
+            } else {
+                if (minutesInThisDay >= 1440) {
+                    fee = fee.add(dailyRate);
+                } else {
+                    BigDecimal partialRate = dailyRate
+                            .multiply(BigDecimal.valueOf(minutesInThisDay))
+                            .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
+                    fee = fee.add(partialRate);
+                }
+            }
+
+            currentPointer = targetLimit;
         }
 
         return fee.setScale(2, RoundingMode.HALF_UP);

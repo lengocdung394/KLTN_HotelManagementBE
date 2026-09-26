@@ -16,7 +16,7 @@ public class BookingDetailForCheckInOutResponse {
     String cccd;
     String nameCustomer;
     String bookingId;
-    Long bookingDetailId;
+    String bookingDetailId;
     String roomId;
     String roomNumber;
     String roomName;

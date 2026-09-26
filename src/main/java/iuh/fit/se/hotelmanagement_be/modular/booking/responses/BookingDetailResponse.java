@@ -14,7 +14,7 @@ public class BookingDetailResponse {
     String cccd;
     String nameCustomer;
     String bookingId;
-    Long bookingDetailId;
+    String bookingDetailId;
     String roomId;
     String roomName;
     String roomTypeName;

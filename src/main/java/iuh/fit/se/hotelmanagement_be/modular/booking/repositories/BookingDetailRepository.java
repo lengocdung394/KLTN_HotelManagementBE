@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface BookingDetailRepository extends JpaRepository<BookingDetail, Long> {
+public interface BookingDetailRepository extends JpaRepository<BookingDetail, String> {
     @Query("""
                 SELECT r FROM Room r
                 WHERE r.floor.building.hotel.id = :hotelId

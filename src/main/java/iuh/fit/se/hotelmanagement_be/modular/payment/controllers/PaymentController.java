@@ -70,4 +70,10 @@ public class PaymentController {
         PaymentTransactionResponse response = paymentService.payWithCash(request);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(summary = "Kiểm tra trạng thái thanh toán đơn hàng (tự động đồng bộ với PayOS)")
+    @GetMapping("/check-order-status/{orderId}")
+    public ResponseEntity<Map<String, Object>> checkOrderStatus(@PathVariable String orderId) {
+        return ResponseEntity.ok(paymentService.checkOrderStatus(orderId));
+    }
 }

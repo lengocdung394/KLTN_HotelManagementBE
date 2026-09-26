@@ -25,9 +25,15 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
+import vn.payos.model.v2.paymentRequests.PaymentLinkStatus;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -37,6 +43,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ObjectMapper objectMapper;
     private final PayOS payOS;
     private final PaymentRepository paymentRepository;
+    private final BookingRepository bookingRepository;
 
     // Tự viết Constructor tường minh để khởi tạo đầy đủ các bean và thông tin cấu hình PayOS
     public PaymentServiceImpl(
@@ -44,12 +51,15 @@ public class PaymentServiceImpl implements PaymentService {
             ObjectMapper objectMapper,
             @Value("${CLIENT_ID}") String clientId,
             @Value("${API_KEY}") String apiKey,
-            @Value("${CHECKSUM_KEY}") String checksumKey, PaymentRepository paymentRepository
+            @Value("${CHECKSUM_KEY}") String checksumKey,
+            PaymentRepository paymentRepository,
+            BookingRepository bookingRepository
     ) {
         this.orderRepository = orderRepository;
         this.objectMapper = objectMapper;
         this.paymentRepository = paymentRepository;
         this.payOS = new PayOS(clientId, apiKey, checksumKey);
+        this.bookingRepository = bookingRepository;
     }
 
     @Override
@@ -60,23 +70,72 @@ public class PaymentServiceImpl implements PaymentService {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
         }
         Order order = oderOpt.get();
-        if (order.getOrderStatus() != OrderStatusType.OPEN) {
-            throw new AppException(ErrorCode.ORDER_NOT_OPEN);
-        }
 
-        BigDecimal remainingAmount = order.getRemainingAmount();
-        if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new AppException(ErrorCode.ORDER_ALREADY_PAID);
+        long amountToPay;
+        if (request.getAmount() != null && request.getAmount() > 0) {
+            amountToPay = request.getAmount();
+            // Đồng bộ số tiền thanh toán thực tế với Order (bao gồm VAT, phụ thu từ Web)
+            order.setTotalAmount(BigDecimal.valueOf(amountToPay));
+            // Cho phép tạo QR thanh toán mới nếu đơn trước đó từng bị đóng hoặc đang test
+            if (order.getOrderStatus() != OrderStatusType.OPEN || (order.getPaidAmount() != null && order.getPaidAmount().compareTo(BigDecimal.ZERO) > 0)) {
+                order.setPaidAmount(BigDecimal.ZERO);
+                order.setOrderStatus(OrderStatusType.OPEN);
+                order.setCloseDate(null);
+            }
+            orderRepository.save(order);
+        } else {
+            if (order.getOrderStatus() != OrderStatusType.OPEN) {
+                throw new AppException(ErrorCode.ORDER_NOT_OPEN);
+            }
+            BigDecimal remainingAmount = order.getRemainingAmount();
+            if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new AppException(ErrorCode.ORDER_ALREADY_PAID);
+            }
+            amountToPay = remainingAmount.longValue();
         }
-
-        long amountToPay = remainingAmount.longValue();
 
         // Sinh mã 6 chữ số (100000 - 999999), đảm bảo không trùng với mã đang tồn tại
         long uniqueOrderCode = generateUniqueSixDigitCode();
 
-        String paymentDescription = "Thanh toan HD" + order.getId();
+        // Lấy tên khách hàng không dấu ngắn gọn để ghép vào nội dung chuyển khoản
+        String customerShortName = "";
+        String customerFullName = "";
+        try {
+            if (order.getBooking() != null && order.getBooking().getCustomer() != null) {
+                customerFullName = order.getBooking().getCustomer().getFullName();
+                if (customerFullName != null && !customerFullName.isBlank()) {
+                    String[] parts = customerFullName.trim().split("\\s+");
+                    String mainName = parts[parts.length - 1];
+                    customerShortName = java.text.Normalizer.normalize(mainName, java.text.Normalizer.Form.NFD)
+                            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                            .replace("đ", "d").replace("Đ", "D")
+                            .replaceAll("[^a-zA-Z0-9]", "")
+                            .toUpperCase();
+                }
+            }
+        } catch (Exception ignored) {}
 
-        log.info("[QR] Tạo orderCode={} cho order.id={}, amount={}", uniqueOrderCode, order.getId(), amountToPay);
+        // Rút gọn mã hóa đơn: lấy HD + 5 ký tự cuối (ví dụ HD49880) để đảm bảo không vượt quá 25 ký tự PayOS
+        String orderIdStr = order.getId();
+        String shortOrderCode;
+        if (orderIdStr.length() > 7) {
+            shortOrderCode = "HD" + orderIdStr.substring(orderIdStr.length() - 5);
+        } else {
+            shortOrderCode = orderIdStr;
+        }
+
+        String paymentDescription;
+        if (!customerShortName.isEmpty()) {
+            paymentDescription = customerShortName + "_" + shortOrderCode + "_" + amountToPay;
+        } else {
+            paymentDescription = "HD_" + shortOrderCode + "_" + amountToPay;
+        }
+        // PayOS quy định độ dài description <= 25 ký tự
+        if (paymentDescription.length() > 25) {
+            paymentDescription = paymentDescription.substring(0, 25).trim();
+        }
+
+        log.info("[QR] Tạo orderCode={} cho order.id={}, amount={}, desc={}", uniqueOrderCode, order.getId(), amountToPay, paymentDescription);
 
         CreatePaymentLinkRequest paymentRequest = CreatePaymentLinkRequest.builder()
                 .orderCode(uniqueOrderCode)
@@ -86,21 +145,35 @@ public class PaymentServiceImpl implements PaymentService {
                 .cancelUrl("http://localhost:8080/bookings?status=cancel&orderId=" + order.getId())
                 .build();
 
-        var checkoutData = payOS.paymentRequests().create(paymentRequest);
+        String checkoutUrl;
+        String qrCodeUrl;
 
-        // Khởi tạo danh sách nếu chưa có
-        if (order.getPaymentOrderCodes() == null) {
-            order.setPaymentOrderCodes(new ArrayList<>());
+        try {
+            var checkoutData = payOS.paymentRequests().create(paymentRequest);
+            checkoutUrl = checkoutData.getCheckoutUrl();
+            qrCodeUrl = checkoutData.getQrCode();
+
+            if (order.getPaymentOrderCodes() == null) {
+                order.setPaymentOrderCodes(new ArrayList<>());
+            }
+            order.getPaymentOrderCodes().add(uniqueOrderCode);
+            orderRepository.save(order);
+        } catch (Exception e) {
+            log.warn("[PayOS] Cổng PayOS chưa sẵn sàng ({}), sinh mã VietQR chuẩn dự phòng", e.getMessage());
+            // Sinh link ảnh VietQR chuẩn quét bằng mọi app ngân hàng
+            qrCodeUrl = String.format("https://img.vietqr.io/image/MB-0345240759-compact2.png?amount=%d&addInfo=%s&accountName=SEN+VIET+HOTEL",
+                    amountToPay, paymentDescription.replace(" ", "+"));
+            checkoutUrl = qrCodeUrl;
         }
-
-        // Thêm mã mới vào danh sách
-        order.getPaymentOrderCodes().add(uniqueOrderCode);
-        orderRepository.save(order);
 
         return PaymentResponse.builder()
                 .error(0)
                 .message("Sinh mã VietQR thành công (Hạn 5 phút)")
-                .checkoutUrl(checkoutData.getCheckoutUrl())
+                .checkoutUrl(checkoutUrl)
+                .qrCode(qrCodeUrl)
+                .description(paymentDescription)
+                .customerName(customerFullName)
+                .orderId(order.getId())
                 .build();
     }
 
@@ -276,5 +349,67 @@ public class PaymentServiceImpl implements PaymentService {
                 )
                 .message("Thanh toán tiền mặt thành công")
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> checkOrderStatus(String orderId) {
+        Optional<Order> orderOpt = orderRepository.findById(orderId)
+                .or(() -> orderRepository.findByBookingId(orderId));
+        if (orderOpt.isEmpty()) {
+            return Map.of("isPaid", false, "status", "NOT_FOUND", "message", "Không tìm thấy hóa đơn");
+        }
+        Order order = orderOpt.get();
+
+        // 1. Nếu đơn hàng đã hoàn tất (CLOSED hoặc PAID)
+        if (order.getOrderStatus() == OrderStatusType.CLOSED || order.getOrderStatus() == OrderStatusType.PAID) {
+            return Map.of(
+                    "isPaid", true,
+                    "status", order.getOrderStatus().name(),
+                    "paidAmount", order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO,
+                    "message", "Đơn hàng đã được thanh toán thành công"
+            );
+        }
+
+        // 2. Tra cứu trực tiếp từ cổng PayOS qua danh sách paymentOrderCodes
+        if (order.getPaymentOrderCodes() != null && !order.getPaymentOrderCodes().isEmpty()) {
+            for (Long orderCode : order.getPaymentOrderCodes()) {
+                try {
+                    PaymentLink link = payOS.paymentRequests().get(orderCode);
+                    if (link != null) {
+                        log.info("[CheckPayOS] orderId={}, orderCode={}, status={}", order.getId(), orderCode, link.getStatus());
+                        if (link.getStatus() == PaymentLinkStatus.PAID) {
+                            long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0 ? link.getAmountPaid() : link.getAmount();
+                            order.addPaymentSuccess(BigDecimal.valueOf(amountPaid), PaymentType.BANK, link.getId());
+                            order.setOrderStatus(OrderStatusType.CLOSED);
+                            order.setCloseDate(LocalDateTime.now());
+
+                            Booking booking = order.getBooking();
+                            if (booking != null) {
+                                booking.setBookingStatus(BookingStatus.CONFIRMED);
+                                bookingRepository.save(booking);
+                            }
+                            orderRepository.save(order);
+
+                            return Map.of(
+                                    "isPaid", true,
+                                    "status", "PAID",
+                                    "paidAmount", amountPaid,
+                                    "message", "Xác nhận thanh toán thành công từ ngân hàng qua PayOS"
+                            );
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("[CheckPayOS] Tra cứu orderCode={} trên PayOS gặp lỗi: {}", orderCode, e.getMessage());
+                }
+            }
+        }
+
+        return Map.of(
+                "isPaid", false,
+                "status", order.getOrderStatus() != null ? order.getOrderStatus().name() : "OPEN",
+                "remainingAmount", order.getRemainingAmount(),
+                "message", "Đang chờ khách chuyển khoản"
+        );
     }
 }

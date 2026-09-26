@@ -8,5 +8,5 @@ import java.util.List;
 @Repository
 public interface BookingServiceDetailRepository extends JpaRepository<BookingServiceDetail, Long> {
     // Có thể tìm danh sách dịch vụ theo bookingDetailId nếu cần
-    List<BookingServiceDetail> findByBookingDetailId(Long bookingDetailId);
+    List<BookingServiceDetail> findByBookingDetailId(String bookingDetailId);
 }

@@ -9,11 +9,12 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Optional;
 
 public interface  AccountRepository extends JpaRepository<Account, String> {
-    // Fetch sẵn cả User và Hotel đi kèm để tránh lỗi Lazy loading khi lấy hotelId
-    @Query("SELECT a FROM Account a " +
+    // Fetch sẵn cả User, Hotel và Roles đi kèm để tránh lỗi Lazy loading khi kiểm tra quyền
+    @Query("SELECT DISTINCT a FROM Account a " +
             "LEFT JOIN FETCH a.employee e " +
             "LEFT JOIN FETCH e.hotel " +
             "LEFT JOIN FETCH a.customer c " +
+            "LEFT JOIN FETCH a.roles " +
             "WHERE a.email = :email")
     Optional<Account> findByEmail(@Param("email") String email);
 

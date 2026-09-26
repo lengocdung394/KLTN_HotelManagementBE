@@ -13,7 +13,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Repository
-public interface CheckInOutRepository extends JpaRepository<BookingDetail,Long> {
+public interface CheckInOutRepository extends JpaRepository<BookingDetail, String> {
     @Query("SELECT bd FROM BookingDetail bd " +
             "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +
             "WHERE h.id = :hotelId " +

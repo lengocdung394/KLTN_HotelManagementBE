@@ -15,8 +15,7 @@ import java.time.LocalDate;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomSeasonalRateCreateRequest {
-    @NotNull(message = "Chi nhánh không được để trống")
-    Long hotelId;
+
 
     @NotNull(message = "Loại phòng không được để trống")
     RoomType roomType;

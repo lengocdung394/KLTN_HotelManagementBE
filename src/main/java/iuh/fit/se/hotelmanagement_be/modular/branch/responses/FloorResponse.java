@@ -9,7 +9,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class FloorResponse {
-    Long id;
+    String id;
     String name;
     Integer floorNumber;
 

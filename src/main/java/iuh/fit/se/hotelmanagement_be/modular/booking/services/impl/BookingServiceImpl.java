@@ -258,6 +258,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingStatus(booking.getBookingStatus())
                 .bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt())
+                .surchargeTotalAmount(order.getSurchargeTotalAmount())
                 .roomTotal(order != null ? order.getRoomTotalAmount() : null).serviceTotal(order != null ? order.getServiceTotalAmount() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null).finalAmount(order != null ? order.getTotalAmount() : null)
                 .discountServiceAmount(order != null ? order.getDiscountServiceAmount() : null)
@@ -606,7 +607,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
-
+                .surchargeTotalAmount(order.getSurchargeTotalAmount())
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai

@@ -1,22 +1,30 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomPriceHistory;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomPriceHistoryRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomSeasonalRateCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomPriceHistoryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomSeasonalRateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomSeasonalRateSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomSeasonalRateService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,37 +35,64 @@ public class RoomSeasonalRateServiceImpl implements RoomSeasonalRateService {
     RoomPriceHistoryRepository roomPriceHistoryRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
+    RoomSeasonalRateSocketEmitter roomSeasonalRateSocketEmitter;
 
+    // ham tao gia theo su kien
     @Transactional
     @Override
-    public RoomSeasonalRateResponse createSeasonalRate(RoomSeasonalRateCreateRequest request, Account currentAdmin) {
-        // Lấy giá gốc cơ bản làm mốc oldPrice
-        double baseRoomPrice = branchRoomPolicyRepository
-                .findByHotelIdAndRoomType(request.getHotelId(), request.getRoomType()).getBasePrice();
+    public List<RoomSeasonalRateResponse> createSeasonalRate(List<RoomSeasonalRateCreateRequest> requests, Account currentAdmin) {
+        List<RoomSeasonalRateResponse> responses = new ArrayList<>();
 
-        RoomSeasonalRate newRate = RoomSeasonalRate.builder()
-                .hotelId(request.getHotelId())
-                .roomType(request.getRoomType())
-                .rateName(request.getRateName())
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .price(request.getPrice())
-                .build();
+        for (RoomSeasonalRateCreateRequest request : requests) {
+            // 1. Kiểm tra trùng lặp với dữ liệu đã có trong DB
+            boolean isOverlap = roomSeasonalRateRepository.existsOverlappingRate(
+                    currentAdmin.getHotelId(),
+                    request.getRoomType(),
+                    request.getStartDate(),
+                    request.getEndDate()
+            );
 
-        RoomSeasonalRate savedRate = roomSeasonalRateRepository.save(newRate);
+            if (isOverlap) {
+                throw new AppException(ErrorCode.DUPLICATE_SEASONAL_RATE);
+                // Hoặc có thể custom message kèm theo tên đợt giá bị trùng để dễ debug
+            }
 
-        // Ghi log lịch sử khởi tạo
-        RoomPriceHistory history = RoomPriceHistory.builder()
-                .seasonalRate(savedRate)
-                .account(currentAdmin)
-                .oldPrice(baseRoomPrice)
-                .newPrice(savedRate.getPrice())
-                .changedAt(LocalDateTime.now())
-                .build();
+            // 2. Lấy giá gốc cơ bản
+            double baseRoomPrice = branchRoomPolicyRepository
+                    .findByHotelIdAndRoomType(currentAdmin.getHotelId(), request.getRoomType()).getBasePrice();
 
-        roomPriceHistoryRepository.save(history);
+            // 3. Tạo entity
+            RoomSeasonalRate newRate = RoomSeasonalRate.builder()
+                    .hotelId(currentAdmin.getHotelId())
+                    .roomType(request.getRoomType())
+                    .rateName(request.getRateName())
+                    .startDate(request.getStartDate())
+                    .endDate(request.getEndDate())
+                    .price(request.getPrice())
+                    .build();
 
-        return mapToResponse(savedRate);
+            RoomSeasonalRate savedRate = roomSeasonalRateRepository.save(newRate);
+
+            // 4. Lưu lịch sử thay đổi giá
+            RoomPriceHistory history = RoomPriceHistory.builder()
+                    .seasonalRate(savedRate)
+                    .account(currentAdmin)
+                    .oldPrice(baseRoomPrice)
+                    .newPrice(savedRate.getPrice())
+                    .changedAt(LocalDateTime.now())
+                    .build();
+            roomPriceHistoryRepository.save(history);
+
+            responses.add(mapToResponse(savedRate));
+        }
+
+        // 5. Bắn Socket một lần cho cả batch (Lấy hotelId từ request đầu tiên)
+        if (!requests.isEmpty()) {
+
+            roomSeasonalRateSocketEmitter.emitSeasonalRateCreated(currentAdmin.getHotelId(), responses);
+        }
+
+        return responses;
     }
 
     @Transactional
@@ -85,6 +120,15 @@ public class RoomSeasonalRateServiceImpl implements RoomSeasonalRateService {
 
         return mapToResponse(rate);
     }
+
+    @Override
+    public Page<RoomSeasonalRate> getRatesByDate(Long hotelId, RoomType roomType, LocalDate date, Pageable pageable) {
+        // Nếu không truyền ngày thì mặc định lấy ngày hôm nay
+        LocalDate targetDate = (date != null) ? date : LocalDate.now();
+
+        return roomSeasonalRateRepository.findActiveRatesByDate(hotelId, roomType, targetDate, pageable);
+    }
+
     // 3. Xem lịch sử thay đổi giá của một khung giá
     public List<RoomPriceHistoryResponse> getPriceHistories(Long rateId) {
         RoomSeasonalRate rate = roomSeasonalRateRepository.findById(rateId)
@@ -114,6 +158,8 @@ public class RoomSeasonalRateServiceImpl implements RoomSeasonalRateService {
                 .hotelId(savedRate.getHotelId())
                 .roomType(savedRate.getRoomType()).build();
     }
+
+    // ham lay tat ca su kien
 
 
 }

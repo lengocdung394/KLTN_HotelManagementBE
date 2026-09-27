@@ -25,7 +25,7 @@ public class BookingResponseForHotel {
     // Tiền đã thanh toán
     BigDecimal  paidAmount;
     BigDecimal  remainingAmount;
-
+    BigDecimal surchargeTotalAmount; // tien phu thu
     // Lam ro phan tien giam giá
     BigDecimal discountRoomAmount;     // Số tiền được giảm cho phòng
     BigDecimal discountServiceAmount;  // Số tiền được giảm cho dịch vụ

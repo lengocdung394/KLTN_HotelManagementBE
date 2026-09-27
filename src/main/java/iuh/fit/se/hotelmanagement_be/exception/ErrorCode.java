@@ -110,11 +110,11 @@ public enum ErrorCode {
     // --- ĐỊNH NGHĨA THEO PHONG CÁCH CỦA BẠN ---
 
     BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
-
+    POLICY_NOT_FOUND(4042, "Không tìm thấy chính sách phòng với ID tương ứng", HttpStatus.NOT_FOUND),
     BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
 
-    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST);
-
+    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SEASONAL_RATE(1040, "Đã tồn tại đợt giá mùa vụ cho loại phòng này trong khoảng thời gian đã chọn", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

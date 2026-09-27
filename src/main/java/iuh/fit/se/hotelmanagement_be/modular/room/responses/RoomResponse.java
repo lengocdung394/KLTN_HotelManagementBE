@@ -17,7 +17,7 @@ import java.util.Set;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomResponse {
     String id;
-    Long floorId;
+    String floorId;
     // lay them so phong
     String roomNumber;
     int floorNumber;

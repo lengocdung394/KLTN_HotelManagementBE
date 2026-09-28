@@ -10,10 +10,10 @@ import org.springframework.http.HttpStatusCode;
 public enum ErrorCode {
     // --- SYSTEM & AUTH ERRORS ---
     ORDER_ALREADY_CANCELLED(1043, "Hóa đơn này đã bị hủy, không thể thanh toán", HttpStatus.BAD_REQUEST),
-   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
     INVALID_PAYMENT_AMOUNT(1044, "Số tiền thanh toán không hợp lệ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_PAYMENT(1040, "Số tiền khách đưa không đủ để thanh toán hóa đơn", HttpStatus.BAD_REQUEST),
-   // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
+    // ORDER_ALREADY_PAID(1041, "Hóa đơn này đã được thanh toán trước đó", HttpStatus.BAD_REQUEST),
     //ORDER_NOT_FOUND(1042, "Không tìm thấy thông tin hóa đơn", HttpStatus.NOT_FOUND),
     INVALID_OTP(1003, "[1003] Invalid or expired OTP", HttpStatus.BAD_REQUEST),
     NEW_CUSTOMER(1000, "[10xx] New customer registration", HttpStatus.OK), // Nếu cần trả về dạng thông báo
@@ -59,13 +59,15 @@ public enum ErrorCode {
     // --- BOOKING ERRORS (8xxx) ---
     BOOKING_NOT_FOUND(8001, "[8001] Booking not found", HttpStatus.NOT_FOUND),
     MULTIPLE_PROMOTIONS_NOT_ALLOWED(8002, "[8002] Only one promotion or discount can be applied per booking", HttpStatus.BAD_REQUEST),
-//    EMAIL_EXISTED(1001, "Email is already in use", HttpStatus.BAD_REQUEST),
+    //    EMAIL_EXISTED(1001, "Email is already in use", HttpStatus.BAD_REQUEST),
     PHONE_EXISTED(1002, "This phone number has already been registered!", HttpStatus.BAD_REQUEST),
     EMAIL_OTP_PENDING(1003, "This email is currently pending OTP verification.", HttpStatus.BAD_REQUEST),
     PHONE_OTP_PENDING(1004, "This phone number is pending verification by another request.", HttpStatus.BAD_REQUEST),
     CCCD_EXISTED(1005, "This ID card number (CCCD) is already in use within the system!", HttpStatus.BAD_REQUEST),
-
+    PROMOTION_MIN_ROOM_NOT_MET(1056, "Tiền phòng chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
+    PROMOTION_MIN_SERVICE_NOT_MET(1057, "Tiền dịch vụ chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
     //otp
+    ROOM_ALREADY_OCCUPIED_OR_BOOKED(400, "Phòng này hiện đang có khách ở hoặc đã bị trùng lịch đặt phòng!", HttpStatus.BAD_REQUEST),
     OTP_NOT_FOUND(1021, "[1021] Không tìm thấy thông tin hợp lệ", HttpStatus.BAD_REQUEST),
     OTP_ALREADY_VERIFIED(1022, "[1022] Tài khoản đã được xác thực thành công trước đó", HttpStatus.BAD_REQUEST),
     OTP_LOCKED(1023, "[1023] Mã OTP đã bị khóa do nhập sai quá 3 lần", HttpStatus.BAD_REQUEST),
@@ -85,7 +87,7 @@ public enum ErrorCode {
     EXCEEDS_MAX_INFANTS(1050, "Số lượng em bé vượt quá giới hạn tối đa của phòng", HttpStatus.BAD_REQUEST),
     EXCEEDS_MAX_CAPACITY(1051, "Tổng số lượng khách (người lớn và trẻ em) vượt quá sức chứa tối đa của phòng", HttpStatus.BAD_REQUEST),
     SERVICE_NOT_FOUND(5005, "[5005] Service not found", HttpStatus.NOT_FOUND),
-    EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type",HttpStatus.BAD_REQUEST ),
+    EXCEEDS_MAX_EXTRA_GUESTS(400, "[400]The number of extra guests exceeds the maximum allowed extra capacity for this room type", HttpStatus.BAD_REQUEST),
     // bookingdetail
     CANNOT_UPDATE_CANCELLED_ROOM(400, "Không thể cập nhật thông tin của phòng đã bị hủy.", HttpStatus.BAD_REQUEST),
     BOOKING_DETAILS_REQUIRED(5004, "[5004] Booking details cannot be empty", HttpStatus.BAD_REQUEST),
@@ -104,15 +106,15 @@ public enum ErrorCode {
     ORDER_NOT_OPEN(1002, "This hotel order is not currently open for billing updates!", HttpStatus.BAD_REQUEST),
     ORDER_ALREADY_PAID(1003, "This room order has already been completely paid for!", HttpStatus.BAD_REQUEST),
     WEBHOOK_VERIFICATION_FAILED(1004, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST),
-    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST ),
+    PAYMENT_CODE_GENERATION_FAILED(1005, "PayOS secure webhook checksum verification failed!", HttpStatus.BAD_REQUEST),
     // --- ĐỊNH NGHĨA THEO PHONG CÁCH CỦA BẠN ---
 
     BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
-
+    POLICY_NOT_FOUND(4042, "Không tìm thấy chính sách phòng với ID tương ứng", HttpStatus.NOT_FOUND),
     BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
 
-    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST);
-
+    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SEASONAL_RATE(1040, "Đã tồn tại đợt giá mùa vụ cho loại phòng này trong khoảng thời gian đã chọn", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.entities;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -32,23 +33,23 @@ public class Order {
 
     LocalDateTime closeDate;
 
-    BigDecimal roomTotalAmount;
+    BigDecimal roomTotalAmount; // tong tien phong
 
-    BigDecimal serviceTotalAmount;
+    BigDecimal serviceTotalAmount; // tong tien dich vu
 
-    BigDecimal discountRoomAmount;
+    BigDecimal discountRoomAmount; // giam tien phong
 
-    BigDecimal discountServiceAmount;
+    BigDecimal discountServiceAmount; // giam tien dịch vu
 
-    BigDecimal discountAmountTotal;
+    BigDecimal discountAmountTotal; // giam tien tat ca (dich vu + tien phong)
 
-    BigDecimal paidAmount;
+    BigDecimal paidAmount; // tien da thanh toán
+
+    BigDecimal remainingAmount;
 
     OrderStatusType orderStatus;
-//    @Column(name = "payment_order_code", unique = true)
-//    Long paymentOrderCode;
+    PaymentStatus  paymentStatus;
 
-    // Trong Order.java
     @ElementCollection
     @CollectionTable(name = "order_payment_codes", joinColumns = @JoinColumn(name = "order_id"))
     @Column(name = "payment_order_code")
@@ -57,11 +58,12 @@ public class Order {
     @OneToOne(mappedBy = "order")
     Booking booking;
 
+    //MỚI THÊM: Thêm field này để Hibernate tạo cột dưới Database
+    BigDecimal totalAmount;
+
     BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
-    // 💡 MỚI THÊM: Thêm field này để Hibernate tạo cột dưới Database
-    BigDecimal totalAmount;
 
     // CHỈNH SỬA: Sửa lại hàm get để trả về giá trị của field hoặc tính toán nếu field trống
     public BigDecimal getTotalAmount() {

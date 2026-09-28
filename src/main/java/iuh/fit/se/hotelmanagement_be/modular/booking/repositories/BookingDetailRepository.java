@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -53,6 +52,15 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, Lo
             @Param("endDate") LocalDateTime endDate,
             @Param("fiveMinutesAgo") LocalDateTime fiveMinutesAgo
     );
+
+
+    @Query("SELECT COUNT(bd) > 0 FROM BookingDetail bd " +
+            "WHERE bd.room.id = :roomId " +
+            "AND bd.id != :currentDetailId " +
+            "AND bd.status IN ('CHECKED_IN', 'PENDING') " + // Hoặc tuỳ trạng thái active bạn muốn chặn
+            "AND (CASE WHEN bd.actualCheckInTime IS NOT NULL THEN bd.actualCheckInTime ELSE bd.checkinTime END) < :checkoutTime " +
+            "AND bd.checkoutTime > :effectiveCheckIn")
+    boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, Long currentDetailId);
 }
 
 

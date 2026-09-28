@@ -9,6 +9,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
@@ -258,9 +259,13 @@ public class PaymentServiceImpl implements PaymentService {
 
         // Quan trọng: cập nhật số tiền đã thanh toán
         order.setPaidAmount(totalAmount);
-        order.setOrderStatus(OrderStatusType.PAID);
+
+        order.setOrderStatus(OrderStatusType.OPEN);
+        // thanh toán bằng tiền mặt cập nhật là thanh toán đủ lần ầu tiên
+        order.setPaymentStatus(PaymentStatus.PAID);
         // cap nhat trang thai confirm
         order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
+
         orderRepository.save(order);
 
         return PaymentTransactionResponse.builder()
@@ -270,7 +275,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amountPaid(amountPaid)
                 .changeAmount(changeAmount)
                 .paymentType("CASH")
-                .status(OrderStatusType.PAID.name())
+                .cashFlowType(CashFlowType.RECEIPT)
                 .transactionDate(
                         receiptTransaction.getTransactionDate()
                 )

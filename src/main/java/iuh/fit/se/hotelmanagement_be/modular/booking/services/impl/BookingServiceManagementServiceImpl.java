@@ -18,6 +18,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementS
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -314,11 +315,30 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
         BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
 
+
+        // Giả sử trong entity Order của bạn có trường paidAmount lưu tổng tiền khách đã trả trước đó
+        BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
+
+        // Tính toán lại số tiền còn phải trả sau khi modify
+        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
+
         // Gán lại các giá trị tổng cho Order
         order.setRoomTotalAmount(totalRoom);
         order.setServiceTotalAmount(totalService);
         order.setTotalAmount(newTotalAmount);
+        order.setRemainingAmount(remainingAmount); // Cập nhật số tiền còn thiếu hoặc cần hoàn
 
+        // ---> BỔ SUNG THÊM ĐOẠN CẬP NHẬT TRẠNG THÁI THANH TOÁN (PAYMENT STATUS) NÀY <---
+        if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            // Nếu đã trả đủ hoặc dư (tiền thừa) -> Trạng thái là ĐÃ THANH TOÁN
+            order.setPaymentStatus(PaymentStatus.PAID);
+        } else if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+            // Nếu đã trả một phần (có cọc/trả trước) nhưng vẫn còn thiếu -> TRẢ THANH TOÁN MỘT PHẦN
+            order.setPaymentStatus(PaymentStatus.PARTIAL);
+        } else {
+            // Nếu chưa trả đồng nào -> CHƯA THANH TOÁN
+            order.setPaymentStatus(PaymentStatus.UNPAID);
+        }
         log.info("Booking modification summary for Booking ID: {} -> Total Room: {}, Total Service: {}, Old total: {}, New total: {}",
                 bookingId, totalRoom, totalService, oldTotalAmount, newTotalAmount);
 

@@ -20,8 +20,7 @@ import java.util.UUID;
 @Table(name = "customer_promotions")
 public class CustomerPromotion {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    String id;
 
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
@@ -55,15 +54,27 @@ public class CustomerPromotion {
 
     @PrePersist
     public void autoGenerateUniqueCode() {
+        // 1. Tự động sinh ID nếu chưa có (Ví dụ: CP-UUID hoặc dùng UUID thuần)
+        if (this.id == null || this.id.isBlank()) {
+            this.id = "CP_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+            // Hoặc đơn giản là: this.id = UUID.randomUUID().toString();
+        }
+
+        // 2. Tự động sinh mã uniqueCode (mã cá nhân cho khách) như bạn đã viết
         if (this.uniqueCode == null || this.uniqueCode.isBlank()) {
             String prefix = (this.promotion != null && this.promotion.getCode() != null)
                     ? this.promotion.getCode().toUpperCase()
                     : "EXCL";
 
-            // Lấy 8 ký tự ngẫu nhiên từ UUID
             String randomPart = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-
             this.uniqueCode = prefix + "-" + randomPart;
         }
+
+        // 3. Tự động gán thời gian tạo nếu chưa có
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
     }
+
+
 }

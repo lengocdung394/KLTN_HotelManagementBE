@@ -4,12 +4,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionType;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ClaimPromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
@@ -27,7 +25,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -92,7 +89,7 @@ public class PromotionController {
     public ResponseEntity<ApiResponse<PageResponse<PromotionResponse>>> getAll(
             @RequestParam(required = false) Long hotelId, // Thêm tham số lọc theo chi nhánh
             @RequestParam(required = false) PromotionStatus status,
-            @RequestParam(required = false) PromotionType type,
+            @RequestParam(required = false) PromotionScope type,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,

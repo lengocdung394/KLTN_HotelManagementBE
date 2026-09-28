@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
@@ -27,12 +28,13 @@ import lombok.experimental.SuperBuilder;
 public class BranchRoomPolicy {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Column(name = "policy_id", length = 50, nullable = false)
+    String id; // Ví dụ: "HOTEL_1_DELUXE" hoặc "H01_STANDARD"
 
     @NotNull(message = "Chi nhánh khách sạn không được để trống")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id", nullable = false)
+    @JsonIgnore
     Hotel hotel;
 
     @NotNull(message = "Loại phòng không được để trống")
@@ -66,9 +68,25 @@ public class BranchRoomPolicy {
     @DecimalMin(value = "0.0", message = "Giá cơ bản không được âm")
     @Column(name = "base_price", nullable = false)
     Double basePrice;
+
+    @NotNull(message = "Diện tích phòng không được để trống")
+    @DecimalMin(value = "0.0", message = "Diện tích phòng không được âm")
+    @Column(name = "room_area", nullable = false)
+    Double area; // Đơn vị: m² (Ví dụ: 25.5, 30.0)
     // --- HÀM TIỆN ÍCH TỰ TÍNH SỨC CHỨA TỐI ĐA ---
     @Transient
     public int getMaxCapacity() {
         return this.standardCapacity + this.maxExtraGuests;
+    }
+    /**
+     * 💡 Hàm tiện ích tự sinh mã policy theo chuẩn: H[hotelId]_[RoomType]
+     * (Ví dụ: H1_DELUXE, H2_STANDARD) trước khi lưu vào Database
+     */
+    @PrePersist
+    @PreUpdate
+    public void generatePolicyId() {
+        if (this.hotel != null && this.hotel.getId() != null && this.roomType != null) {
+            this.id = "H" + this.hotel.getId() + "_" + this.roomType.name();
+        }
     }
 }

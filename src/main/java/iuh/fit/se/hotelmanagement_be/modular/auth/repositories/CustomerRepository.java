@@ -26,5 +26,6 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
     Optional<Customer> findByCccd(String cccd);
 
     Optional<Customer> findByEmail(String email);
-
+    // 1. Tìm kiếm khách hàng theo Số điện thoại hoặc Căn cước công dân (Dùng để check trùng khi tạo mới)
+    Optional<Customer> findByPhoneAndCccd(String phone, String cccd);
 }

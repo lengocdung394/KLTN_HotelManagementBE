@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.responses;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
@@ -24,6 +25,9 @@ public class BookingDetailResponse {
     int numChildren;
     int numInfants;
 
+    BigDecimal earlyCheckInFee = BigDecimal.ZERO;  // Phí check-in sớm
+    BigDecimal lateCheckOutFee = BigDecimal.ZERO; // Phí check-out muộn
+    BigDecimal otherSurcharges = BigDecimal.ZERO;  // Các phụ thu khác (nếu có)
     Double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
     Double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm
     Double extraChildFeePerNight;       // Tiền phụ thu trẻ em mỗi đêm

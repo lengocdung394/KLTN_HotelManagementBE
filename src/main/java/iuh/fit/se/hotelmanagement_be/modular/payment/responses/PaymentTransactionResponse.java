@@ -1,5 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.responses;
 
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -18,8 +20,10 @@ public class PaymentTransactionResponse {
     BigDecimal amountPaid;   // Số tiền thực tế khách đưa
     BigDecimal changeAmount; // Số tiền thừa (tiền thối lại cho khách)
     String paymentType;      // Hình thức thanh toán (CASH, BANK,...)
-    String status;           // Trạng thái mới của hóa đơn (PAID, CLOSED,...)
+    // Trạng thái mới của hóa đơn (PAID, CLOSED,...)
     LocalDateTime transactionDate; // Thời điểm giao dịch
-    String message;          // Thông báo thành công
+    String message;
 
+    PaymentStatus paymentStatus;// Thông báo thành công
+    CashFlowType  cashFlowType;
 }

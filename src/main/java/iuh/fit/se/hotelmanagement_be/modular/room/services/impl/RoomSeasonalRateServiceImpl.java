@@ -10,9 +10,9 @@ import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomPriceHistoryRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomSeasonalRateCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomSeasonalRateUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomPriceHistoryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomSeasonalRateResponse;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomSeasonalRateSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomSeasonalRateService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -97,28 +97,91 @@ public class RoomSeasonalRateServiceImpl implements RoomSeasonalRateService {
 
     @Transactional
     @Override
-    public RoomSeasonalRateResponse updateSeasonalRatePrice(Long rateId, Double newPrice, Account currentAdmin) {
-        RoomSeasonalRate rate = roomSeasonalRateRepository.findById(rateId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khung giá với ID: " + rateId));
+    public List<RoomSeasonalRateResponse> saveOrUpdateBatchSeasonalRates(List<RoomSeasonalRateUpdateRequest> requests, Account currentAdmin) {
+        List<RoomSeasonalRateResponse> responses = new ArrayList<>();
 
-        double oldPrice = rate.getPrice();
+        for (RoomSeasonalRateUpdateRequest request : requests) {
+            RoomSeasonalRate rate;
+            // ĐÚNG: Kiểm tra id != null trước, nếu khác null mới gọi DB kiểm tra tồn tại
+            boolean isUpdate = (request.getId() != null) && roomSeasonalRateRepository.existsById(request.getId());
+            if (isUpdate) {
+                // ==================== TRƯỜNG HỢP 1: CẬP NHẬT (UPDATE) ====================
+                rate = roomSeasonalRateRepository.findById(request.getId()).get();
 
-        if (oldPrice != newPrice) {
-            rate.setPrice(newPrice);
-            roomSeasonalRateRepository.save(rate);
+                // Kiểm tra trùng lặp thời gian (loại trừ chính ID đang sửa)
+                boolean isOverlap = roomSeasonalRateRepository.existsOverlappingRateExcludingId(
+                        currentAdmin.getHotelId(),
+                        rate.getRoomType(),
+                        request.getStartDate(),
+                        request.getEndDate(),
+                        request.getId()
+                );
 
-            RoomPriceHistory history = RoomPriceHistory.builder()
-                    .seasonalRate(rate)
-                    .account(currentAdmin)
-                    .oldPrice(oldPrice)
-                    .newPrice(newPrice)
-                    .changedAt(LocalDateTime.now())
-                    .build();
+                if (isOverlap) {
+                    throw new AppException(ErrorCode.DUPLICATE_SEASONAL_RATE);
+                }
 
-            roomPriceHistoryRepository.save(history);
+                double oldPrice = rate.getPrice();
+                double newPrice = request.getPrice();
+
+                // Cập nhật thông tin
+                rate.setRateName(request.getRateName());
+                rate.setStartDate(request.getStartDate());
+                rate.setEndDate(request.getEndDate());
+                rate.setPrice(newPrice);
+
+                RoomSeasonalRate savedRate = roomSeasonalRateRepository.save(rate);
+
+                // Chỉ lưu lịch sử nếu giá tiền thực sự thay đổi
+                if (oldPrice != newPrice) {
+                    RoomPriceHistory history = RoomPriceHistory.builder()
+                            .seasonalRate(savedRate)
+                            .account(currentAdmin)
+                            .oldPrice(oldPrice)
+                            .newPrice(newPrice)
+                            .changedAt(LocalDateTime.now())
+                            .build();
+                    roomPriceHistoryRepository.save(history);
+                }
+
+                responses.add(mapToResponse(savedRate));
+
+            } else {
+                // ==================== TRƯỜNG HỢP 2: THÊM MỚI (CREATE - BỔ SUNG PHÒNG MỚI) ====================
+                // Kiểm tra trùng lặp toàn bộ với DB cho loại phòng mới này
+                boolean isOverlap = roomSeasonalRateRepository.existsOverlappingRate(
+                        currentAdmin.getHotelId(),
+                        request.getRoomType(),
+                        request.getStartDate(),
+                        request.getEndDate()
+                );
+                // kiem tra lai xem co trung voi cai cu hay khong
+                if (isOverlap) {
+                    throw new AppException(ErrorCode.DUPLICATE_SEASONAL_RATE);
+                }
+
+                // Tạo entity mới
+                RoomSeasonalRate newRate = RoomSeasonalRate.builder()
+                        .hotelId(currentAdmin.getHotelId())
+                        .roomType(request.getRoomType())
+                        .rateName(request.getRateName())
+                        .startDate(request.getStartDate())
+                        .endDate(request.getEndDate())
+                        .price(request.getPrice())
+                        .build();
+
+                RoomSeasonalRate savedRate = roomSeasonalRateRepository.save(newRate);
+
+                responses.add(mapToResponse(savedRate));
+            }
         }
 
-        return mapToResponse(rate);
+        // Bắn Socket thông báo realtime cho nhân viên chi nhánh
+        if (!requests.isEmpty()) {
+            roomSeasonalRateSocketEmitter.emitSeasonalRateUpdated(currentAdmin.getHotelId(), responses);
+        }
+
+        return responses;
     }
 
     @Override
@@ -127,6 +190,21 @@ public class RoomSeasonalRateServiceImpl implements RoomSeasonalRateService {
         LocalDate targetDate = (date != null) ? date : LocalDate.now();
 
         return roomSeasonalRateRepository.findActiveRatesByDate(hotelId, roomType, targetDate, pageable);
+    }
+
+    @Override
+    public List<RoomSeasonalRateResponse> getRatesByMonth(Long hotelId, int month, int year) {
+        // 1. Xác định ngày đầu tiên và ngày cuối cùng của tháng đó
+        LocalDate startDateOfMonth = LocalDate.of(year, month, 1);
+        LocalDate endDateOfMonth = startDateOfMonth.plusMonths(1).minusDays(1); // Hoặc dùng YearMonth.of(year, month).atEndOfMonth()
+
+        // 2. Truy vấn Database theo chi nhánh và khoảng thời gian tháng
+        List<RoomSeasonalRate> rates = roomSeasonalRateRepository.findRatesByMonth(hotelId, startDateOfMonth, endDateOfMonth);
+
+        // 3. Map sang danh sách Response DTO
+        return rates.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     // 3. Xem lịch sử thay đổi giá của một khung giá

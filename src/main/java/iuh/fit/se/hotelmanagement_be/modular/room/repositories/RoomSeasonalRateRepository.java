@@ -8,12 +8,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-public interface RoomSeasonalRateRepository extends JpaRepository<RoomSeasonalRate,Long> {
+public interface RoomSeasonalRateRepository extends JpaRepository<RoomSeasonalRate, Long> {
     @Query("SELECT r FROM RoomSeasonalRate r WHERE r.hotelId= :hotelId AND r.roomType = :roomType AND :currentDate BETWEEN r.startDate AND r.endDate")
     Optional<RoomSeasonalRate> findActiveRateByDate(
             @Param("hotelId") Long hotelId,
@@ -51,5 +50,21 @@ public interface RoomSeasonalRateRepository extends JpaRepository<RoomSeasonalRa
             @Param("roomType") RoomType roomType,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
+    );
+
+
+    @Query("SELECT COUNT(r) > 0 FROM RoomSeasonalRate r WHERE r.hotelId = :hotelId AND r.roomType = :roomType AND r.id != :id AND r.startDate <= :endDate AND r.endDate >= :startDate")
+    boolean existsOverlappingRateExcludingId(@Param("hotelId") Long hotelId,
+                                             @Param("roomType") RoomType roomType,
+                                             @Param("startDate") LocalDate startDate,
+                                             @Param("endDate") LocalDate endDate,
+                                             @Param("id") Long id);
+
+
+    @Query("SELECT r FROM RoomSeasonalRate r WHERE r.hotelId = :hotelId AND r.startDate <= :endDateOfMonth AND r.endDate >= :startDateOfMonth")
+    List<RoomSeasonalRate> findRatesByMonth(
+            @Param("hotelId") Long hotelId,
+            @Param("startDateOfMonth") LocalDate startDateOfMonth,
+            @Param("endDateOfMonth") LocalDate endDateOfMonth
     );
 }

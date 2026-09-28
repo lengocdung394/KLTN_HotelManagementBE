@@ -6,6 +6,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomSeasonalRateCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomSeasonalRateUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomSeasonalRateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomSeasonalRateService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
@@ -33,6 +34,7 @@ public class RoomSeasonalRateController {
     // lay ds gia cho su kien
     // them su kien gia
     // chinh sua su kien gia
+    // lấy tât cả ds sự kiện
     RoomSeasonalRateService roomSeasonalRateService;
 
     /**
@@ -62,7 +64,7 @@ public class RoomSeasonalRateController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
     @PostMapping("/createSeasonalRate")
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> createSeasonalRate(
-             @RequestBody List<@Valid RoomSeasonalRateCreateRequest> requests,
+            @RequestBody List<@Valid RoomSeasonalRateCreateRequest> requests,
             Authentication authentication // Lấy thông tin admin đang đăng nhập từ Security Context
     ) {
         Account currentAdmin = (Account) authentication.getPrincipal();
@@ -73,6 +75,43 @@ public class RoomSeasonalRateController {
                         .code(1000) // Hoặc code thành công tùy cấu trúc dự án của ông
                         .message("Tạo đợt giá mùa vụ thành công và đã cập nhật realtime!")
                         .result(response)
+                        .build()
+        );
+    }
+
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PostMapping("/updateSeasonalRate")
+    public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> updateSeasonalRate(
+            @RequestBody List<@Valid RoomSeasonalRateUpdateRequest> requests,
+            Authentication authentication) {
+        Account currentAdmin = (Account) authentication.getPrincipal();
+        List<RoomSeasonalRateResponse> responses = roomSeasonalRateService.saveOrUpdateBatchSeasonalRates(requests, currentAdmin);
+        return ResponseEntity.ok(
+                ApiResponse.<List<RoomSeasonalRateResponse>>builder()
+                        .code(1000)
+                        .message("Cap nhat thanh cong giá mùa vụ thành công và đã cập nhật realtime!")
+                        .result(responses)
+                        .build()
+        );
+
+    }
+
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE')")
+    @GetMapping("/hotel/{hotelId}/monthly")
+    public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> getRatesByMonth(
+            Authentication authentication,
+            @RequestParam int month,
+            @RequestParam int year) {
+        Account account = (Account) authentication.getPrincipal();
+        Long  hotelId = account.getHotelId();
+
+        List<RoomSeasonalRateResponse> responses = roomSeasonalRateService.getRatesByMonth(hotelId, month, year);
+
+        return ResponseEntity.ok(
+                ApiResponse.<List<RoomSeasonalRateResponse>>builder()
+                        .code(1000)
+                        .message("Lấy danh sách sự kiện theo tháng thành công!")
+                        .result(responses)
                         .build()
         );
     }

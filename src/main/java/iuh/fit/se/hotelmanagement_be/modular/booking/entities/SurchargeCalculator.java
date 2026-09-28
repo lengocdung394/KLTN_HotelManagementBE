@@ -17,108 +17,74 @@ public class SurchargeCalculator {
             return BigDecimal.ZERO;
         }
 
+        // Nếu thực tế check-in bằng hoặc sau giờ dự kiến thì không tính phụ thu sớm
         if (!actualCheckIn.isBefore(scheduledCheckIn)) {
             return BigDecimal.ZERO;
         }
 
-        BigDecimal fee = BigDecimal.ZERO;
-        LocalDateTime currentPointer = actualCheckIn;
         LocalDate scheduledDate = scheduledCheckIn.toLocalDate();
+        LocalDate actualDate = actualCheckIn.toLocalDate();
 
-        while (currentPointer.isBefore(scheduledCheckIn)) {
-            LocalDate currentDate = currentPointer.toLocalDate();
-            BigDecimal dailyRate = dailyRateProvider.apply(currentDate); // Lấy đúng giá phòng của ngày hiện tại
+        BigDecimal fee = BigDecimal.ZERO;
 
-            LocalDateTime endOfDay = currentDate.plusDays(1).atStartOfDay(); // 00:00 ngày hôm sau
-            LocalDateTime targetLimit = endOfDay.isBefore(scheduledCheckIn) ? endOfDay : scheduledCheckIn;
-
-            long minutesInThisDay = Duration.between(currentPointer, targetLimit).toMinutes();
-
-            if (currentDate.equals(scheduledDate)) {
-                // Đây là ngày diễn ra lịch check-in dự kiến (ví dụ ngày 10/09)
-                // Áp dụng đúng các mốc quy định giờ check-in sớm:
-                LocalTime actualTime = currentPointer.toLocalTime();
-                BigDecimal partialFee = BigDecimal.ZERO;
-
-                if (actualTime.isBefore(LocalTime.of(6, 0))) {
-                    partialFee = dailyRate; // Trước 06:00 sáng: 100% giá 1 đêm
-                } else if (!actualTime.isAfter(LocalTime.of(9, 0))) {
-                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.5)); // Từ 06:00 – 09:00: 50%
-                } else {
-                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.3)); // Từ 09:00 – 14:00: 30%
+        // Trường hợp 1: Check-in sớm từ ngày hôm trước trở về trước (khác ngày)
+        // Ví dụ: Lịch 16/8 mà đến từ ngày 15/8 (bất kể mấy giờ)
+        if (actualDate.isBefore(scheduledDate)) {
+            LocalDate pointerDate = actualDate;
+            // Duyệt qua từng ngày từ ngày thực tế đến sát ngày dự kiến
+            while (pointerDate.isBefore(scheduledDate)) {
+                BigDecimal dailyRate = dailyRateProvider.apply(pointerDate);
+                if (dailyRate != null) {
+                    fee = fee.add(dailyRate); // Tính trọn vẹn 100% tiền phòng của mỗi ngày đến sớm
                 }
-                fee = fee.add(partialFee);
-            } else {
-                // Các ngày trước đó (như ngày 09/09 trong ví dụ của bạn)
-                if (minutesInThisDay >= 1440) {
-                    // Đủ nguyên 1 ngày -> Tính 100% giá của ngày đó
-                    fee = fee.add(dailyRate);
-                } else {
-                    // Phần giờ lẻ của những ngày trước đó (tính tỷ lệ thuận theo số phút)
-                    BigDecimal partialRate = dailyRate
-                            .multiply(BigDecimal.valueOf(minutesInThisDay))
-                            .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
-                    fee = fee.add(partialRate);
-                }
+                pointerDate = pointerDate.plusDays(1);
             }
-
-            currentPointer = targetLimit;
+            return fee.setScale(2, RoundingMode.HALF_UP);
         }
 
-        return fee.setScale(2, RoundingMode.HALF_UP);
+        // Trường hợp 2: Check-in sớm trong CÙNG MỘT NGÀY dự kiến (ví dụ cùng ngày 16/8 nhưng đến sớm)
+        if (actualDate.equals(scheduledDate)) {
+            LocalTime actualTime = actualCheckIn.toLocalTime();
+            BigDecimal dailyRate = dailyRateProvider.apply(scheduledDate);
+            if (dailyRate == null) return BigDecimal.ZERO;
+
+            if (actualTime.isBefore(LocalTime.of(6, 0))) {
+                return dailyRate; // Trước 06:00 sáng: 100% giá 1 đêm
+            } else if (!actualTime.isAfter(LocalTime.of(9, 0))) {
+                return dailyRate.multiply(BigDecimal.valueOf(0.5)); // Từ 06:00 – 09:00: 50%
+            } else if (actualTime.isBefore(scheduledCheckIn.toLocalTime())) {
+                return dailyRate.multiply(BigDecimal.valueOf(0.3)); // Từ 09:00 đến trước giờ chuẩn: 30%
+            }
+        }
+
+        return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
     }
 
     public static BigDecimal calculateLateCheckOutFee(LocalDateTime scheduledCheckOut,
                                                       LocalDateTime actualCheckOut,
-                                                      Function<LocalDate, BigDecimal> dailyRateProvider) {
-        if (scheduledCheckOut == null || actualCheckOut == null || dailyRateProvider == null) {
+                                                      BigDecimal dailyRate) {
+        if (scheduledCheckOut == null || actualCheckOut == null || dailyRate == null) {
             return BigDecimal.ZERO;
         }
 
+        // Nếu trả trước hoặc đúng giờ chuẩn (12:00) thì không phụ thu
         if (!actualCheckOut.isAfter(scheduledCheckOut)) {
             return BigDecimal.ZERO;
         }
 
-        BigDecimal fee = BigDecimal.ZERO;
-        LocalDateTime currentPointer = scheduledCheckOut;
-        LocalDate scheduledDate = scheduledCheckOut.toLocalDate();
+        LocalTime actualTime = actualCheckOut.toLocalTime();
 
-        while (currentPointer.isBefore(actualCheckOut)) {
-            LocalDate currentDate = currentPointer.toLocalDate();
-            BigDecimal dailyRate = dailyRateProvider.apply(currentDate);
-
-            LocalDateTime nextDay = currentDate.plusDays(1).atStartOfDay();
-            LocalDateTime targetLimit = nextDay.isBefore(actualCheckOut) ? nextDay : actualCheckOut;
-
-            long minutesInThisDay = Duration.between(currentPointer, targetLimit).toMinutes();
-
-            if (currentDate.equals(scheduledDate)) {
-                // Ngày checkout dự kiến, áp dụng mốc giờ trễ
-                LocalTime actualTime = actualCheckOut.toLocalTime();
-                BigDecimal partialFee = BigDecimal.ZERO;
-
-                if (actualTime.isBefore(LocalTime.of(15, 0))) {
-                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.3)); // 12:00 – 15:00: 30%
-                } else if (actualTime.isBefore(LocalTime.of(18, 0))) {
-                    partialFee = dailyRate.multiply(BigDecimal.valueOf(0.5)); // 15:00 – 18:00: 50%
-                } else {
-                    partialFee = dailyRate; // Sau 18:00: 100%
-                }
-                fee = fee.add(partialFee);
-            } else {
-                if (minutesInThisDay >= 1440) {
-                    fee = fee.add(dailyRate);
-                } else {
-                    BigDecimal partialRate = dailyRate
-                            .multiply(BigDecimal.valueOf(minutesInThisDay))
-                            .divide(BigDecimal.valueOf(24L * 60L), 6, RoundingMode.HALF_UP);
-                    fee = fee.add(partialRate);
-                }
-            }
-
-            currentPointer = targetLimit;
+        // 1. Trả phòng từ 12:30 đến 15:00 -> Phụ thu 30%
+        if (!actualTime.isAfter(LocalTime.of(15, 0))) {
+            return dailyRate.multiply(BigDecimal.valueOf(0.3));
         }
 
-        return fee.setScale(2, RoundingMode.HALF_UP);
+        // 2. Trả phòng từ 15:00 đến 18:00 -> Phụ thu 50%
+        if (!actualTime.isAfter(LocalTime.of(18, 0))) {
+            return dailyRate.multiply(BigDecimal.valueOf(0.5));
+        }
+
+        // 3. Trả phòng sau 18:00 -> Tính thêm 100% giá 1 đêm
+        return dailyRate;
     }
 }

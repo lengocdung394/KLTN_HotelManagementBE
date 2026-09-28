@@ -192,7 +192,8 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
             // 2. Cập nhật trạng thái chi tiết phòng thành CHECKED_IN và lưu giờ thực tế khách nhận phòng
             targetDetail.setStatus(BookingStatusType.CHECKED_IN);
-            targetDetail.setActualCheckInTime(now);
+
+            targetDetail.setActualCheckInTime(now); // cap nhat thoi gian checkin thuc tai
 
             // 3. Tính tiền phụ thu check-in sớm (bằng lambda function lấy đúng giá từng ngày)
             if (targetDetail.getCheckinTime() != null && now.isBefore(targetDetail.getCheckinTime())) {
@@ -203,7 +204,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                 );
 
                 if (earlyFee != null && earlyFee.compareTo(BigDecimal.ZERO) > 0) {
-                    targetDetail.setEarlyCheckInFee(earlyFee);
+                    targetDetail.setEarlyCheckInFee(earlyFee); // cap nhat tien checkin in somws cho tung phong
                     batchEarlyFeeTotal = batchEarlyFeeTotal.add(earlyFee);
                 }
             }

@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,6 +22,10 @@ public class BookingDetailResponseForHotel {
     String roomTypeName;
     LocalDateTime checkInTime;
     LocalDateTime checkOutTime;
+
+    // Thoi gian checkin - checkout thuc te
+    LocalDateTime actualCheckInTime;
+    LocalDateTime actualCheckOutTime;
     int numAdults;
     int numChildren;
     int numInfants;
@@ -28,11 +33,13 @@ public class BookingDetailResponseForHotel {
     // MỚI THÊM: Lưu lại chính xác thời điểm phòng này bị bấm hủy
     @Column(name = "cancelled_at")
     LocalDateTime cancelledAt;
-   BookingStatusType bookingStatusType;
+    BookingStatusType bookingStatusType;
     // MỚI THÊM: Ai là người thực hiện hủy phòng này (Nhân viên nào)
     @Column(name = "cancelled_by")
     String cancelledBy;
-
+    BigDecimal earlyCheckInFee = BigDecimal.ZERO;  // Phí check-in sớm
+    BigDecimal lateCheckOutFee = BigDecimal.ZERO; // Phí check-out muộn
+    BigDecimal otherSurcharges = BigDecimal.ZERO;  // Các phụ thu khác (nếu có)
     Double baseRoomPricePerNight;       // Giá phòng gốc mỗi đêm (chưa phụ thu)
     Double extraAdultFeePerNight;       // Tiền phụ thu người lớn mỗi đêm
     Double extraChildFeePerNight;       // Tiền phụ thu trẻ em mỗi đêm

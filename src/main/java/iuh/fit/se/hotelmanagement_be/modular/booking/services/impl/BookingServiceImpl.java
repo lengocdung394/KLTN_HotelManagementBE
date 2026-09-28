@@ -245,9 +245,18 @@ public class BookingServiceImpl implements BookingService {
         List<BookingDetailResponse> detailResponses = null;
 
         if (booking.getBookingDetails() != null) {
-            detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponse.builder().bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
-                    // Map thẳng các khoản chi tiết vào Response
-                    .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice()).build()).toList();
+            detailResponses = booking.getBookingDetails().stream()
+                    .map(detail -> BookingDetailResponse.builder()
+                            .bookingDetailId(detail.getId())
+                            .roomId(detail.getRoom() != null ? detail.getRoom().getId() : null)
+                            .roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null)
+                            .roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null)
+                            .checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime())
+                            .numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+                            .earlyCheckInFee(detail.getEarlyCheckInFee())
+                            .lateCheckOutFee(detail.getLateCheckOutFee())
+                            // Map thẳng các khoản chi tiết vào Response
+                            .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice()).build()).toList();
         }
         Order order = booking.getOrder();
         return BookingResponse
@@ -595,6 +604,11 @@ public class BookingServiceImpl implements BookingService {
                     .roomSubTotal(detail.getRoomSubTotal())
                     .serviceSubTotal(detail.getServiceSubTotal())
                     .totalPrice(detail.getTotalPrice())
+                    .earlyCheckInFee(detail.getEarlyCheckInFee())
+                    .lateCheckOutFee(detail.getLateCheckOutFee())
+                    // Thoi gian checkin - checkout thuc te
+                    .actualCheckOutTime(detail.getActualCheckOutTime())
+                    .actualCheckInTime(detail.getActualCheckInTime())
                     // map danh sach dich vu
                     .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder().serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null).name(serviceDetail.getName()).quantity(serviceDetail.getQuantity()).cancelled(serviceDetail.getCancelled()).cancelledAt(serviceDetail.getCancelledAt()).price(serviceDetail.getPrice()).usedAt(serviceDetail.getUsedAt()).build()).toList() : null).build()).toList();
         }
@@ -607,7 +621,9 @@ public class BookingServiceImpl implements BookingService {
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
-                .surchargeTotalAmount(order.getSurchargeTotalAmount())
+
+                .surchargeTotalAmount(order.getSurchargeTotalAmount()) // tong tien phu thu
+
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai

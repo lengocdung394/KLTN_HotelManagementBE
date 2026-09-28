@@ -55,7 +55,6 @@ public class EmployeeController {
 
         return ResponseEntity.ok(apiResponse);
     }
-
     // Lay thong tin cua nhan vien
 
 }

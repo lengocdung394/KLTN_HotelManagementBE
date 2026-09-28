@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers("/room/**").permitAll()
                         .requestMatchers("/reviews/**").permitAll()
                         .requestMatchers("/payment/webhook/payos").permitAll()
+                        .requestMatchers("/ai/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

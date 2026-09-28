@@ -16,7 +16,7 @@ import java.util.List;
 public interface CheckInOutRepository extends JpaRepository<BookingDetail, String> {
     @Query("SELECT bd FROM BookingDetail bd " +
             "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +
-            "WHERE h.id = :hotelId " +
+            "WHERE (h.id = :hotelId OR bd.booking.hotel.id = :hotelId) " +
             "AND CAST(bd.checkinTime AS localdate ) = :date " +
             "AND bd.status = :status")
     List<BookingDetail> findArrivalsByHotelAndDateAndStatus(
@@ -25,13 +25,13 @@ public interface CheckInOutRepository extends JpaRepository<BookingDetail, Strin
             @Param("bookingStatus") BookingStatus bookingStatus,
             @Param("status") BookingStatusType status);
 
-    // Lọc danh sách Check-out hôm nay theo từng Khách sạn cụ thể
+    // Lọc danh sách Check-out hôm nay theo từng Khách sạn cụ thể (chấp nhận cả CONFIRMED và IN_HOUSE)
     @Query("SELECT bd FROM BookingDetail bd " +
             "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +
-            "WHERE h.id = :hotelId " +
+            "WHERE (h.id = :hotelId OR bd.booking.hotel.id = :hotelId) " +
             "AND CAST(bd.checkoutTime AS localdate ) = :date " +
             "AND bd.status = :status " +
-            "AND bd.booking.bookingStatus =:bookingStatus"
+            "AND (bd.booking.bookingStatus = :bookingStatus OR bd.booking.bookingStatus = iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.IN_HOUSE)"
     )
     List<BookingDetail> findDeparturesByHotelAndDateAndStatus(
             @Param("hotelId") Long hotelId,

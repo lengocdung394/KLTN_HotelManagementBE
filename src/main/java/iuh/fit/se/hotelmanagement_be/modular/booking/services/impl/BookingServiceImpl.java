@@ -82,7 +82,12 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
 
-        // 1. Xử lý danh sách chi tiết đặt phòng
+        // 1. Tìm khách sạn an toàn và gán vào booking trước
+        Hotel hotel = hotelRepository.findById(request.getHotelId())
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+        booking.setHotel(hotel);
+
+        // 2. Xử lý danh sách chi tiết đặt phòng (dựa trên hotel đã được xác định)
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
         // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác, tránh lỗi flush
@@ -93,11 +98,6 @@ public class BookingServiceImpl implements BookingService {
                 booking.getBookingDetails().add(detail);
             }
         }
-
-        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
-        Hotel hotel = hotelRepository.findById(request.getHotelId())
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
@@ -131,7 +131,12 @@ public class BookingServiceImpl implements BookingService {
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
 
-        // 1. Xử lý danh sách chi tiết đặt phòng
+        // 1. Tìm khách sạn trước để gán vào booking
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+        booking.setHotel(hotel);
+
+        // 2. Xử lý danh sách chi tiết đặt phòng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
         // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác
@@ -142,11 +147,6 @@ public class BookingServiceImpl implements BookingService {
                 booking.getBookingDetails().add(detail);
             }
         }
-
-        // 2. Tìm khách sạn
-        Hotel hotel = hotelRepository.findById(hotelId)
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
@@ -257,34 +257,67 @@ public class BookingServiceImpl implements BookingService {
         }
 
         return detailRequests.stream().map(detailReq -> {
-            Room room = (detailReq.getRoomId() != null)
-                    ? roomRepository.findById(detailReq.getRoomId())
-                            .orElseGet(() -> roomRepository.findAll().stream().findFirst()
-                                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND)))
-                    : roomRepository.findAll().stream().findFirst()
-                            .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+            Room room = null;
+            if (detailReq.getRoomId() != null) {
+                room = roomRepository.findById(detailReq.getRoomId()).orElse(null);
+            }
 
-            Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            // Đảm bảo phòng thuộc đúng khách sạn của booking (tránh phòng chi nhánh khác)
+            if (booking != null && booking.getHotel() != null) {
+                Long expectedHotelId = booking.getHotel().getId();
+                boolean isMatch = room != null
+                        && room.getFloor() != null
+                        && room.getFloor().getBuilding() != null
+                        && room.getFloor().getBuilding().getHotel() != null
+                        && expectedHotelId.equals(room.getFloor().getBuilding().getHotel().getId());
+
+                if (!isMatch) {
+                    List<Room> hotelRooms = roomRepository.findByFloor_Building_Hotel_Id(expectedHotelId);
+                    if (room != null && room.getRoomType() != null) {
+                        RoomType targetType = room.getRoomType();
+                        room = hotelRooms.stream()
+                                .filter(r -> r.getRoomType() == targetType)
+                                .findFirst()
+                                .orElseGet(() -> hotelRooms.stream().findFirst().orElse(null));
+                    } else {
+                        room = hotelRooms.stream().findFirst().orElse(null);
+                    }
+                }
+            }
+
+            Room resolvedRoom = room;
+            if (resolvedRoom == null) {
+                resolvedRoom = roomRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+            }
+            final Room selectedRoom = resolvedRoom;
+
+            Long hotelId = (selectedRoom.getFloor() != null && selectedRoom.getFloor().getBuilding() != null && selectedRoom.getFloor().getBuilding().getHotel() != null)
+                    ? selectedRoom.getFloor().getBuilding().getHotel().getId()
+                    : (booking != null && booking.getHotel() != null ? booking.getHotel().getId() : 1L);
+            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, selectedRoom.getRoomType());
 
             if (policy == null) {
                 // Fallback 1: Tìm policy cùng loại phòng từ bất kỳ chi nhánh nào đã cấu hình
                 policy = branchRoomPolicyRepository.findAll().stream()
-                        .filter(p -> p.getRoomType() == room.getRoomType())
+                        .filter(p -> p.getRoomType() == selectedRoom.getRoomType())
                         .findFirst()
                         .orElse(null);
             }
 
             if (policy == null) {
                 // Fallback 2: Tự động khởi tạo và lưu policy mặc định để đơn đặt luôn thành công
-                double defaultBasePrice = (room.getBasePrice() != null && room.getBasePrice() > 0)
-                        ? room.getBasePrice()
-                        : (room.getPrice() != null && room.getPrice() > 0 ? room.getPrice() : 1000000.0);
+                double defaultBasePrice = (selectedRoom.getBasePrice() != null && selectedRoom.getBasePrice() > 0)
+                        ? selectedRoom.getBasePrice()
+                        : (selectedRoom.getPrice() != null && selectedRoom.getPrice() > 0 ? selectedRoom.getPrice() : 1000000.0);
+                Hotel policyHotel = (selectedRoom.getFloor() != null && selectedRoom.getFloor().getBuilding() != null && selectedRoom.getFloor().getBuilding().getHotel() != null)
+                        ? selectedRoom.getFloor().getBuilding().getHotel()
+                        : (booking != null ? booking.getHotel() : null);
                 policy = BranchRoomPolicy.builder()
-                        .hotel(room.getFloor().getBuilding().getHotel())
-                        .roomType(room.getRoomType())
-                        .standardCapacity(room.getRoomType() == RoomType.FAMILY ? 4 : (room.getRoomType() == RoomType.SUITE ? 3 : 2))
-                        .maxExtraGuests(room.getRoomType() == RoomType.FAMILY ? 4 : (room.getRoomType() == RoomType.DELUXE || room.getRoomType() == RoomType.SUITE ? 3 : 2))
+                        .hotel(policyHotel)
+                        .roomType(selectedRoom.getRoomType())
+                        .standardCapacity(selectedRoom.getRoomType() == RoomType.FAMILY ? 4 : (selectedRoom.getRoomType() == RoomType.SUITE ? 3 : 2))
+                        .maxExtraGuests(selectedRoom.getRoomType() == RoomType.FAMILY ? 4 : (selectedRoom.getRoomType() == RoomType.DELUXE || selectedRoom.getRoomType() == RoomType.SUITE ? 3 : 2))
                         .extraAdultFee(200000.0)
                         .extraChildFee(100000.0)
                         .basePrice(defaultBasePrice)
@@ -318,10 +351,10 @@ public class BookingServiceImpl implements BookingService {
             LocalDate currentDate = checkInDate;
 
             while (currentDate.isBefore(checkOutDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, selectedRoom.getRoomType(), currentDate);
 
                 double dailyRoomPrice;
-                double amenitiesPrice = room.getTotalAmenitiesPrice();
+                double amenitiesPrice = selectedRoom.getTotalAmenitiesPrice();
                 if (seasonalRateOpt.isPresent()) {
                     dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
                 } else {
@@ -350,7 +383,7 @@ public class BookingServiceImpl implements BookingService {
             double totalPrice = roomSubTotal + serviceSubTotal;
 
             // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
-            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
+            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(selectedRoom).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
 
             if (!serviceDetails.isEmpty()) {
                 serviceDetails.forEach(sd -> sd.setBookingDetail(bookingDetail));

@@ -23,6 +23,10 @@ public interface AuthService {
 
     void changeCustomerPassword(ChangePasswordRequest request);
 
+    void forgotPasswordRequest(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request);
+
+    void resetPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordRequest request);
+
     List<CustomerGetOneResponse> getAllCustomers();
 
     List<CustomerGetOneResponse> getCustomersByHotelId(Long hotelId);

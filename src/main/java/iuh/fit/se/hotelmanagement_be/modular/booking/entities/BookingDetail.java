@@ -21,9 +21,8 @@ import java.util.List;
 @Table(name = "booking_details")
 public class BookingDetail {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "booking_detail_id")
-    Long id;
+    String id;
 
     LocalDateTime checkinTime;
     LocalDateTime checkoutTime;
@@ -77,4 +76,14 @@ public class BookingDetail {
     // MỚI THÊM: Ai là người thực hiện hủy phòng này (Nhân viên nào)
     @Column(name = "cancelled_by")
     String cancelledBy;
+
+    // --- TỰ ĐỘNG SINH MÃ CHI TIẾT ĐẶT PHÒNG TRƯỚC KHI LƯU ---
+    @PrePersist
+    protected void onCreate() {
+        if (this.id == null || this.id.isEmpty()) {
+            String dateStr = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd").format(java.time.LocalDateTime.now());
+            int randomNum = (int) (Math.random() * 900000) + 100000;
+            this.id = "BD" + dateStr + randomNum;
+        }
+    }
 }

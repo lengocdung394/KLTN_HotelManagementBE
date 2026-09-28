@@ -85,4 +85,28 @@ public class RoomController {
                 .result(roomResponseList)
                 .build());
     }
+
+    @GetMapping("/public/hotel/{hotelId}")
+    @Operation(summary = "Lấy danh sách phòng công khai theo ID khách sạn")
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicRoomsByHotelId(@PathVariable Long hotelId) {
+        List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
+        return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
+                .code(200)
+                .message("Lấy danh sách phòng công khai thành công!")
+                .result(roomResponseList)
+                .build());
+    }
+
+    @GetMapping("/public/all")
+    @Operation(summary = "Lấy danh sách tất cả phòng công khai theo khách sạn")
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicAllRooms(@RequestParam(required = false) Long hotelId) {
+        List<RoomResponse> roomResponseList = (hotelId != null)
+                ? roomService.getRoomsByHotelId(hotelId)
+                : List.of();
+        return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
+                .code(200)
+                .message("Lấy danh sách phòng công khai thành công!")
+                .result(roomResponseList)
+                .build());
+    }
 }

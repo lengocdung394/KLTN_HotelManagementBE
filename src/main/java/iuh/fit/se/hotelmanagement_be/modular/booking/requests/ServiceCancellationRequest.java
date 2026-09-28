@@ -11,6 +11,6 @@ import java.util.List;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ServiceCancellationRequest {
-    Long bookingDetailId;         // Phòng nào?
+    String bookingDetailId;         // Phòng nào?
     List<Long> serviceDetailIds;  // Các ID dịch vụ trong phòng đó cần hủy
 }

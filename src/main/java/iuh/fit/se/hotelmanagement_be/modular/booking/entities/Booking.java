@@ -43,6 +43,7 @@ public class Booking {
     BookingChannel bookingChannel;
 
     @ToString.Exclude
+    @Builder.Default
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingDetail> bookingDetails = new ArrayList<>();
 

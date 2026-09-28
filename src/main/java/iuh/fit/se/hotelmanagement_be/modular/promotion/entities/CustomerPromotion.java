@@ -37,6 +37,7 @@ public class CustomerPromotion {
     @Column(name = "unique_code", nullable = false, unique = true, length = 100)
     String uniqueCode;
 
+    @Builder.Default
     @Column(name = "is_used")
     boolean isUsed = false;
 

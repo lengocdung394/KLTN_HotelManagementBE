@@ -11,6 +11,6 @@ import java.util.List;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomServiceAdditionRequest {
-    Long bookingDetailId; // Phòng phát sinh dịch vụ
+    String bookingDetailId; // Phòng phát sinh dịch vụ
     List<NewServiceRequest> services; // Danh sách dịch vụ thêm vào
 }

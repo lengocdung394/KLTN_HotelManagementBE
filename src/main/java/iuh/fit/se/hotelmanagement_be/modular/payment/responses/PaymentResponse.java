@@ -11,5 +11,9 @@ import lombok.experimental.FieldDefaults;
 public class PaymentResponse {
     int error;
     String message;
-    String checkoutUrl; // mã QR
+    String checkoutUrl; // mã QR hoặc link PayOS
+    String qrCode;     // URL ảnh QR
+    String description;
+    String customerName;
+    String orderId;
 }

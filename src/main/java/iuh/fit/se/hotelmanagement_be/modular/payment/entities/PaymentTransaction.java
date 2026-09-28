@@ -39,4 +39,17 @@ public class PaymentTransaction {
 
     String note;
     LocalDateTime transactionDate;
+
+    @Column(name = "created_at")
+    LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.transactionDate == null) {
+            this.transactionDate = LocalDateTime.now();
+        }
+    }
 }

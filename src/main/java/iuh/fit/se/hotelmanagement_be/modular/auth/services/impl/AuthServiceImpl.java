@@ -30,10 +30,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Slf4j
 public class AuthServiceImpl implements AuthService {
     EmployeeRepository userRepository;
     CustomerRepository customerRepository;
@@ -241,6 +241,64 @@ public class AuthServiceImpl implements AuthService {
         accountRepository.save(account);
     }
 
+    @Override
+    @Transactional
+    public void forgotPasswordRequest(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request) {
+        accountRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        String otpCode = otpService.generateOtpCode();
+
+        otpRepository.deleteByEmail(request.getEmail().trim());
+        OtpVerification otp = OtpVerification.builder()
+                .email(request.getEmail().trim())
+                .otpCode(otpCode)
+                .failedAttempts(0)
+                .verified(false)
+                .expiredAt(LocalDateTime.now().plusMinutes(5))
+                .build();
+        otpRepository.save(otp);
+
+        log.info(">>> [FORGOT PASSWORD OTP] Email: {}, OTP: {}", request.getEmail().trim(), otpCode);
+        try {
+            emailService.sendOtpEmail(request.getEmail().trim(), otpCode);
+        } catch (Exception e) {
+            log.warn(">>> Gửi email OTP thất bại: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        OtpVerification otp = otpRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.OTP_NOT_FOUND));
+
+        if (otp.getExpiredAt().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.OTP_EXPIRED);
+        }
+
+        if (otp.getFailedAttempts() >= 3) {
+            throw new AppException(ErrorCode.OTP_LOCKED);
+        }
+
+        if (!otp.getOtpCode().equals(request.getOtp().trim())) {
+            otp.setFailedAttempts(otp.getFailedAttempts() + 1);
+            otpRepository.save(otp);
+            throw new RuntimeException("Mã OTP không chính xác");
+        }
+
+        Account account = accountRepository.findByEmail(request.getEmail().trim())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+
+        otpRepository.deleteByEmail(request.getEmail().trim());
+    }
 
     @Override
     public List<CustomerGetOneResponse> getAllCustomers() {
@@ -267,23 +325,16 @@ public class AuthServiceImpl implements AuthService {
     private CustomerGetOneResponse mapToCustomerResponse(Customer customer) {
         log.debug("Đang map dữ liệu cho khách hàng ID: {}", customer.getId());
 
-        // 1. Tính tổng số lần đặt phòng dựa trên danh sách bookings có sẵn của customer
         int totalBookings = (customer.getBookings() != null) ? customer.getBookings().size() : 0;
-
-        // 2. Khởi tạo tổng tiền chi tiêu bằng BigDecimal.ZERO
         BigDecimal totalSpent = BigDecimal.ZERO;
 
         if (customer.getBookings() != null) {
             for (Booking booking : customer.getBookings()) {
                 if (booking.getOrder() != null && booking.getOrder().getTotalAmount() != null) {
-                    // Cộng dồn bằng hàm add() của BigDecimal
                     totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
                 }
             }
         }
-
-        log.debug("Khách hàng [ID: {}, Name: {}] -> Tổng bookings: {}, Tổng tiền chi tiêu: {}",
-                customer.getId(), customer.getFullName(), totalBookings, totalSpent);
 
         return CustomerGetOneResponse.builder()
                 .id(customer.getId())

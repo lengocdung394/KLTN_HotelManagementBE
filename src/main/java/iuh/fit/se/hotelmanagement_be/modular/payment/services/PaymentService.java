@@ -12,5 +12,5 @@ public interface PaymentService  {
     PaymentResponse createVietQRPaymentLink(PaymentRequest request) throws Exception;
     WebhookResponse processPayOSWebhook(JsonNode webhookBody) throws Exception;
     PaymentTransactionResponse payWithCash(CashPaymentRequest request);
-
+    java.util.Map<String, Object> checkOrderStatus(String orderId);
 }

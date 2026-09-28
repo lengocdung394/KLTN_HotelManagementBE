@@ -12,7 +12,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UpdateServiceQuantityRequest {
     // Mã phòng trong đơn đặt phòng (BookingDetail ID)
-    Long bookingDetailId;
+    String bookingDetailId;
 
     // Danh sách dịch vụ cần cập nhật số lượng trong phòng đó
     List<ServiceQuantityItem> services;

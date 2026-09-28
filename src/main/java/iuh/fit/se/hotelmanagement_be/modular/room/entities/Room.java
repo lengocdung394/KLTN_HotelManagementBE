@@ -9,6 +9,7 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -47,6 +48,15 @@ public class Room {
     @Enumerated(EnumType.STRING)
     @Column(name = "room_type")
     RoomType roomType;
+
+
+    @Column(name = "price")
+    @Builder.Default
+    Double price = 0.0;
+
+    @Column(name = "base_price")
+    @Builder.Default
+    Double basePrice = 0.0;
 
     // Tien ich
     @ManyToMany(fetch = FetchType.LAZY)

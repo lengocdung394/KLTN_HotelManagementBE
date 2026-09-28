@@ -1,5 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.responses;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import lombok.*;
@@ -13,17 +16,20 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Schema(description = "Thông tin chi tiết giao dịch thanh toán")
 public class PaymentTransactionResponse {
-    Long transactionId;      // ID của giao dịch thanh toán vừa tạo
-    String orderId;            // ID của hóa đơn
-    BigDecimal totalAmount;  // Tổng tiền hóa đơn cần trả
-    BigDecimal amountPaid;   // Số tiền thực tế khách đưa
-    BigDecimal changeAmount; // Số tiền thừa (tiền thối lại cho khách)
-    String paymentType;      // Hình thức thanh toán (CASH, BANK,...)
-    // Trạng thái mới của hóa đơn (PAID, CLOSED,...)
-    LocalDateTime transactionDate; // Thời điểm giao dịch
+    Long id;
+    Long transactionId;
+    String orderId;
+    BigDecimal amount;
+    BigDecimal totalAmount;
+    BigDecimal amountPaid;
+    BigDecimal changeAmount;
+    String paymentType;
+    CashFlowType cashFlowType;
+    String status;
+    String note;
+    LocalDateTime createdAt;
+    LocalDateTime transactionDate;
     String message;
-
-    PaymentStatus paymentStatus;// Thông báo thành công
-    CashFlowType  cashFlowType;
 }

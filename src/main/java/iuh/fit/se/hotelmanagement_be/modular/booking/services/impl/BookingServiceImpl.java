@@ -34,6 +34,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerProm
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
@@ -84,7 +85,12 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
 
-        // 1. Xử lý danh sách chi tiết đặt phòng
+        // 1. Tìm khách sạn an toàn và gán vào booking trước
+        Hotel hotel = hotelRepository.findById(request.getHotelId())
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+        booking.setHotel(hotel);
+
+        // 2. Xử lý danh sách chi tiết đặt phòng (dựa trên hotel đã được xác định)
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
         // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác, tránh lỗi flush
@@ -96,9 +102,9 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
-        Hotel hotel = hotelRepository.findById(request.getHotelId())
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+//        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
+//        Hotel hotel = hotelRepository.findById(request.getHotelId())
+//                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
@@ -115,7 +121,6 @@ public class BookingServiceImpl implements BookingService {
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
         bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
-
 
         // Báo về cho khách hàng trạng thái đơn hàng
         bookingSocketEmitter.emitCustomerBookingStatus(customerId, savedBooking);
@@ -170,7 +175,6 @@ public class BookingServiceImpl implements BookingService {
 
         return toBookingResponse(savedBooking);
     }
-
     /**
      * HELPER METHOD: Gom toàn bộ logic tính tiền phòng, dịch vụ, và áp dụng voucher
      */
@@ -178,6 +182,7 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal roomTotal = calculateTotalRoomPrice(details);
         BigDecimal serviceTotal = calculateTotalServicePrice(details);
         BigDecimal currentSubTotal = roomTotal.add(serviceTotal);
+        BigDecimal discountTotal = BigDecimal.ZERO;
 
         // 1. Khởi tạo kết quả giảm giá mặc định (bằng 0 cho tất cả các cột)
         PromotionDiscountResult discountResult = PromotionDiscountResult.builder()
@@ -564,7 +569,9 @@ public class BookingServiceImpl implements BookingService {
             case TOTAL:
                 totalDiscount = rawDiscount;
                 break;
+
             default:
+//                discountAmount = BigDecimal.ZERO;
                 break;
         }
 
@@ -586,6 +593,12 @@ public class BookingServiceImpl implements BookingService {
         }
         return BigDecimal.ZERO;
     }
+
+
+    /**
+     * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - Tính tiền nốt lúc Checkout)
+     */
+
 
     @Override
     public BookingResponseForHotel toBookingForHotelResponse(Booking booking) {
@@ -644,7 +657,6 @@ public class BookingServiceImpl implements BookingService {
         // Chuyển đổi sang danh sách BookingResponse
         return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
     }
-
     @Transactional
     @Override
     public List<RoomMatrixResponse> getRoomMatrix(Long hotelId, LocalDate startDate, LocalDate endDate) {

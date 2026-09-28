@@ -83,40 +83,44 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
     @Override
     public List<BookingDetailForCheckInOutResponse> mapToBookingDetailResponseList(List<BookingDetail> details) {
-        return details.stream().map(detail ->
-                BookingDetailForCheckInOutResponse.builder()
-                        .roomNumber(detail.getRoom().getRoomNumber())
-                        // Thong tin khach hang
-                        .cccd(detail.getBooking().getCustomer().getCccd())
-                        .nameCustomer(detail.getBooking().getCustomer().getFullName())
-                        .bookingId(detail.getBooking().getId())
-                        .bookingDetailId(detail.getId())
-                        .roomId(detail.getRoom() != null ? detail.getRoom().getId() : null)
-                        .roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null)
-                        .roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null)
-                        .checkInTime(detail.getCheckinTime())
-                        .checkOutTime(detail.getCheckoutTime())
-                        .numAdults(detail.getNumAdults())
-                        .numChildren(detail.getNumChildren())
-                        .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
-                        .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
-                        .extraChildFeePerNight(detail.getExtraChildFeePerNight())
-                        .roomSubTotal(detail.getRoomSubTotal())
-                        .serviceSubTotal(detail.getServiceSubTotal())
-                        .totalPrice(detail.getTotalPrice())
-                        // Moc noi phan dich vu
-                        .bookingServiceResponseForHotel(detail.getBookingServiceDetails() != null ?
-                                detail.getBookingServiceDetails().stream()
-                                        .map(v -> BookingServiceResponseForHotel.builder()
-                                                .serviceId(v.getService() != null ? v.getService().getId() : null)
-                                                .price(v.getPrice())
-                                                .name(v.getName())
-                                                .quantity(v.getQuantity())
-                                                .usedAt(v.getUsedAt()).build()).toList() : Collections.emptyList()
-                        ).build()
+        return details.stream().map(detail -> {
+            Order order = (detail.getBooking() != null) ? detail.getBooking().getOrder() : null;
+            String paymentStatus = (order != null && order.getOrderStatus() != null) ? order.getOrderStatus().name() : "OPEN";
+            boolean isPaid = order != null && order.getOrderStatus() == OrderStatusType.CLOSED;
 
-
-        ).toList();
+            return BookingDetailForCheckInOutResponse.builder()
+                    .roomNumber(detail.getRoom() != null ? detail.getRoom().getRoomNumber() : "-")
+                    // Thong tin khach hang
+                    .cccd(detail.getBooking() != null && detail.getBooking().getCustomer() != null ? detail.getBooking().getCustomer().getCccd() : null)
+                    .nameCustomer(detail.getBooking() != null && detail.getBooking().getCustomer() != null ? detail.getBooking().getCustomer().getFullName() : "Chưa cập nhật")
+                    .bookingId(detail.getBooking() != null ? detail.getBooking().getId() : null)
+                    .bookingDetailId(detail.getId())
+                    .roomId(detail.getRoom() != null ? detail.getRoom().getId() : null)
+                    .roomName(detail.getRoom() != null && detail.getRoom().getRoomType() != null ? detail.getRoom().getRoomType().toString() : null)
+                    .roomTypeName(detail.getRoom() != null && detail.getRoom().getRoomType() != null ? detail.getRoom().getRoomType().name() : null)
+                    .checkInTime(detail.getCheckinTime())
+                    .checkOutTime(detail.getCheckoutTime())
+                    .numAdults(detail.getNumAdults())
+                    .numChildren(detail.getNumChildren())
+                    .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
+                    .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
+                    .extraChildFeePerNight(detail.getExtraChildFeePerNight())
+                    .roomSubTotal(detail.getRoomSubTotal())
+                    .serviceSubTotal(detail.getServiceSubTotal())
+                    .totalPrice(detail.getTotalPrice())
+                    .paymentStatus(paymentStatus)
+                    .roomPaid(isPaid)
+                    // Moc noi phan dich vu
+                    .bookingServiceResponseForHotel(detail.getBookingServiceDetails() != null ?
+                            detail.getBookingServiceDetails().stream()
+                                    .map(v -> BookingServiceResponseForHotel.builder()
+                                            .serviceId(v.getService() != null ? v.getService().getId() : null)
+                                            .price(v.getPrice())
+                                            .name(v.getName())
+                                            .quantity(v.getQuantity())
+                                            .usedAt(v.getUsedAt()).build()).toList() : Collections.emptyList()
+                    ).build();
+        }).toList();
     }
 
     private BigDecimal getDailyRoomPrice(Room room, LocalDate date, Long hotelId, BranchRoomPolicy policy) {

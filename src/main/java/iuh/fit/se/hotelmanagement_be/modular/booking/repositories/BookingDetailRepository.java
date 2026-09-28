@@ -60,7 +60,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             "AND bd.status IN ('CHECKED_IN', 'PENDING') " + // Hoặc tuỳ trạng thái active bạn muốn chặn
             "AND (CASE WHEN bd.actualCheckInTime IS NOT NULL THEN bd.actualCheckInTime ELSE bd.checkinTime END) < :checkoutTime " +
             "AND bd.checkoutTime > :effectiveCheckIn")
-    boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, Long currentDetailId);
+    boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, String currentDetailId);
 }
 
 

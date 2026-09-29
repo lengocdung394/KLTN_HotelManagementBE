@@ -2,8 +2,8 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionDiscountType;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -11,6 +11,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -113,13 +114,34 @@ public class Promotion {
     @Column(name = "image_url")
     String imageUrl;
 
-    // --- TỰ ĐỘNG SINH MÃ KHUYẾN MÃI TRƯỚC KHI LƯU ---
+    // --- TỰ ĐỘNG SINH ID VÀ CODE TRƯỚC KHI LƯU ---
     @PrePersist
     protected void onCreate() {
+        // Sinh ID nếu chưa có
         if (this.id == null || this.id.isEmpty()) {
             String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
             int randomNum = (int) (Math.random() * 9000) + 1000;
-            this.id = "PRO" + dateStr + randomNum; // Ví dụ: PRO202609228492
+            this.id = "PRO" + dateStr + randomNum;
         }
+
+        // Sinh Code tự động nếu người dùng không truyền vào
+        if (this.code == null || this.code.trim().isEmpty()) {
+            this.code = generateRandomCode("PRO", 6); // Ví dụ: PROAB3X9
+        } else {
+            // Đảm bảo code luôn ở dạng chữ in hoa nếu người dùng tự nhập
+            this.code = this.code.toUpperCase();
+        }
+    }
+
+    // Hàm helper sinh chuỗi ngẫu nhiên gồm chữ in hoa và số
+    private String generateRandomCode(String prefix, int length) {
+        String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(prefix);
+        for (int i = 0; i < length; i++) {
+            int index = random.nextInt(characters.length());
+            sb.append(characters.charAt(index));
+        }
+        return sb.toString();
     }
 }

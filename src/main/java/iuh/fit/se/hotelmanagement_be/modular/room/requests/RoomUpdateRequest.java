@@ -8,18 +8,19 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.util.List;
 import java.util.Set;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RoomCreateRequest {
+public class RoomUpdateRequest {
     @NotNull(message = "Tầng không được để trống!")
     @Schema(description = "ID tầng thuộc chi nhánh", example = "1")
     String floorId;
 
+    List<String> keptImageUrls; // danh sách ảnh cũ
     String roomNumber;
     @NotNull(message = "Trạng thái phòng không được để trống!")
     @Schema(description = "Trạng thái hiện tại của phòng", example = "AVAILABLE")

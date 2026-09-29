@@ -7,8 +7,8 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
@@ -48,6 +48,7 @@ public class PromotionServiceImpl implements PromotionService {
     HotelRepository hotelRepository;
     CustomerPromotionRepository customerPromotionRepository;
     CloudinaryService cloudinaryService;
+    PromotionSocketEmitter promotionSocketEmitter;
 
     // State machine: trạng thái hiện tại → các trạng thái được phép chuyển
     static final Map<PromotionStatus, Set<PromotionStatus>> ALLOWED_TRANSITIONS = Map.of(
@@ -58,82 +59,59 @@ public class PromotionServiceImpl implements PromotionService {
     );
 
 
-    // ==================== CREATE ====================
+    // can xem them truong hop admin cua chi nhanh tong tao khuyen mai
     @Override
     @Transactional
-    public PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile) {
-        log.info("Tạo mới khuyến mãi, mã: {}", request.getCode());
+    public PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile, Long hotelId) {
+        log.info("Tạo mới khuyến mãi, mã: {}", request.getDescription());
 
-        // 1. Kiem tra xac thuc & Lay role tu SecurityContextHolder
+        // 1. Kiểm tra xác thực
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
         var authorities = authentication.getAuthorities();
-        boolean isAdmin = authorities.stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
-        boolean isManager = authorities.stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_MANAGER"));
+        boolean isAdmin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isManager = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
 
         if (!isAdmin && !isManager) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        // 2. Validate Mã duy nhất & Hạn sử dụng
-        String code = request.getCode().toUpperCase().trim();
-        if (promotionRepository.existsByCodeAndDeletedFalse(code)) {
-            throw new AppException(ErrorCode.PROMOTION_CODE_EXISTED);
+        // 2. Nếu là MANAGER, kiểm tra xem có đúng chi nhánh của mình không
+        if (isManager) {
+            // Vì Account implement UserDetails nên principal chính là đối tượng Account của bạn
+            Account currentAccount = (Account) authentication.getPrincipal();
+
+            Long managerHotelId = currentAccount.getHotelId(); // Lấy hotelId từ Account
+            Long requestedHotelId = hotelId;     // hotelId từ request tạo promotion
+
+            // So sánh: Nếu manager không thuộc chi nhánh nào, hoặc chi nhánh gửi lên không khớp -> Chặn
+            if (managerHotelId == null || !managerHotelId.equals(requestedHotelId)) {
+                throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+            }
         }
+
+        // kiem tra cho phai la admin chi nhanh do hoac la quan li chi nhanh do
+
 
         validateDates(request.getStartDate(), request.getEndDate());
-//        validateDiscountValue(request.getType(), request.getDiscountValue());
 
-        // 3. Xử lý gán Khách sạn (Hotel) dựa theo quyền
-        Hotel hotel = null;
-        Long targetHotelId = request.getHotelId();
 
-// Lấy hotelId của tài khoản đang đăng nhập
-        Long accountHotelId = null;
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Account account) {
-            accountHotelId = account.getHotelId();
-        }
-
-        if (isManager) {
-            // Manager BẮT BUỘC dùng hotelId của chính mình
-            if (accountHotelId == null) {
-                throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
-            }
-            targetHotelId = accountHotelId;
-
-        } else if (isAdmin) {
-            if (targetHotelId == null) {
-                // Nếu Admin không truyền hotelId -> Tự động dùng hotelId từ tài khoản Admin
-                targetHotelId = accountHotelId;
-            } else {
-                // Nếu Admin truyền hotelId KHÁC với hotelId của tài khoản mình (khi accountHotelId != null) -> CHẶN
-                if (accountHotelId != null && !accountHotelId.equals(targetHotelId)) {
-                    throw new AppException(ErrorCode.UNAUTHORIZED); // Hoặc tạo ErrorCode.CANNOT_CREATE_PROMOTION_FOR_OTHER_HOTEL
-                }
-            }
-        }
-
-        // Tìm Hotel từ targetHotelId
-        if (targetHotelId != null) {
-            hotel = hotelRepository.findById(targetHotelId)
-                    .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        }
         // Upload banner ảnh nếu có
         String imageUrl = null;
         if (imageFile != null && !imageFile.isEmpty()) {
             imageUrl = cloudinaryService.uploadImage(imageFile, "promotions");
         }
 
+        Hotel hotel = hotelRepository.findById(hotelId).orElse(null);
         // 4. Khởi tạo đối tượng Promotion
         Promotion promotion = Promotion.builder()
-                .code(code)
                 .name(request.getName().trim())
                 .description(request.getDescription())
                 .type(request.getType())
+                .discountType(request.getDiscountType())
                 .discountValue(request.getDiscountValue())
                 .maxDiscountAmount(request.getMaxDiscountAmount())
                 .minBookingValue(request.getMinBookingValue())
@@ -149,17 +127,12 @@ public class PromotionServiceImpl implements PromotionService {
                 .build();
 
         promotion = promotionRepository.save(promotion);
-        log.info("Tạo thành công khuyến mãi ID: {} thuộc phạm vi: {}",
-                promotion.getId(), hotel != null ? "Chi nhánh ID " + hotel.getId() : "Toàn hệ thống");
-        log.info("====== CHECK HOTEL AFTER SAVE ======");
-        log.info("Promotion ID: {}", promotion.getId());
-        log.info("Hotel Object in Entity: {}", promotion.getHotel());
-        log.info("Hotel ID in Entity: {}", promotion.getHotel() != null ? promotion.getHotel().getId() : "NULL (Toàn hệ thống)");
-        log.info("====================================");
 
-        log.info("Tạo thành công khuyến mãi ID: {} thuộc phạm vi: {}",
-                promotion.getId(), hotel != null ? "Chi nhánh ID " + hotel.getId() : "Toàn hệ thống");
-        return toResponse(promotion);
+        PromotionResponse response = toResponse(promotion);
+        // luong socket
+        promotionSocketEmitter.emitPromotionCreate(hotelId, promotion);
+
+        return response;
     }
 
     // ==================== READ ====================
@@ -187,10 +160,10 @@ public class PromotionServiceImpl implements PromotionService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
-    // ==================== UPDATE ====================
+    // can can chinh lai cho truong hop ma hotelId == null - tuc la TH ma admin sua khuyen mai
     @Override
     @Transactional
-    public PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile) {
+    public PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile, Long hotelId) {
         log.info("Cập nhật khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
 
@@ -217,7 +190,13 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setEndDate(request.getEndDate());
         promotion.setUsageLimit(request.getUsageLimit());
 
-        return toResponse(promotionRepository.save(promotion));
+        PromotionResponse response = toResponse(promotionRepository.save(promotion));
+
+        // su kien socket
+        promotionSocketEmitter.emitPromotionUpdate(hotelId);
+        // can nhac cho su kien bang soc ket cho toan bo chi nhanh
+
+        return response;
     }
 
     // ==================== CHANGE STATUS ====================
@@ -241,7 +220,6 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setStatus(next);
         return toResponse(promotionRepository.save(promotion));
     }
-
 
 
     // ==================== DELETE ====================

@@ -308,7 +308,8 @@ public class BookingServiceImpl implements BookingService {
                 .issueDate(LocalDateTime.now())
                 .roomTotalAmount(roomTotal)
                 .serviceTotalAmount(serviceTotal)
-
+                // them cai field  remain - luc dau tao booking chua thanh toan nen tien chua thanh toan == finalToTal
+                .remainingAmount(finalTotalAmount)
                 // Ghi chính xác từng loại tiền giảm vào đúng cột phân tách trong Order
                 .discountRoomAmount(roomDiscount)
                 .discountServiceAmount(serviceDiscount)
@@ -609,7 +610,9 @@ public class BookingServiceImpl implements BookingService {
         List<BookingDetailResponseForHotel> detailResponses = null;
 
         if (booking.getBookingDetails() != null) {
-            detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponseForHotel.builder().bookingStatusType(detail.getStatus()).cancelledAt(detail.getCancelledAt()).roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+            detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponseForHotel.builder().bookingStatusType(detail.getStatus())
+                    .cancelledAt(detail.getCancelledAt())
+                    .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
                     // Map thẳng các khoản chi tiết vào Response
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
                     .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())

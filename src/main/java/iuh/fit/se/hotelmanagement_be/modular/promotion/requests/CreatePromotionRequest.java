@@ -1,71 +1,84 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.requests;
 
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionDiscountType;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
-import lombok.AccessLevel;
-import lombok.Data;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Schema(description = "Request tạo mới khuyến mãi")
 public class CreatePromotionRequest {
 
-    @NotBlank(message = "Mã khuyến mãi không được để trống")
-    @Size(min = 3, max = 50, message = "Mã khuyến mãi phải từ 3 đến 50 ký tự")
-    @Pattern(regexp = "^[A-Z0-9_-]+$", message = "Mã chỉ chứa chữ IN HOA, số, gạch ngang và gạch dưới")
-    @Schema(example = "SUMMER2025")
-    String code;
-
-    @NotBlank(message = "Tên khuyến mãi không được để trống")
-    @Size(max = 200, message = "Tên không được vượt quá 200 ký tự")
-    @Schema(example = "Ưu đãi hè 2025")
+    @Column(name = "name", nullable = false, length = 200)
     String name;
 
-    @Size(max = 2000)
+    @Column(name = "description", columnDefinition = "TEXT")
     String description;
 
-    @NotNull(message = "Loại khuyến mãi không được để trống")
-    @Schema(example = "PERCENTAGE")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false, length = 30)
     PromotionScope type;
 
-    @NotNull(message = "Giá trị giảm không được để trống")
-    @DecimalMin(value = "0.01", message = "Giá trị giảm phải lớn hơn 0")
-    @Schema(example = "20.00")
+
+    @Enumerated(EnumType.STRING)
+    PromotionDiscountType discountType;
+
     BigDecimal discountValue;
 
-    @DecimalMin(value = "0", message = "Giảm tối đa không được âm")
-    @Schema(example = "500000")
-    BigDecimal maxDiscountAmount;
+    BigDecimal maxDiscountAmount; // Số tiền giảm tối đa (chỉ áp dụng khi discountType = PERCENTAGE)
+    //(Số tiền giảm giá tối đa)
 
-    @DecimalMin(value = "0", message = "Giá trị booking tối thiểu không được âm")
-    @Schema(example = "1000000")
     BigDecimal minBookingValue;
 
-    @NotNull(message = "Ngày bắt đầu không được để trống")
-    @Schema(example = "2025-07-01T00:00:00")
+
+    BigDecimal minRoomValue;    // Tổng tiền phòng tối thiểu (để kích hoạt mã riêng cho phòng)
+
+
+    BigDecimal minServiceValue; // Tổng tiền dịch vụ tối thiểu (để kích hoạt mã riêng cho dịch vụ)
+
+
     LocalDateTime startDate;
 
-    @NotNull(message = "Ngày kết thúc không được để trống")
-    @Schema(example = "2025-08-31T23:59:59")
+
     LocalDateTime endDate;
 
-    @Min(value = 1, message = "Số lần dùng tối đa phải >= 1")
-    @Schema(example = "200")
+
     Integer usageLimit;
 
-    @Schema(example = "DRAFT", defaultValue = "DRAFT")
+
+
+    Integer usedCount = 0;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
     PromotionStatus status = PromotionStatus.DRAFT;
 
 
-    @Schema(description = "ID Khách sạn áp dụng khuyến mãi", example = "1")
-    Long hotelId;
+    @Column(name = "deleted", nullable = false)
+    boolean deleted = false;
 
-    @Schema(description = "Là mã độc quyền cá nhân (true) hay mã dùng chung (false)", example = "false", defaultValue = "false")
+    @CreationTimestamp
+
+    LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    LocalDateTime updatedAt;
+
+
     boolean isExclusive = false;
+
+    String imageUrl;
 }

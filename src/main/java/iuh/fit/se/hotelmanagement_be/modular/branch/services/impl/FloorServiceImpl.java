@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.responses.BuildingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.FloorResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.services.FloorService;
 import lombok.AccessLevel;
@@ -24,5 +25,19 @@ public class FloorServiceImpl implements FloorService {
                         .floorNumber(f.getFloorNumber())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<FloorResponse> getAllFloors(Long hotelId) {
+        return floorRepository.findByBuilding_Hotel_Id(hotelId).stream().map(
+                f -> FloorResponse.builder()
+                        .id(f.getId())
+                        .floorNumber(f.getFloorNumber())
+                        .building(BuildingResponse.builder()
+                                .id(f.getBuilding().getId())     // Lấy ID của building từ quan hệ f.getBuilding()
+                                .name(f.getBuilding().getName()) // Lấy tên building
+                                .build())
+                        .build()
+        ).collect(Collectors.toList());
     }
 }

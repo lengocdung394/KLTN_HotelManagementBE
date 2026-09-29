@@ -2,9 +2,12 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
@@ -16,8 +19,6 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -40,34 +42,29 @@ public class PromotionController {
 
     PromotionService promotionService;
 
-
-
-
-    // ============================================================
-    // POST /promotions — Tạo mới
-    // ============================================================
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo mới khuyến mãi")
-    @PreAuthorize("hasAuthority('MANAGE_PROMOTION') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
     public ResponseEntity<ApiResponse<PromotionResponse>> createPromotion(
             @Parameter(
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = CreatePromotionRequest.class))
             )
             @RequestPart("promotionInfo") @Valid CreatePromotionRequest request,
-            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
+            @RequestPart(value = "image", required = false) MultipartFile imageFile,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId();
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<PromotionResponse>builder()
                         .code(1000)
-                        .result(promotionService.createPromotion(request, imageFile))
+                        .result(promotionService.createPromotion(request, imageFile, hotelId))
                         .message("Tạo khuyến mãi thành công")
                         .build());
     }
 
-    // ============================================================
-    // GET /promotions/{id} — Tìm theo ID
-    // ============================================================
     @GetMapping("/{id}")
     @Operation(summary = "Lấy chi tiết khuyến mãi theo ID")
     public ResponseEntity<ApiResponse<PromotionResponse>> getById(
@@ -80,9 +77,6 @@ public class PromotionController {
                 .build());
     }
 
-    // ============================================================
-    // GET /promotions — Lấy tất cả (filter + pagination)
-    // ============================================================
     @GetMapping
     @Operation(summary = "Lấy danh sách tất cả khuyến mãi",
             description = "Hỗ trợ filter: hotelId, status, type, keyword, startDate, endDate, page, size, sortBy, sortDir")
@@ -93,7 +87,7 @@ public class PromotionController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
@@ -103,8 +97,8 @@ public class PromotionController {
             case "createdAt" -> "created_at";
             case "updatedAt" -> "updated_at";
             case "startDate" -> "start_date";
-            case "endDate"   -> "end_date";
-            default          -> sortBy;
+            case "endDate" -> "end_date";
+            default -> sortBy;
         };
         Sort sort = sortDir.equalsIgnoreCase("asc")
                 ? Sort.by(sortColumn).ascending()
@@ -119,9 +113,6 @@ public class PromotionController {
                 .build());
     }
 
-    // ============================================================
-    // GET /promotions/active — Danh sách đang hoạt động
-    // ============================================================
     @GetMapping("/active")
     @Operation(summary = "Lấy danh sách khuyến mãi đang ACTIVE")
     public ResponseEntity<ApiResponse<List<PromotionResponse>>> getActive() {
@@ -132,9 +123,7 @@ public class PromotionController {
                 .build());
     }
 
-    // ============================================================
-    // PUT /promotions/{id} — Cập nhật thông tin
-    // ============================================================
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật thông tin khuyến mãi")
     public ResponseEntity<ApiResponse<PromotionResponse>> update(
@@ -144,21 +133,23 @@ public class PromotionController {
                             schema = @Schema(implementation = UpdatePromotionRequest.class))
             )
             @RequestPart("promotionInfo") @Valid UpdatePromotionRequest request,
-            @RequestPart(value = "image", required = false) MultipartFile imageFile) {
+            @RequestPart(value = "image", required = false) MultipartFile imageFile,
+            Authentication authentication) {
+
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId();
 
         return ResponseEntity.ok(ApiResponse.<PromotionResponse>builder()
                 .code(1000)
-                .result(promotionService.updatePromotion(id, request, imageFile))
+                .result(promotionService.updatePromotion(id, request, imageFile, hotelId))
                 .message("Cập nhật thành công")
                 .build());
     }
 
-    // ============================================================
-    // PATCH /promotions/{id}/status — Đổi trạng thái
-    // ============================================================
+
     @PatchMapping("/{id}/status")
     @Operation(summary = "Thay đổi trạng thái khuyến mãi",
-               description = "DRAFT→ACTIVE/INACTIVE | ACTIVE→INACTIVE/EXPIRED | INACTIVE→ACTIVE/EXPIRED")
+            description = "DRAFT→ACTIVE/INACTIVE | ACTIVE→INACTIVE/EXPIRED | INACTIVE→ACTIVE/EXPIRED")
     public ResponseEntity<ApiResponse<PromotionResponse>> changeStatus(
             @PathVariable String id,
             @Valid @RequestBody ChangeStatusRequest request) {

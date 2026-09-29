@@ -154,7 +154,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
     @Transactional
     @Override
-    public BookingResponse processBulkCheckIn(String bookingId, List<Long> bookingDetailIds, String employeeId) {
+    public BookingResponse processBulkCheckIn(String bookingId, List<String> bookingDetailIds, String employeeId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
@@ -162,7 +162,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         BigDecimal batchEarlyFeeTotal = BigDecimal.ZERO;
         LocalDateTime now = LocalDateTime.now();
 
-        for (Long detailId : bookingDetailIds) {
+        for (String detailId : bookingDetailIds) {
             BookingDetail targetDetail = booking.getBookingDetails().stream()
                     .filter(d -> d.getId().equals(detailId))
                     .findFirst()
@@ -253,7 +253,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
     @Transactional
     @Override
-    public BookingResponse processBulkCheckOut(String bookingId, List<Long> bookingDetailIds, String employeeId) {
+    public BookingResponse processBulkCheckOut(String bookingId, List<String> bookingDetailIds, String employeeId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
 
@@ -261,7 +261,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         BigDecimal batchLateFeeTotal = BigDecimal.ZERO;
         LocalDateTime now = LocalDateTime.now();
 
-        for (Long detailId : bookingDetailIds) {
+        for (String detailId : bookingDetailIds) {
             BookingDetail targetDetail = booking.getBookingDetails().stream()
                     .filter(d -> d.getId().equals(detailId))
                     .findFirst()

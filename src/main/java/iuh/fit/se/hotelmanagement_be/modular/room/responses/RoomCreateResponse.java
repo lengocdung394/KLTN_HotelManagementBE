@@ -23,7 +23,7 @@ public class RoomCreateResponse {
     RoomType roomType;
     Double totalAmenitiesPrice;
     Double totalPrice;
-
+    Double basePrice;
     String defaultImageUrl;      // 👈 URL ảnh đại diện chính (isDefault = true)
     List<RoomImage> avatarUrl;   // 👈 Danh sách toàn bộ ảnh đã upload
     Set<Amenity> amenities;

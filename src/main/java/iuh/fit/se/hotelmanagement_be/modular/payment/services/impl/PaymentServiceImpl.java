@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
@@ -25,9 +27,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
-
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
-import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import vn.payos.model.v2.paymentRequests.PaymentLink;
 import vn.payos.model.v2.paymentRequests.PaymentLinkStatus;
 
@@ -114,7 +113,8 @@ public class PaymentServiceImpl implements PaymentService {
                             .toUpperCase();
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         // Rút gọn mã hóa đơn: lấy HD + 5 ký tự cuối (ví dụ HD49880) để đảm bảo không vượt quá 25 ký tự PayOS
         String orderIdStr = order.getId();
@@ -281,24 +281,25 @@ public class PaymentServiceImpl implements PaymentService {
             );
         }
 
-        BigDecimal totalAmount = order.getTotalAmount();
+        // Lấy số tiền thực tế còn lại cần thanh toán
+        BigDecimal remainingAmount = order.getRemainingAmount(); // cho nay phai so sanh remain do la field nay luu tien chua thanh toan
         BigDecimal amountPaid = request.getAmountPaid();
 
-        if (totalAmount == null
-                || totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
+        if (remainingAmount == null
+                || remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(
                     ErrorCode.INVALID_PAYMENT_AMOUNT
             );
         }
 
-        if (amountPaid.compareTo(totalAmount) < 0) {
+        if (amountPaid.compareTo(remainingAmount) < 0) {
             throw new AppException(
                     ErrorCode.INSUFFICIENT_PAYMENT
             );
         }
 
         BigDecimal changeAmount =
-                amountPaid.subtract(totalAmount);
+                amountPaid.subtract(remainingAmount);
 
         PaymentTransaction receiptTransaction =
                 PaymentTransaction.builder()
@@ -330,9 +331,15 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRepository.save(changeTransaction);
         }
 
-        // Quan trọng: cập nhật số tiền đã thanh toán
-        order.setPaidAmount(totalAmount);
+        // --- SỬA QUAN TRỌNG Ở ĐÂY ---
+        // 1. Cộng dồn số tiền đã trả từ trước + số tiền thực trả lần này (trừ đi tiền thừa nếu có, hoặc dùng luôn remainingAmount vì khách đã trả đủ phần còn thiếu)
+        BigDecimal currentPaid = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
+        order.setPaidAmount(currentPaid.add(remainingAmount));
 
+        // 2. Cập nhật số tiền còn lại về 0 vì đã trả hết phần thiếu
+        order.setRemainingAmount(BigDecimal.ZERO);
+
+        order.setRemainingAmount(BigDecimal.ZERO);
         order.setOrderStatus(OrderStatusType.OPEN);
         // thanh toán bằng tiền mặt cập nhật là thanh toán đủ lần ầu tiên
         order.setPaymentStatus(PaymentStatus.PAID);
@@ -344,7 +351,7 @@ public class PaymentServiceImpl implements PaymentService {
         return PaymentTransactionResponse.builder()
                 .transactionId(receiptTransaction.getId())
                 .orderId(order.getId())
-                .totalAmount(totalAmount)
+                .totalAmount(remainingAmount)
                 .amountPaid(amountPaid)
                 .changeAmount(changeAmount)
                 .paymentType("CASH")

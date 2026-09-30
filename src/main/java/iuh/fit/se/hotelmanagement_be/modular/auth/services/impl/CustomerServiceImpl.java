@@ -271,5 +271,42 @@ public class CustomerServiceImpl implements CustomerService {
                 .message("Có thể tiếp tục nhập email và mật khẩu.")
                 .build();
     }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional
+    public iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse updateCustomer(String id, iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest request) {
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng với mã: " + id));
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            customer.setFullName(request.getName().trim());
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            customer.setPhone(request.getPhone().trim());
+        }
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            customer.setEmail(request.getEmail().trim());
+        }
+        if (request.getIdentityNumber() != null && !request.getIdentityNumber().isBlank()) {
+            customer.setCccd(request.getIdentityNumber().trim());
+        }
+
+        Customer saved = customerRepository.save(customer);
+
+        java.math.BigDecimal spent = saved.getTotalSpent() != null
+                ? java.math.BigDecimal.valueOf(saved.getTotalSpent())
+                : java.math.BigDecimal.ZERO;
+
+        return iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse.builder()
+                .id(saved.getId())
+                .fullName(saved.getFullName())
+                .phone(saved.getPhone())
+                .email(saved.getEmail())
+                .cccd(saved.getCccd())
+                .loyaltyTier(saved.getLoyaltyTier())
+                .totalSpent(spent)
+                .totalBookings(saved.getTotalBookings())
+                .build();
+    }
 }
 

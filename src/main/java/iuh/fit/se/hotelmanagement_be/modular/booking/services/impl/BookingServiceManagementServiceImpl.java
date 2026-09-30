@@ -160,34 +160,57 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         return totalRoomAndServiceAdded;
     }
 
-    // Đổi ngày checkin checkout + thêm số lượng người
-
     @Override
-    public BigDecimal processRoomDateUpdates(Booking booking, List<RoomDateUpdateRequest> updates) {
+    public BigDecimal processRoomUpdates(Booking booking, List<RoomUpdateRequest> updates) {
         if (updates == null || updates.isEmpty()) {
+            log.debug("No room updates requested for booking ID: {}", booking.getId());
             return BigDecimal.ZERO;
         }
 
+        log.info("Processing room updates (room change, date/guest updates). Total requests: {} for booking ID: {}", updates.size(), booking.getId());
         BigDecimal totalRoomPriceChange = BigDecimal.ZERO;
-        // Lay tu booking
         Long hotelId = booking.getHotel().getId();
 
-        for (RoomDateUpdateRequest req : updates) {
+        for (RoomUpdateRequest req : updates) {
+            // 1. Tìm BookingDetail cần cập nhật
             BookingDetail targetDetail = booking.getBookingDetails().stream()
                     .filter(d -> d.getId().equals(req.getBookingDetailId()))
                     .findFirst()
-                    .orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+                    .orElseThrow(() -> {
+                        log.error("BookingDetail not found with ID: {}", req.getBookingDetailId());
+                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
+                    });
 
             if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                log.warn("Attempted to update a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_UPDATE_CANCELLED_ROOM);
             }
 
-            LocalDateTime newCheckIn = req.getNewCheckInTime() != null ? req.getNewCheckInTime() : targetDetail.getCheckinTime();
-            LocalDateTime newCheckOut = req.getNewCheckoutTime() != null ? req.getNewCheckoutTime() : targetDetail.getCheckoutTime();
+            // Trừ đi số tiền phòng cũ để tính chênh lệch về sau
+            double oldRoomSub = targetDetail.getRoomSubTotal() != null ? targetDetail.getRoomSubTotal() : 0.0;
+            totalRoomPriceChange = totalRoomPriceChange.subtract(BigDecimal.valueOf(oldRoomSub));
 
-            targetDetail.setCheckinTime(newCheckIn);
-            targetDetail.setCheckoutTime(newCheckOut);
+            // 2. Cập nhật phòng mới (nếu có truyền `newRoomId`)
+            Room roomToUse = targetDetail.getRoom();
+            if (req.getNewRoomId() != null && !req.getNewRoomId().equals(roomToUse.getId())) {
+                Room newRoom = roomRepository.findById(req.getNewRoomId())
+                        .orElseThrow(() -> {
+                            log.error("New Room not found with ID: {}", req.getNewRoomId());
+                            return new AppException(ErrorCode.ROOM_NOT_FOUND);
+                        });
+                targetDetail.setRoom(newRoom);
+                roomToUse = newRoom;
+                log.info("Updated room ID to {} for BookingDetail ID: {}", newRoom.getId(), targetDetail.getId());
+            }
 
+            // 3. Cập nhật ngày tháng (nếu có truyền lên)
+            LocalDateTime checkInToUse = req.getNewCheckInTime() != null ? req.getNewCheckInTime() : targetDetail.getCheckinTime();
+            LocalDateTime checkOutToUse = req.getNewCheckoutTime() != null ? req.getNewCheckoutTime() : targetDetail.getCheckoutTime();
+
+            targetDetail.setCheckinTime(checkInToUse);
+            targetDetail.setCheckoutTime(checkOutToUse);
+
+            // 4. Cập nhật số lượng người (nếu có truyền lên)
             if (req.getNumAdults() != null) {
                 targetDetail.setNumAdults(req.getNumAdults());
             }
@@ -198,27 +221,22 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 targetDetail.setNumInfants(req.getNumInfants());
             }
 
-            Room room = targetDetail.getRoom();
-            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            // 5. Tính toán lại toàn bộ tiền phòng và phụ thu qua hàm chuẩn
+            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, roomToUse.getRoomType());
 
-            // Gọi hàm tính tiền sử dụng Class
             RoomPriceCalculationResult calcResult = calculateRoomTotalAndFees(
-                    hotelId, room, newCheckIn, newCheckOut,
+                    hotelId, roomToUse, checkInToUse, checkOutToUse,
                     targetDetail.getNumAdults(), targetDetail.getNumChildren(), policy
             );
 
-            // Gán dữ liệu thông qua getter của class
+            // Gán kết quả tính toán mới
             targetDetail.setBaseRoomPricePerNight(calcResult.getBasePricePerNight());
-            // Nếu entity của bạn lưu chung một trường tổng phụ thu hoặc chia tách, bạn điều chỉnh dòng này cho khớp
             targetDetail.setExtraAdultFeePerNight(calcResult.getTotalExtraFeePerNight());
 
-            double oldRoomSub = targetDetail.getRoomSubTotal() != null ? targetDetail.getRoomSubTotal() : 0.0;
             double newRoomSubDouble = calcResult.getRoomSubTotal().doubleValue();
-
-            double priceDiff = newRoomSubDouble - oldRoomSub;
-
             targetDetail.setRoomSubTotal(newRoomSubDouble);
 
+            // Tính lại tổng tiền riêng của BookingDetail (Tiền phòng mới + Tiền dịch vụ không bị hủy)
             double currentServiceSub = targetDetail.getBookingServiceDetails() == null ? 0.0 :
                     targetDetail.getBookingServiceDetails().stream()
                             .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
@@ -227,12 +245,13 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
             targetDetail.setTotalPrice(newRoomSubDouble + currentServiceSub);
 
-            totalRoomPriceChange = totalRoomPriceChange.add(BigDecimal.valueOf(priceDiff));
+            // Cộng dồn tiền phòng mới vào biến chênh lệch tổng đơn hàng
+            totalRoomPriceChange = totalRoomPriceChange.add(BigDecimal.valueOf(newRoomSubDouble));
+            log.info("Successfully updated BookingDetail ID: {}. New Room Subtotal: {}", targetDetail.getId(), newRoomSubDouble);
         }
 
         return totalRoomPriceChange;
     }
-
     // Hàm Nhạc Trưởng
     @Override
     public BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request) {
@@ -261,22 +280,19 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         BigDecimal roomPriceChange = BigDecimal.ZERO;
         BigDecimal servicePriceChange = BigDecimal.ZERO;
 
-        // 1. Xử lý hủy phòng hàng loạt
+        // 1. Xử lý hủy phòng hàng loạt -  huy luon dich vu
         roomPriceChange = roomPriceChange.add(processCancellations(booking, request.getBookingDetailIdsToCancel(), operatorName));
 
         // 2. Xử lý thêm phòng mới (kèm dịch vụ) hàng loạt
         roomPriceChange = roomPriceChange.add(processRoomAdditions(booking, request.getRoomsToAdd()));
 
-        // 3. Xử lý đổi phòng hàng loạt
-        roomPriceChange = roomPriceChange.add(processRoomChanges(booking, request.getRoomsToChange()));
+        // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
+        roomPriceChange = roomPriceChange.add(processRoomUpdates(booking, request.getRoomsToChange()));
 
-        // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt
-        roomPriceChange = roomPriceChange.add(processRoomDateUpdates(booking, request.getRoomsToUpdateDates()));
-
-        // 5. Xử lý thêm dịch vụ phát sinh cho phòng cũ
+        // 4. Xử lý thêm dịch vụ phát sinh cho phòng cũ
         servicePriceChange = servicePriceChange.add(processServicesForExistingRooms(booking, request.getServicesToAddForExistingRooms()));
 
-        // 6. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng
+        // 5. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng -- TH huy luon nhieu dich vu cho phong do
         servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
 
         // ==========================================
@@ -353,162 +369,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 .build();
     }
 
-    // Đổi phòng
-    @Override
-    public BigDecimal processRoomChanges(Booking booking, List<UpdateRoomChangeRequest> roomChanges) {
-        if (roomChanges == null || roomChanges.isEmpty()) {
-            log.debug("No room changes requested for booking ID: {}", booking.getId());
-            return BigDecimal.ZERO;
-        }
-
-        log.info("Processing room changes. Total requests: {} for booking ID: {}", roomChanges.size(), booking.getId());
-        BigDecimal roomPriceChange = BigDecimal.ZERO;
-        Long hotelId = booking.getHotel().getId();
-
-        for (UpdateRoomChangeRequest changeReq : roomChanges) {
-            log.info("Changing BookingDetail ID: {} to new Room ID: {}", changeReq.getBookingDetailId(), changeReq.getNewRoomId());
-
-            BookingDetail oldDetail = booking.getBookingDetails().stream()
-                    .filter(d -> d.getId().equals(changeReq.getBookingDetailId()))
-                    .findFirst()
-                    .orElseThrow(() -> {
-                        log.error("Old BookingDetail not found with ID: {}", changeReq.getBookingDetailId());
-                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
-                    });
-
-            if (oldDetail.getStatus() == BookingStatusType.CANCELLED) {
-                log.warn("Attempted to change a cancelled BookingDetail ID: {}", oldDetail.getId());
-                throw new AppException(ErrorCode.CANNOT_CHANGE_CANCELLED_ROOM);
-            }
-
-            if (oldDetail.getRoomSubTotal() != null) {
-                roomPriceChange = roomPriceChange.subtract(BigDecimal.valueOf(oldDetail.getRoomSubTotal()));
-                log.debug("Deducted old room subtotal: {}", oldDetail.getRoomSubTotal());
-            }
-
-            oldDetail.setStatus(BookingStatusType.CANCELLED);
-            oldDetail.setCancelledAt(LocalDateTime.now());
-
-            Room newRoom = roomRepository.findById(changeReq.getNewRoomId())
-                    .orElseThrow(() -> {
-                        log.error("New Room not found with ID: {}", changeReq.getNewRoomId());
-                        return new AppException(ErrorCode.ROOM_NOT_FOUND);
-                    });
-
-            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, newRoom.getRoomType());
-            ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(policy, oldDetail.getNumAdults(), oldDetail.getNumChildren());
-            double totalExtraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
-
-            LocalDate startDate = oldDetail.getCheckinTime().toLocalDate();
-            LocalDate endDate = oldDetail.getCheckoutTime().toLocalDate();
-
-            BigDecimal newRoomSubTotal = BigDecimal.ZERO;
-            double sampleBasePricePerNight = 0.0;
-
-            LocalDate currentDate = startDate;
-            while (currentDate.isBefore(endDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, newRoom.getRoomType(), currentDate);
-
-                double dailyRoomPrice;
-                double amenitiesPrice = newRoom.getTotalAmenitiesPrice() != null ? newRoom.getTotalAmenitiesPrice() : 0.0;
-
-                if (seasonalRateOpt.isPresent()) {
-                    dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
-                } else {
-                    double basePrice = policy.getBasePrice() != null ? policy.getBasePrice() : 0.0;
-                    dailyRoomPrice = basePrice + amenitiesPrice;
-                }
-
-                sampleBasePricePerNight = dailyRoomPrice;
-                BigDecimal dailyTotal = BigDecimal.valueOf(dailyRoomPrice + totalExtraFeePerNight);
-                newRoomSubTotal = newRoomSubTotal.add(dailyTotal);
-
-                currentDate = currentDate.plusDays(1);
-            }
-
-            BookingDetail newDetail = BookingDetail.builder()
-                    .room(newRoom)
-                    .checkinTime(oldDetail.getCheckinTime())
-                    .checkoutTime(oldDetail.getCheckoutTime())
-                    .numAdults(oldDetail.getNumAdults())
-                    .numChildren(oldDetail.getNumChildren())
-                    .baseRoomPricePerNight(sampleBasePricePerNight)
-                    .roomSubTotal(newRoomSubTotal.doubleValue())
-                    .totalPrice(newRoomSubTotal.doubleValue())
-                    .status(BookingStatusType.PENDING)
-                    .build();
-
-            booking.addBookingDetail(newDetail);
-            roomPriceChange = roomPriceChange.add(newRoomSubTotal);
-            log.info("Successfully changed room. New room subtotal added: {}", newRoomSubTotal);
-        }
-
-        return roomPriceChange;
-    }
-
-    // Hủy nhiều dịch vụ cho nhiều phòng
-    @Override
-    public BigDecimal processServiceCancellations(Booking booking, List<ServiceCancellationRequest> cancellations) {
-        if (cancellations == null || cancellations.isEmpty()) {
-            log.debug("No service cancellations requested for booking ID: {}", booking.getId());
-            return BigDecimal.ZERO;
-        }
-
-        log.info("Processing service cancellations. Total items: {} for booking ID: {}", cancellations.size(), booking.getId());
-        BigDecimal servicePriceReduced = BigDecimal.ZERO;
-
-        for (ServiceCancellationRequest cancelReq : cancellations) {
-            BookingDetail targetDetail = booking.getBookingDetails().stream()
-                    .filter(d -> d.getId().equals(cancelReq.getBookingDetailId()))
-                    .findFirst()
-                    .orElseThrow(() -> {
-                        log.error("BookingDetail not found for service cancellation with ID: {}", cancelReq.getBookingDetailId());
-                        return new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND);
-                    });
-
-            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
-                log.warn("Attempted to cancel services in a cancelled BookingDetail ID: {}", targetDetail.getId());
-                throw new AppException(ErrorCode.CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM);
-            }
-
-            if (cancelReq.getServiceDetailIds() == null || cancelReq.getServiceDetailIds().isEmpty()) {
-                continue;
-            }
-
-            for (Long serviceDetailId : cancelReq.getServiceDetailIds()) {
-                BookingServiceDetail targetService = targetDetail.getBookingServiceDetails().stream()
-                        .filter(sd -> sd.getId().equals(serviceDetailId))
-                        .findFirst()
-                        .orElseThrow(() -> {
-                            log.error("BookingServiceDetail not found with ID: {}", serviceDetailId);
-                            return new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND);
-                        });
-
-                if (Boolean.TRUE.equals(targetService.getCancelled())) {
-                    log.debug("Service detail ID: {} is already cancelled. Skipping.", serviceDetailId);
-                    continue;
-                }
-
-                targetService.setCancelled(true);
-                targetService.setCancelledAt(LocalDateTime.now());
-
-                if (targetService.getPrice() != null) {
-                    BigDecimal price = BigDecimal.valueOf(targetService.getPrice());
-                    BigDecimal quantity = BigDecimal.valueOf(targetService.getQuantity());
-                    BigDecimal itemTotal = price.multiply(quantity);
-
-                    servicePriceReduced = servicePriceReduced.subtract(itemTotal);
-                    log.info("Cancelled service ID: {}, Amount reduced: {}", serviceDetailId, itemTotal);
-                }
-            }
-        }
-
-        return servicePriceReduced;
-    }
 
     // Hủy nhiều phòng (đã kèm dịch vụ)
     @Override
-    public BigDecimal processCancellations(Booking booking, List<Long> detailIdsToCancel, String operatorName) {
+    public BigDecimal processCancellations(Booking booking, List<String> detailIdsToCancel, String operatorName) {
         if (detailIdsToCancel == null || detailIdsToCancel.isEmpty()) {
             log.debug("No room cancellations requested for booking ID: {}", booking.getId());
             return BigDecimal.ZERO;
@@ -517,7 +381,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         log.info("Processing room cancellations. Total rooms to cancel: {} by operator: {}", detailIdsToCancel.size(), operatorName);
         BigDecimal roomPriceReduced = BigDecimal.ZERO;
 
-        for (Long detailId : detailIdsToCancel) {
+        for (String detailId : detailIdsToCancel) {
             BookingDetail targetDetail = booking.getBookingDetails().stream()
                     .filter(d -> d.getId().equals(detailId))
                     .findFirst()
@@ -554,7 +418,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         log.info("Total room price reduced from cancellations: {}", roomPriceReduced);
         return roomPriceReduced;
     }
-
+    // Ham them dich vu cho phongf
     @Override
     public BigDecimal processServicesForExistingRooms(Booking booking, List<RoomServiceAdditionRequest> requests) {
         if (requests == null || requests.isEmpty()) {
@@ -656,7 +520,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         return totalServicePriceAdded;
     }
-
+    // Ham giam so luong dich vu giam so luong dich vu
     @Override
     public BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates) {
         if (quantityUpdates == null || quantityUpdates.isEmpty()) {
@@ -751,7 +615,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         return servicePriceChange;
     }
 
-
+    // ham phu tro tinh toan tien phong kem theo so luong nguoi
     private RoomPriceCalculationResult calculateRoomTotalAndFees(
             Long hotelId, Room room, LocalDateTime checkIn, LocalDateTime checkOut, Integer numAdults, Integer numChildren, BranchRoomPolicy policy) {
 

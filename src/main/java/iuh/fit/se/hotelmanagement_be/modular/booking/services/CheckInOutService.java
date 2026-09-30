@@ -23,7 +23,7 @@ public interface CheckInOutService {
 
     // ham checkin checkout
 
-    BookingResponse processBulkCheckIn(String bookingId, List<Long> bookingDetailIds, String employeeId);
+    BookingResponse processBulkCheckIn(String bookingId, List<String> bookingDetailIds, String employeeId);
 
-    BookingResponse processBulkCheckOut(String bookingId, List<Long> bookingDetailIds, String employeeId);
+    BookingResponse processBulkCheckOut(String bookingId, List<String> bookingDetailIds, String employeeId);
 }

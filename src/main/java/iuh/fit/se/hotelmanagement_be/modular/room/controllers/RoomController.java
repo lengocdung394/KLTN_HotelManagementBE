@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
@@ -56,7 +57,7 @@ public class RoomController {
 
     @GetMapping
     @Operation(summary = "Lấy danh sách phòng theo ID của tầng")
-    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRooms(@RequestParam Long floorId) {
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRooms(@RequestParam String floorId) {
         List<RoomResponse> roomResponseList = roomService.getRoomsByFloorId(floorId);
 
         return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
@@ -107,6 +108,20 @@ public class RoomController {
                 .code(200)
                 .message("Lấy danh sách phòng công khai thành công!")
                 .result(roomResponseList)
+                .build());
+    }
+
+    // chinh sua mot phong
+    @PutMapping(value = "/updateRoomById/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<RoomCreateResponse>> updateRoom(
+            @PathVariable String roomId,
+            @RequestPart("room") @Valid RoomUpdateRequest request,
+            @RequestPart(value = "images", required = false) List<MultipartFile> imageFiles
+    ) {
+        RoomCreateResponse response = roomService.updateRoom(roomId, request, imageFiles);
+        return ResponseEntity.ok(ApiResponse.<RoomCreateResponse>builder()
+                .code(200)
+                .result(response)
                 .build());
     }
 }

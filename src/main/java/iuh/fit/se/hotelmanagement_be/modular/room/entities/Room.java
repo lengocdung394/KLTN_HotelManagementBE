@@ -50,10 +50,6 @@ public class Room {
     RoomType roomType;
 
 
-    @Column(name = "price")
-    @Builder.Default
-    Double price = 0.0;
-
     @Column(name = "base_price")
     @Builder.Default
     Double basePrice = 0.0;

@@ -15,7 +15,7 @@ import java.util.List;
 
 public interface PromotionService {
 
-    PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile);
+    PromotionResponse createPromotion(CreatePromotionRequest request, MultipartFile imageFile, Long hotelId);
 
     PromotionResponse getPromotionById(String id);
 
@@ -31,7 +31,7 @@ public interface PromotionService {
 
     List<PromotionResponse> getActivePromotions();
 
-    PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile);
+    PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile, Long hotelId);
 
     PromotionResponse changeStatus(String id, ChangeStatusRequest request);
 

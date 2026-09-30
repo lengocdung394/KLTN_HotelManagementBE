@@ -29,7 +29,7 @@ public class CheckInOutController {
     @Operation(summary = "Thực hiện thủ tục nhận phòng đồng loạt (Bulk Check-in) cho danh sách phòng được chọn và tính phụ thu sớm")
     public ResponseEntity<BookingResponse> processBulkCheckIn(
             @PathVariable String bookingId,
-            @RequestBody List<Long> bookingDetailIds,
+            @RequestBody List<String> bookingDetailIds,
             Authentication authentication) {
 
             // Lấy ngầm hotelId từ Token
@@ -46,7 +46,7 @@ public class CheckInOutController {
     @Operation(summary = "Thực hiện thủ tục trả phòng đồng loạt (Bulk Check-out), tính phụ thu lố giờ, chốt tiền dịch vụ và đóng Order CLOSED")
     public ResponseEntity<BookingResponse> processBulkCheckOut(
             @PathVariable String bookingId,
-            @RequestBody List<Long> bookingDetailIds,
+            @RequestBody List<String> bookingDetailIds,
             Authentication authentication) {
         // Lấy ngầm hotelId từ Token
         Account account = (Account) authentication.getPrincipal();

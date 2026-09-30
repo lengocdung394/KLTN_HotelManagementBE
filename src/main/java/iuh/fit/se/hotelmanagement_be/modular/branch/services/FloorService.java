@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface FloorService {
     List<FloorResponse> getFloorsByBuildingId(Long buildingId);
+    List<FloorResponse> getAllFloors(Long hotelId);
 }

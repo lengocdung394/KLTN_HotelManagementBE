@@ -355,7 +355,7 @@ public class RbacInitializer implements CommandLineRunner {
                                 .floor(floor)
                                 .roomStatus(RoomStatus.READY)
                                 .roomType(RoomType.STANDARD)
-                                .price(1000000.0)
+
                                 .basePrice(1000000.0)
                                 .avatarUrl(List.of(RoomImage.builder()
                                         .url("https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=900&auto=format&fit=crop")
@@ -367,7 +367,7 @@ public class RbacInitializer implements CommandLineRunner {
                                 .floor(floor)
                                 .roomStatus(RoomStatus.READY)
                                 .roomType(RoomType.DELUXE)
-                                .price(2000000.0)
+
                                 .basePrice(2000000.0)
                                 .avatarUrl(List.of(RoomImage.builder()
                                         .url("https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=900&auto=format&fit=crop")
@@ -379,7 +379,7 @@ public class RbacInitializer implements CommandLineRunner {
                                 .floor(floor)
                                 .roomStatus(RoomStatus.READY)
                                 .roomType(RoomType.SUITE)
-                                .price(3000000.0)
+
                                 .basePrice(3000000.0)
                                 .avatarUrl(List.of(RoomImage.builder()
                                         .url("https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=900&auto=format&fit=crop")
@@ -391,7 +391,7 @@ public class RbacInitializer implements CommandLineRunner {
                                 .floor(floor)
                                 .roomStatus(RoomStatus.READY)
                                 .roomType(RoomType.FAMILY)
-                                .price(3500000.0)
+
                                 .basePrice(3500000.0)
                                 .avatarUrl(List.of(RoomImage.builder()
                                         .url("https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop")

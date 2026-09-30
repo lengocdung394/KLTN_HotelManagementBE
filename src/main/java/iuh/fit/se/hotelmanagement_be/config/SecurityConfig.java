@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/payment/**").permitAll()
                         .requestMatchers("/customer-promotions/**").permitAll()
                         .requestMatchers("/employee/**").permitAll()
+                        .requestMatchers("/staff-shifts/**").permitAll()
                         .requestMatchers("/customer/**").permitAll()
                         .requestMatchers("/users/**").permitAll()
                         .requestMatchers("/bedTypes/**").permitAll()

@@ -45,9 +45,10 @@ public class Order {
 
     BigDecimal paidAmount; // tien da thanh toán
 
-    BigDecimal remainingAmount;
+    BigDecimal remainingAmount; // so tien chua duoc thanh toan
 
     OrderStatusType orderStatus;
+
     PaymentStatus  paymentStatus;
 
     @ElementCollection

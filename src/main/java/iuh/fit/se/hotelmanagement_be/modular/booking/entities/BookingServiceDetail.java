@@ -20,7 +20,7 @@ public class BookingServiceDetail {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "booking_service_id")
-    Long id;
+    String id;
 
     int quantity;
 

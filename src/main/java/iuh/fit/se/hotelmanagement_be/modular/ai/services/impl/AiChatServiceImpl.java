@@ -98,7 +98,26 @@ public class AiChatServiceImpl implements AiChatService {
                     ? request.getSessionId()
                     : UUID.randomUUID().toString();
 
-            // 2. Build hotel context from database (including real-time available rooms)
+            // 2. Ưu tiên chuyển tiếp yêu cầu tới Python AI Microservice (FastAPI + Vector DB RAG)
+            try {
+                String pythonAiUrl = "http://127.0.0.1:8000/ai/chat";
+                ResponseEntity<JsonNode> pythonRes = restTemplate.postForEntity(pythonAiUrl, request, JsonNode.class);
+                if (pythonRes.getStatusCode().is2xxSuccessful() && pythonRes.getBody() != null) {
+                    JsonNode resultNode = pythonRes.getBody().path("result");
+                    String pyReply = resultNode.path("reply").asText();
+                    if (pyReply != null && !pyReply.isBlank()) {
+                        pyReply = handleCreateBookingAction(pyReply, request);
+                        return ChatResponse.builder()
+                                .reply(pyReply)
+                                .sessionId(sessionId)
+                                .build();
+                    }
+                }
+            } catch (Exception ex) {
+                log.info("AI Microservice (Python) khong phan hoi, su dung bo du phong: {}", ex.getMessage());
+            }
+
+            // 3. Build hotel context from database (including real-time available rooms)
             String hotelContext = buildHotelContext();
 
             // 3. Build system prompt with context

@@ -115,6 +115,10 @@ public class ShiftServiceImpl implements ShiftService {
             employee = employeeRepository.findById(request.getEmployeeId())
                     .orElse(null);
         }
+        if (employee == null && request.getEmployeeName() != null && !request.getEmployeeName().isBlank()) {
+            employee = employeeRepository.findFirstByFullName(request.getEmployeeName().trim())
+                    .orElse(null);
+        }
 
         String defaultShiftTime = request.getShiftTime();
         if (defaultShiftTime == null || defaultShiftTime.isBlank()) {
@@ -159,9 +163,12 @@ public class ShiftServiceImpl implements ShiftService {
             return Collections.emptyList();
         }
 
+        Long targetHotelId = (hotelId != null) ? hotelId : (request.getHotelId() != null ? request.getHotelId() : 1L);
+
         List<ShiftAssignmentResponse> results = new ArrayList<>();
         for (ShiftAssignRequest item : request.getAssignments()) {
-            results.add(assignShift(item, hotelId));
+            Long itemHotelId = item.getHotelId() != null ? item.getHotelId() : targetHotelId;
+            results.add(assignShift(item, itemHotelId));
         }
         return results;
     }

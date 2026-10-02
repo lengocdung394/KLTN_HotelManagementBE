@@ -55,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/payment/**").permitAll()
                         .requestMatchers("/customer-promotions/**").permitAll()
                         .requestMatchers("/employee/**").permitAll()
+                        .requestMatchers("/staff-shifts/**").permitAll()
                         .requestMatchers("/customer/**").permitAll()
                         .requestMatchers("/users/**").permitAll()
                         .requestMatchers("/bedTypes/**").permitAll()
@@ -67,7 +68,7 @@ public class SecurityConfig {
                         .requestMatchers("/room/**").permitAll()
                         .requestMatchers("/reviews/**").permitAll()
                         .requestMatchers("/payment/webhook/payos").permitAll()
-                        .requestMatchers("/ai/**").permitAll()
+                        .requestMatchers("/staff-shifts/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -80,7 +81,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:8080")); // đúng port FE của bạn
+        configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:8080",
+                "http://localhost:8081",
+                "http://localhost:8082",
+                "http://localhost:8083",
+                "http://localhost:5173",
+                "http://localhost:3000"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

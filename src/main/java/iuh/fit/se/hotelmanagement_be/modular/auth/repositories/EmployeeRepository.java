@@ -6,5 +6,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, String> {
-
+    java.util.List<Employee> findByHotelId(Long hotelId);
+    java.util.Optional<Employee> findFirstByFullName(String fullName);
+    boolean existsByPhone(String phone);
+    boolean existsByCccd(String cccd);
+    boolean existsByPhoneAndIdNot(String phone, String id);
+    boolean existsByCccdAndIdNot(String cccd, String id);
 }

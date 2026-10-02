@@ -54,7 +54,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<OrderResponse> getOrdersByStatus(OrderStatusType status) {
-        List<Order> orders = orderRepository.findByOrderStatus(status);
+        List<Order> orders = (status != null)
+                ? orderRepository.findByOrderStatus(status)
+                : orderRepository.findAll();
         return orders.stream().map(this::toOrderResponse).toList();
     }
 

@@ -13,15 +13,15 @@ import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/employee")
@@ -55,6 +55,48 @@ public class EmployeeController {
 
         return ResponseEntity.ok(apiResponse);
     }
-    // Lay thong tin cua nhan vien
 
+    @Operation(summary = "Lấy danh sách nhân viên theo chi nhánh khách sạn")
+    @GetMapping("/hotel/{hotelId}")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesByHotel(@PathVariable("hotelId") Long hotelId) {
+        List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId);
+        return ResponseEntity.ok(ApiResponse.<List<EmployeeResponse>>builder()
+                .code(200)
+                .message("Lấy danh sách nhân viên thành công!")
+                .result(result)
+                .build());
+    }
+
+    @Operation(summary = "Lấy thông tin chi tiết một nhân viên")
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    public ResponseEntity<ApiResponse<EmployeeResponse>> getEmployeeDetail(@PathVariable("id") String id) {
+        EmployeeResponse result = userService.getEmployeeById(id);
+        return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
+                .code(200)
+                .message("Lấy thông tin nhân viên thành công!")
+                .result(result)
+                .build());
+    }
+
+    @Operation(summary = "Cập nhật thông tin nhân sự")
+    @PutMapping(value = "/update/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    public ResponseEntity<ApiResponse<EmployeeResponse>> updateEmployee(
+            @PathVariable("id") String id,
+            @Parameter(
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = UserRegisterRequest.class))
+            )
+            @RequestPart("staffInfo") UserRegisterRequest request,
+            @RequestPart(value = "avatarUrl", required = false) MultipartFile avatarFile
+    ) {
+        EmployeeResponse result = userService.updateEmployee(id, request, avatarFile);
+        return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
+                .code(200)
+                .message("Cập nhật thông tin nhân sự thành công!")
+                .result(result)
+                .build());
+    }
 }

@@ -22,4 +22,5 @@ public interface CustomerService {
     );
     CustomerCheckResponse checkCustomer(CustomerCheckRequest request);
 
+    iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse updateCustomer(String id, iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest request);
 }

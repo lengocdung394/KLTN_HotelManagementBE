@@ -102,6 +102,19 @@ public class CustomerController {
         return ResponseEntity.ok(customer);
     }
 
+    @Operation(summary = "Nhân viên cập nhật thông tin khách hàng tại quầy")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse>> updateCustomer(
+            @PathVariable String id,
+            @RequestBody iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest request) {
+        iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse updated = customerService.updateCustomer(id, request);
+        return ResponseEntity.ok(ApiResponse.<iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse>builder()
+                .code(1000)
+                .message("Cập nhật thông tin khách hàng thành công")
+                .result(updated)
+                .build());
+    }
+
     /**
      * 1. Yêu cầu đăng ký / kích hoạt tài khoản
      * Phân loại: NEW_CUSTOMER hoặc WALK_IN_CUSTOMER_NEEDS_PASSWORD và gửi OTP

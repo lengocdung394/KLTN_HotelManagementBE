@@ -8,8 +8,16 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateRespon
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
+import java.util.List;
+
 public interface EmployeeService {
 
     EmployeeCreateResponse createStaffAndAccount(UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount);
 
+    List<EmployeeResponse> getEmployeesByHotelId(Long hotelId);
+
+    EmployeeResponse getEmployeeById(String id);
+
+    EmployeeResponse updateEmployee(String id, UserRegisterRequest dto, MultipartFile avatarFile);
 }

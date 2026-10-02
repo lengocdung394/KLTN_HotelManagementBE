@@ -26,7 +26,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
     @Query(value = """
         SELECT p.* FROM promotions p
         WHERE p.deleted = false
-          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint))
+          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint) OR p.hotel_id IS NULL)
           AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
           AND (CAST(:type AS varchar) IS NULL OR p.type = CAST(:type AS varchar))
           AND (CAST(:keyword AS varchar) IS NULL
@@ -37,7 +37,7 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
         """, countQuery = """
         SELECT COUNT(p.id) FROM promotions p
         WHERE p.deleted = false
-          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint))
+          AND (CAST(:hotelId AS bigint) IS NULL OR p.hotel_id = CAST(:hotelId AS bigint) OR p.hotel_id IS NULL)
           AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
           AND (CAST(:type AS varchar) IS NULL OR p.type = CAST(:type AS varchar))
           AND (CAST(:keyword AS varchar) IS NULL

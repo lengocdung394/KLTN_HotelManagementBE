@@ -14,10 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCheckRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.WalkInCustomerRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerCheckResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerFindByIdResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerRegisterResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.CustomerService;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
@@ -46,14 +43,14 @@ public class CustomerServiceImpl implements CustomerService {
     CustomerSocketEmitter customerSocketEmitter;
 
     @Override
-    public Customer createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
+    public CustomerResponse createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
         // 1. Kiểm tra logic trùng SĐT hoặc CCCD (như đã bàn ở trên)
         Optional<Customer> customerByPhone = customerRepository.findByPhone(request.getPhone());
         Optional<Customer> customerByCccd = customerRepository.findByCccd(request.getCccd());
 
         if (customerByPhone.isPresent() && customerByCccd.isPresent()
                 && customerByPhone.get().getId().equals(customerByCccd.get().getId())) {
-            return customerByPhone.get(); // Khách cũ load lại trang
+            return toCustomerResponse(customerByPhone.get()); // Khách cũ load lại trang
         }
         if (customerByPhone.isPresent()) {
             throw new AppException(ErrorCode.PHONE_EXISTED);
@@ -74,7 +71,16 @@ public class CustomerServiceImpl implements CustomerService {
 
         customerSocketEmitter.emitCustomerCreated(hotelId, customer);
 
-        return savedCustomer;
+        return toCustomerResponse(savedCustomer);
+    }
+
+    public CustomerResponse toCustomerResponse(Customer customer) {
+        return CustomerResponse.builder()
+                .id(customer.getId())
+                .fullName(customer.getFullName())
+                .cccd(customer.getCccd())
+                .phone(customer.getPhone())
+                .build();
     }
 
     @Override

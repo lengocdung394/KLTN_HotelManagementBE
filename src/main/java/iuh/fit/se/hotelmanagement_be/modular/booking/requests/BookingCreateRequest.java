@@ -30,7 +30,7 @@ public class BookingCreateRequest {
     BookingChannel bookingChannel; // WALK_IN hoặc ONLINE
 
     // Giá phòng thời điểm đó
-    Long customerPromotionId; // Voucher của khách (nếu có)
+    String customerPromotionId; // Voucher của khách (nếu có)
 
     String promotionId;         // Mã giảm giá chung (nếu có)
 

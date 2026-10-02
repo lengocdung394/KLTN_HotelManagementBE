@@ -108,8 +108,13 @@ public class OrderServiceImpl implements OrderService {
         Booking booking = order.getBooking();
         if (booking != null && order.getOrderStatus() == OrderStatusType.CLOSED) {
             if (booking.getBookingStatus() == BookingStatus.PENDING) {
-                booking.setBookingStatus(BookingStatus.CONFIRMED);
-                bookingRepository.save(booking);
+                if (booking.getBookingStatus() == BookingStatus.IN_HOUSE) {
+                    bookingRepository.save(booking);
+                } else {
+                    booking.setBookingStatus(BookingStatus.CONFIRMED);
+                    bookingRepository.save(booking);
+                }
+
             }
         }
 

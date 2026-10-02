@@ -22,6 +22,10 @@ public class BookingResponseForHotel {
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
     LocalDateTime createdAt;
+
+    String promotionId; // khuyen mai cua khach hang
+    String customerPromotionId; // khuyen mai cua chi nhanh
+
     // Tiền đã thanh toán
     BigDecimal  paidAmount;
     BigDecimal  remainingAmount;

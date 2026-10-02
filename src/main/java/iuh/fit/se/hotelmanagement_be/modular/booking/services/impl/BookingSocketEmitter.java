@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateCheckOutBookingNotificationResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -44,6 +45,17 @@ public class BookingSocketEmitter {
             socketIOServer.getRoomOperations(roomName)
                     .sendEvent("customer_booking_updated", bookingData);
             log.info("👤 [Booking Socket] Đã gửi trạng thái tới user room: {}", roomName);
+        }
+    }
+    //
+
+    public void emitLateCheckOutAlert(Long hotelId, LateCheckOutBookingNotificationResponse bookingData) {
+        if (hotelId != null) {
+            String roomName = "hotel_" + hotelId;
+            socketIOServer.getRoomOperations(roomName)
+                    .sendEvent("late_check_out_calendar", bookingData);
+
+            log.info("[Checkout late!!!!!]");
         }
     }
 }

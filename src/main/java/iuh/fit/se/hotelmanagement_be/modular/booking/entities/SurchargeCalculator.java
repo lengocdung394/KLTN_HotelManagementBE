@@ -1,5 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.enums.SurchargeLevel;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -60,6 +62,7 @@ public class SurchargeCalculator {
         return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
     }
 
+    // dailyRate - tien phong cua ngay do
     public static BigDecimal calculateLateCheckOutFee(LocalDateTime scheduledCheckOut,
                                                       LocalDateTime actualCheckOut,
                                                       BigDecimal dailyRate) {
@@ -72,19 +75,57 @@ public class SurchargeCalculator {
             return BigDecimal.ZERO;
         }
 
+        LocalDate scheduledDate = scheduledCheckOut.toLocalDate();
+        LocalDate actualDate = actualCheckOut.toLocalDate();
+
+        // Nếu khách trả phòng sang ngày hôm sau -> Tính mức phụ thu tối đa 100% giá 1 đêm
+        if (actualDate.isAfter(scheduledDate)) {
+            return dailyRate.setScale(2, RoundingMode.HALF_UP);
+        }
+
         LocalTime actualTime = actualCheckOut.toLocalTime();
+
+        // Từ 12:00 đến trước 12:30 -> Không phụ thu (Ân hạn 30 phút cho khách)
+        if (actualTime.isBefore(LocalTime.of(12, 30))) {
+            return BigDecimal.ZERO;
+        }
 
         // 1. Trả phòng từ 12:30 đến 15:00 -> Phụ thu 30%
         if (!actualTime.isAfter(LocalTime.of(15, 0))) {
-            return dailyRate.multiply(BigDecimal.valueOf(0.3));
+            return dailyRate.multiply(BigDecimal.valueOf(0.3)).setScale(2, RoundingMode.HALF_UP);
         }
 
         // 2. Trả phòng từ 15:00 đến 18:00 -> Phụ thu 50%
         if (!actualTime.isAfter(LocalTime.of(18, 0))) {
-            return dailyRate.multiply(BigDecimal.valueOf(0.5));
+            return dailyRate.multiply(BigDecimal.valueOf(0.5)).setScale(2, RoundingMode.HALF_UP);
         }
 
-        // 3. Trả phòng sau 18:00 -> Tính thêm 100% giá 1 đêm
-        return dailyRate;
+        // 3. Trả phòng sau 18:00 -> Phụ thu 100% giá 1 đêm
+        return dailyRate.setScale(2, RoundingMode.HALF_UP);
+    }
+    // ham xac dinh cap do tre checkout
+    public static SurchargeLevel determineLateCheckOutLevel(LocalDateTime scheduledCheckOut, LocalDateTime actualCheckOut) {
+        if (scheduledCheckOut == null || actualCheckOut == null || !actualCheckOut.isAfter(scheduledCheckOut)) {
+            return SurchargeLevel.NONE;
+        }
+
+        LocalDate scheduledDate = scheduledCheckOut.toLocalDate();
+        LocalDate actualDate = actualCheckOut.toLocalDate();
+
+        if (actualDate.isAfter(scheduledDate)) {
+            return SurchargeLevel.LEVEL_100_PERCENT;
+        }
+
+        LocalTime actualTime = actualCheckOut.toLocalTime();
+
+        if (actualTime.isBefore(LocalTime.of(12, 30))) {
+            return SurchargeLevel.NONE;
+        } else if (!actualTime.isAfter(LocalTime.of(15, 0))) {
+            return SurchargeLevel.LEVEL_30_PERCENT;
+        } else if (!actualTime.isAfter(LocalTime.of(18, 0))) {
+            return SurchargeLevel.LEVEL_50_PERCENT;
+        } else {
+            return SurchargeLevel.LEVEL_100_PERCENT;
+        }
     }
 }

@@ -13,12 +13,16 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagem
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomPriceCalculationResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -49,6 +53,12 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     RoomPricingCalculator roomPricingCalculator;
+
+    BookingServiceImpl bookingServiceImpl;
+    PromotionRepository promotionRepository;
+
+    CustomerPromotionRepository customerPromotionRepository;
+
 
     // Thêm phòng + kèm theo dịch vụ
     @Override
@@ -252,9 +262,124 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         return totalRoomPriceChange;
     }
+
     // Hàm Nhạc Trưởng
     @Override
     public BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request) {
+//        log.info("==> START modifying booking ID: {} by Employee ID: {}", bookingId, request.getEmployeeId());
+//
+//        Booking booking = bookingManagementRepository.findById(bookingId)
+//                .orElseThrow(() -> {
+//                    log.error("Booking not found with ID: {}", bookingId);
+//                    return new AppException(ErrorCode.BOOKING_NOT_FOUND);
+//                });
+//
+//        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+//            log.warn("Attempted to modify an already cancelled booking ID: {}", bookingId);
+//            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+//        }
+//
+//        Employee employee = employeeRepository.findById(request.getEmployeeId())
+//                .orElseThrow(() -> {
+//                    log.error("Employee not found with ID: {}", request.getEmployeeId());
+//                    return new AppException(ErrorCode.EMPLOYEE_NOT_FOUND);
+//                });
+//
+//        String operatorName = employee.getFullName();
+//        Order order = booking.getOrder();
+//
+//        BigDecimal roomPriceChange = BigDecimal.ZERO;
+//        BigDecimal servicePriceChange = BigDecimal.ZERO;
+//
+//        // 1. Xử lý hủy phòng hàng loạt -  huy luon dich vu
+//        roomPriceChange = roomPriceChange.add(processCancellations(booking, request.getBookingDetailIdsToCancel(), operatorName));
+//
+//        // 2. Xử lý thêm phòng mới (kèm dịch vụ) hàng loạt
+//        roomPriceChange = roomPriceChange.add(processRoomAdditions(booking, request.getRoomsToAdd()));
+//
+//        // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
+//        roomPriceChange = roomPriceChange.add(processRoomUpdates(booking, request.getRoomsToChange()));
+//
+//        // 4. Xử lý thêm dịch vụ phát sinh cho phòng cũ
+//        servicePriceChange = servicePriceChange.add(processServicesForExistingRooms(booking, request.getServicesToAddForExistingRooms()));
+//
+//        // 5. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng -- TH huy luon nhieu dich vu cho phong do
+//        servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
+//
+//        // ==========================================
+//        // 7. TÍNH TOÁN & CẬP NHẬT CHUẨN XÁC TỪNG PHÒNG VÀ ORDER
+//        // ==========================================
+//        BigDecimal totalRoom = BigDecimal.ZERO;
+//        BigDecimal totalService = BigDecimal.ZERO;
+//
+//        for (BookingDetail detail : booking.getBookingDetails()) {
+//            if (detail.getStatus() == BookingStatusType.CANCELLED) {
+//                detail.setTotalPrice(0.0);
+//                continue;
+//            }
+//
+//            double roomSub = detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0;
+//
+//            // Tính tổng tiền dịch vụ KHÔNG BỊ HỦY của phòng này
+//            double serviceSub = 0.0;
+//            if (detail.getBookingServiceDetails() != null) {
+//                serviceSub = detail.getBookingServiceDetails().stream()
+//                        .filter(sd -> !Boolean.TRUE.equals(sd.getCancelled()))
+//                        .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
+//                        .sum();
+//            }
+//
+//            // Cập nhật totalPrice cho từng BookingDetail (Tiền phòng + Tiền dịch vụ phòng đó)
+//            detail.setTotalPrice(roomSub + serviceSub);
+//
+//            // Cộng dồn vào tổng chung của Order
+//            totalRoom = totalRoom.add(BigDecimal.valueOf(roomSub));
+//            totalService = totalService.add(BigDecimal.valueOf(serviceSub));
+//        }
+//
+//        BigDecimal discount = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
+//        BigDecimal newTotalAmount = totalRoom.add(totalService).subtract(discount);
+//        BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+//        BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
+//
+//
+//        // Giả sử trong entity Order của bạn có trường paidAmount lưu tổng tiền khách đã trả trước đó
+//        BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
+//
+//        // Tính toán lại số tiền còn phải trả sau khi modify
+//        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
+//
+//        // Gán lại các giá trị tổng cho Order
+//        order.setRoomTotalAmount(totalRoom);
+//        order.setServiceTotalAmount(totalService);
+//        order.setTotalAmount(newTotalAmount);
+//        order.setRemainingAmount(remainingAmount); // Cập nhật số tiền còn thiếu hoặc cần hoàn
+//
+//        // ---> BỔ SUNG THÊM ĐOẠN CẬP NHẬT TRẠNG THÁI THANH TOÁN (PAYMENT STATUS) NÀY <---
+//        if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+//            // Nếu đã trả đủ hoặc dư (tiền thừa) -> Trạng thái là ĐÃ THANH TOÁN
+//            order.setPaymentStatus(PaymentStatus.PAID);
+//        } else if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+//            // Nếu đã trả một phần (có cọc/trả trước) nhưng vẫn còn thiếu -> TRẢ THANH TOÁN MỘT PHẦN
+//            order.setPaymentStatus(PaymentStatus.PARTIAL);
+//        } else {
+//            // Nếu chưa trả đồng nào -> CHƯA THANH TOÁN
+//            order.setPaymentStatus(PaymentStatus.UNPAID);
+//        }
+//        log.info("Booking modification summary for Booking ID: {} -> Total Room: {}, Total Service: {}, Old total: {}, New total: {}",
+//                bookingId, totalRoom, totalService, oldTotalAmount, newTotalAmount);
+//
+//        bookingManagementRepository.save(booking);
+//        log.info("<== FINISHED modifying booking ID: {} successfully.", bookingId);
+//
+//        return BookingModificationResponse.builder()
+//                .bookingId(bookingId)
+//                .oldTotalAmount(oldTotalAmount)
+//                .newTotalAmount(newTotalAmount)
+//                .totalChange(totalOrderChange)
+//                .build();
+
+
         log.info("==> START modifying booking ID: {} by Employee ID: {}", bookingId, request.getEmployeeId());
 
         Booking booking = bookingManagementRepository.findById(bookingId)
@@ -280,13 +405,13 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         BigDecimal roomPriceChange = BigDecimal.ZERO;
         BigDecimal servicePriceChange = BigDecimal.ZERO;
 
-        // 1. Xử lý hủy phòng hàng loạt -  huy luon dich vu
+        // 1. Xử lý hủy phòng hàng loạt - huy luon dich vu
         roomPriceChange = roomPriceChange.add(processCancellations(booking, request.getBookingDetailIdsToCancel(), operatorName));
 
         // 2. Xử lý thêm phòng mới (kèm dịch vụ) hàng loạt
         roomPriceChange = roomPriceChange.add(processRoomAdditions(booking, request.getRoomsToAdd()));
 
-        // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
+        // 3. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
         roomPriceChange = roomPriceChange.add(processRoomUpdates(booking, request.getRoomsToChange()));
 
         // 4. Xử lý thêm dịch vụ phát sinh cho phòng cũ
@@ -296,7 +421,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
 
         // ==========================================
-        // 7. TÍNH TOÁN & CẬP NHẬT CHUẨN XÁC TỪNG PHÒNG VÀ ORDER
+        // 6. TÍNH TOÁN TỔNG TIỀN PHÒNG VÀ DỊCH VỤ SAU KHI MODIFY
         // ==========================================
         BigDecimal totalRoom = BigDecimal.ZERO;
         BigDecimal totalService = BigDecimal.ZERO;
@@ -326,25 +451,36 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             totalService = totalService.add(BigDecimal.valueOf(serviceSub));
         }
 
-        BigDecimal discount = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
-        BigDecimal newTotalAmount = totalRoom.add(totalService).subtract(discount);
+        // 7. KIỂM TRA LẠI KHUYẾN MÃI (REAL-TIME VALIDATION) & TÍNH TOÁN LẠI
+
+        PromotionDiscountResult discountResult = applyOrReevaluatePromotion(request, order, totalRoom, totalService);
+
+        BigDecimal discountRoom = discountResult.getDiscountRoomAmount() != null ? discountResult.getDiscountRoomAmount() : BigDecimal.ZERO;
+        BigDecimal discountService = discountResult.getDiscountServiceAmount() != null ? discountResult.getDiscountServiceAmount() : BigDecimal.ZERO;
+        BigDecimal discountTotalOrder = discountResult.getDiscountAmountTotal() != null ? discountResult.getDiscountAmountTotal() : BigDecimal.ZERO;
+
+        // Tổng tất cả tiền giảm từ mọi scope (ROOM, SERVICE, TOTAL)
+        BigDecimal totalDiscount = discountRoom.add(discountService).add(discountTotalOrder);
+
+        // 8. CHỐT TỔNG TIỀN VÀ TRẠNG THÁI ORDER
+        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService);
+        BigDecimal newTotalAmount = currentTotalAmountBeforeDiscount.subtract(totalDiscount); // Trừ chuẩn tổng tiền giảm ở đây!
         BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
         BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
 
-
-        // Giả sử trong entity Order của bạn có trường paidAmount lưu tổng tiền khách đã trả trước đó
         BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-
-        // Tính toán lại số tiền còn phải trả sau khi modify
         BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
 
-        // Gán lại các giá trị tổng cho Order
+        // Gán lại các giá trị tổng và khuyến mãi đầy đủ vào Order
         order.setRoomTotalAmount(totalRoom);
         order.setServiceTotalAmount(totalService);
-        order.setTotalAmount(newTotalAmount);
-        order.setRemainingAmount(remainingAmount); // Cập nhật số tiền còn thiếu hoặc cần hoàn
 
-        // ---> BỔ SUNG THÊM ĐOẠN CẬP NHẬT TRẠNG THÁI THANH TOÁN (PAYMENT STATUS) NÀY <---
+        order.setDiscountAmountTotal(discountTotalOrder);
+        order.setDiscountRoomAmount(discountRoom);
+        order.setDiscountServiceAmount(discountService);
+
+        order.setTotalAmount(newTotalAmount);        // Lúc này newTotalAmount đã được trừ 10 đồng chính xác
+        order.setRemainingAmount(remainingAmount);   // Remaining amount sẽ tự động chuẩn (VD: 300030.00)
         if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
             // Nếu đã trả đủ hoặc dư (tiền thừa) -> Trạng thái là ĐÃ THANH TOÁN
             order.setPaymentStatus(PaymentStatus.PAID);
@@ -355,7 +491,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             // Nếu chưa trả đồng nào -> CHƯA THANH TOÁN
             order.setPaymentStatus(PaymentStatus.UNPAID);
         }
-        log.info("Booking modification summary for Booking ID: {} -> Total Room: {}, Total Service: {}, Old total: {}, New total: {}",
+
+        log.info("Booking modification summary for Booking ID: {} -> Total Room: {}, Total Service: {}, Discount: {}, Old total: {}, New total: {}",
                 bookingId, totalRoom, totalService, oldTotalAmount, newTotalAmount);
 
         bookingManagementRepository.save(booking);
@@ -418,6 +555,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         log.info("Total room price reduced from cancellations: {}", roomPriceReduced);
         return roomPriceReduced;
     }
+
     // Ham them dich vu cho phongf
     @Override
     public BigDecimal processServicesForExistingRooms(Booking booking, List<RoomServiceAdditionRequest> requests) {
@@ -520,6 +658,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         return totalServicePriceAdded;
     }
+
     // Ham giam so luong dich vu giam so luong dich vu
     @Override
     public BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates) {
@@ -613,6 +752,82 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         }
 
         return servicePriceChange;
+    }
+
+    @Override
+    public PromotionDiscountResult applyOrReevaluatePromotion(BookingModificationRequest request,
+                                                              Order order,
+                                                              BigDecimal totalRoom,
+                                                              BigDecimal totalService) {
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService);
+        Promotion promotionToUse = null;
+
+        // =========================================================================
+        // ƯU TIÊN 1: KIỂM XEM REQUEST CÓ TRUYỀN LÊN MÃ KHUYẾN MÃI MỚI HAY KHÔNG
+        // =========================================================================
+
+        // Trường hợp 1A: Có truyền PromotionRequest chung
+        if (request.getPromotionRequest() != null && request.getPromotionRequest().getPromotionId() != null /* hoặc getCode() tùy DTO của bạn */) {
+            String promoId = request.getPromotionRequest().getPromotionId();
+            Promotion newPromotion = promotionRepository.findById(promoId)
+                    .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+
+            // Validate mã mới tại thời điểm hiện tại
+            bookingServiceImpl.validatePromotionRules(newPromotion, currentTotalAmountBeforeDiscount, now, totalRoom, totalService);
+
+            // Gán đè mã mới vào Order
+            order.getBooking().setPromotion(newPromotion);
+            promotionToUse = newPromotion;
+            log.info("Applied NEW general Promotion ID: {} during modification.", newPromotion.getId());
+
+        }
+        // Trường hợp 1B: Có truyền CustomerPromotionRequest riêng của khách
+        else if (request.getCustomerPromotionRequest() != null && request.getCustomerPromotionRequest().getCustomerPromotionId() != null) {
+            String customerPromoId = request.getCustomerPromotionRequest().getCustomerPromotionId();
+            // Tùy entity của bạn là CustomerPromotion hay ánh xạ ra Promotion, ở đây ví dụ lấy Promotion từ liên kết
+            Promotion newPromotion = customerPromotionRepository.findById(customerPromoId)
+                    .map(cp -> cp.getPromotion()) // Hoặc cách lấy tương ứng trong hệ thống của bạn
+                    .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+
+            // Validate mã mới tại thời điểm hiện tại
+            bookingServiceImpl.validatePromotionRules(newPromotion, currentTotalAmountBeforeDiscount, now, totalRoom, totalService);
+
+            // Gán đè mã mới vào Order
+            order.getBooking().setPromotion(newPromotion);
+            promotionToUse = newPromotion;
+            log.info("Applied NEW customer-specific Promotion ID: {} during modification.", newPromotion.getId());
+        }
+
+        // =========================================================================
+        // ƯU TIÊN 2: NẾU KHÔNG TRUYỀN MÃ MỚI -> DÙNG LẠI MÃ CŨ ĐANG CÓ TRONG ORDER
+        // =========================================================================
+        else {
+            if (order.getBooking().getPromotion() == null) {
+                // Không có mã nào từ trước và không truyền mới -> Không giảm giá
+                return PromotionDiscountResult.builder()
+                        .discountAmountTotal(BigDecimal.ZERO)
+                        .discountRoomAmount(BigDecimal.ZERO)
+                        .discountServiceAmount(BigDecimal.ZERO)
+                        .build();
+            }
+
+            promotionToUse = order.getBooking().getPromotion();
+
+            // Validate lại mã cũ xem tại thời điểm hiện tại còn hạn không (Sẽ tự ném AppException nếu hết hạn)
+            bookingServiceImpl.validatePromotionRules(promotionToUse, currentTotalAmountBeforeDiscount, now, totalRoom, totalService);
+            log.info("Re-evaluating EXISTING Promotion ID: {} during modification.", promotionToUse.getId());
+        }
+
+        // =========================================================================
+        // BƯỚC 3: TÍNH TOÁN LẠI CHI TIẾT MỨC GIẢM DỰA TRÊN PROMOTION ĐANG SỬ DỤNG
+        // =========================================================================
+        PromotionDiscountResult discountResult = bookingServiceImpl.calculateDiscountBreakdown(promotionToUse, totalRoom, totalService);
+
+        log.info("Promotion applied successfully. Total discount: {}, Room discount: {}, Service discount: {}",
+                discountResult.getDiscountAmountTotal(), discountResult.getDiscountRoomAmount(), discountResult.getDiscountServiceAmount());
+
+        return discountResult;
     }
 
     // ham phu tro tinh toan tien phong kem theo so luong nguoi

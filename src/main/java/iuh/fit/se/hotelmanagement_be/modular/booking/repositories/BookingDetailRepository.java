@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -61,6 +62,9 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             "AND (CASE WHEN bd.actualCheckInTime IS NOT NULL THEN bd.actualCheckInTime ELSE bd.checkinTime END) < :checkoutTime " +
             "AND bd.checkoutTime > :effectiveCheckIn")
     boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, String currentDetailId);
+
+    // Thêm hàm này vào repository của bạn
+    List<BookingDetail> findByStatusAndCheckoutTimeBefore(BookingStatusType status, LocalDateTime time);
 }
 
 

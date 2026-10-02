@@ -3,6 +3,8 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -53,4 +55,13 @@ public interface BookingManagementService {
     BigDecimal processServicesForExistingRooms(Booking booking, List<RoomServiceAdditionRequest> requests);
 
     BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates);
+
+
+    /**
+     * Hàm phụ trợ chuyên trách việc kiểm tra và tính toán lại khuyến mãi khi sửa booking.
+     */
+    PromotionDiscountResult applyOrReevaluatePromotion(BookingModificationRequest request,
+                                                       Order order,
+                                                       BigDecimal totalRoom,
+                                                       BigDecimal totalService);
 }

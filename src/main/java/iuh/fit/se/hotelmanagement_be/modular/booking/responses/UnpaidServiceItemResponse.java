@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class UnpaidServiceItemResponse {
 
-    Long bookingServiceId;
+    String bookingServiceId;
     String serviceName;
     int quantity;
     Double price;

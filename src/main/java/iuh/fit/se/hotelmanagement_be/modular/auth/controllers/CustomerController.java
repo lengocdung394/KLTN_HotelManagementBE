@@ -88,10 +88,10 @@ public class CustomerController {
 
     // Luong tao khach hang tai quay
     @PostMapping("/walk-in")
-    public ResponseEntity<Customer> createWalkInCustomer(@RequestBody @Valid WalkInCustomerRequest request,  Authentication authentication) {
+    public ResponseEntity<CustomerResponse> createWalkInCustomer(@RequestBody @Valid WalkInCustomerRequest request,  Authentication authentication) {
         Account account = (Account) authentication.getPrincipal();
         Long hotelId = account.getHotelId();
-        Customer newCustomer = customerService.createWalkInCustomer(request, hotelId);
+        CustomerResponse newCustomer = customerService.createWalkInCustomer(request, hotelId);
         return ResponseEntity.status(HttpStatus.CREATED).body(newCustomer);
     }
 

@@ -79,35 +79,51 @@ public class HotelRoomPolicyController {
     @GetMapping("/today-checkins")
     @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-in (Mặc định lấy ngày hôm nay và trạng thái PENDING nếu để trống)")
     public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckInList(
-
             @RequestParam(required = false) LocalDate date,
-            @RequestParam(required = false) BookingStatusType status,
+            @RequestParam(required = false) String status,
             @RequestParam(required = false) BookingStatus bookingStatus,
             Authentication authentication
     ) {
-
         Account account = (Account) authentication.getPrincipal();
-
         Long hotelId = account.getHotelId();
 
-        return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId, date, status, bookingStatus));
-    }
+        BookingStatusType statusType = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                statusType = BookingStatusType.valueOf(status.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                try {
+                    bookingStatus = BookingStatus.valueOf(status.trim().toUpperCase());
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
 
+        return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId, date, statusType, bookingStatus));
+    }
 
     @GetMapping("/today-checkouts")
     @Operation(summary = "Lấy danh sách các phòng dự kiến làm thủ tục Check-out (Mặc định lấy ngày hôm nay và trạng thái CHECKED_IN nếu để trống)")
     public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getTodayCheckOutList(
-
             @RequestParam(required = false) LocalDate date,
-            @RequestParam(required = false) BookingStatusType status,
+            @RequestParam(required = false) String status,
             @RequestParam(required = false) BookingStatus bookingStatus,
             Authentication authentication
     ) {
         Account account = (Account) authentication.getPrincipal();
-
         Long hotelId = account.getHotelId();
 
-        return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, status, bookingStatus));
+        BookingStatusType statusType = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                statusType = BookingStatusType.valueOf(status.trim().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                try {
+                    bookingStatus = BookingStatus.valueOf(status.trim().toUpperCase());
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
+        return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, statusType, bookingStatus));
     }
 
 

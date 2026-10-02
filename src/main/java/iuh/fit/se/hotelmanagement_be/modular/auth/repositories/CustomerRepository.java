@@ -15,13 +15,14 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 
     boolean existsByCccd(String cccd);
 
-    // Lấy danh sách khách hàng theo chi nhánh thông qua Room -> Floor -> Building -> Hotel
-    @Query("SELECT DISTINCT b.customer FROM Booking b " +
-            "JOIN b.bookingDetails bd " +
-            "JOIN bd.room r " +
-            "JOIN r.floor f " +
-            "JOIN f.building bu " +
-            "WHERE bu.hotel.id = :hotelId")
+    // Lấy danh sách khách hàng theo chi nhánh hoặc khách hàng mới chưa có đặt phòng
+    @Query("SELECT DISTINCT c FROM Customer c " +
+            "LEFT JOIN c.bookings b " +
+            "LEFT JOIN b.bookingDetails bd " +
+            "LEFT JOIN bd.room r " +
+            "LEFT JOIN r.floor f " +
+            "LEFT JOIN f.building bu " +
+            "WHERE bu.hotel.id = :hotelId OR c.bookings IS EMPTY")
     List<Customer> findCustomersByHotelId(@Param("hotelId") Long hotelId);
 
     // Dùng Optional giúp bắt lỗi không tìm thấy thanh lịch hơn

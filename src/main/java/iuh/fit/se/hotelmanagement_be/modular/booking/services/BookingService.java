@@ -2,15 +2,16 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckoutSummaryResponse;
-import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomMatrixResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.*;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface BookingService {
@@ -35,4 +36,15 @@ public interface BookingService {
 
     List<RoomMatrixResponse> getRoomMatrix(Long hotelId, LocalDate startDate, LocalDate endDate);
 
+    void validatePromotionRules(Promotion promotion, BigDecimal currentTotalAmount, LocalDateTime now, BigDecimal roomTotal, BigDecimal serviceTotal);
+
+    PromotionDiscountResult calculateDiscountBreakdown(Promotion promotion, BigDecimal roomTotal, BigDecimal serviceTotal);
+
+    BigDecimal calculateBaseDiscount(BigDecimal baseAmount, Promotion promotion);
+
+    List<BookingServiceDetail> processAndAttachServices(BookingDetail bookingDetail, List<BookingServiceRequest> serviceRequests);
+
+    BigDecimal calculateTotalRoomPrice(List<BookingDetail> details);
+
+    BigDecimal calculateTotalServicePrice(List<BookingDetail> bookingDetails);
 }

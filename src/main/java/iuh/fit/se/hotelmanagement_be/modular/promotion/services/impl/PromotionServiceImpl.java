@@ -112,11 +112,18 @@ public class PromotionServiceImpl implements PromotionService {
                 .description(request.getDescription())
                 .type(request.getType())
                 .discountType(request.getDiscountType())
+
                 .discountValue(request.getDiscountValue())
+
                 .maxDiscountAmount(request.getMaxDiscountAmount())
+
                 .minBookingValue(request.getMinBookingValue())
+                .minRoomValue(request.getMinRoomValue())
+                .minServiceValue(request.getMinServiceValue())
+
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
+
                 .usageLimit(request.getUsageLimit())
                 .status(request.getStatus() != null ? request.getStatus() : PromotionStatus.DRAFT)
                 .isExclusive(request.isExclusive())
@@ -293,9 +300,13 @@ public class PromotionServiceImpl implements PromotionService {
                 .name(p.getName())
                 .description(p.getDescription())
                 .type(p.getType())
+
+                .promotionDiscountType(p.getDiscountType())
                 .discountValue(p.getDiscountValue())
                 .maxDiscountAmount(p.getMaxDiscountAmount())
                 .minBookingValue(p.getMinBookingValue())
+                .minRoomValue(p.getMinRoomValue())
+                .minServiceValue(p.getMinServiceValue())
                 .startDate(p.getStartDate())
                 .endDate(p.getEndDate())
                 .usageLimit(p.getUsageLimit())

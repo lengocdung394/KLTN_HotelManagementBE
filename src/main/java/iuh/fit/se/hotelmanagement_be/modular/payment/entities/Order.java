@@ -41,13 +41,14 @@ public class Order {
 
     BigDecimal discountServiceAmount; // giam tien dịch vu
 
-    BigDecimal discountAmountTotal; // giam tien tat ca (dich vu + tien phong)
+    BigDecimal discountAmountTotal; // giam tien tat ca (đại diện cho giảm giá cả dịch vụ và tiền phoòng)
 
     BigDecimal paidAmount; // tien da thanh toán
 
-    BigDecimal remainingAmount;
+    BigDecimal remainingAmount; // so tien chua duoc thanh toan
 
     OrderStatusType orderStatus;
+
     PaymentStatus  paymentStatus;
 
     @ElementCollection
@@ -62,6 +63,7 @@ public class Order {
     BigDecimal totalAmount;
 
     BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
 
@@ -73,20 +75,23 @@ public class Order {
         return calculateActualTotal();
     }
 
-    // Hàm nội bộ dùng để tính toán tổng tiền từ các khoản thành phần
     private BigDecimal calculateActualTotal() {
         BigDecimal roomTotal = roomTotalAmount != null ? roomTotalAmount : BigDecimal.ZERO;
         BigDecimal serviceTotal = serviceTotalAmount != null ? serviceTotalAmount : BigDecimal.ZERO;
         BigDecimal surchargeTotal = surchargeTotalAmount != null ? surchargeTotalAmount : BigDecimal.ZERO;
+
         BigDecimal discRoom = discountRoomAmount != null ? discountRoomAmount : BigDecimal.ZERO;
         BigDecimal discService = discountServiceAmount != null ? discountServiceAmount : BigDecimal.ZERO;
         BigDecimal discTotal = discountAmountTotal != null ? discountAmountTotal : BigDecimal.ZERO;
 
-        BigDecimal finalRoom = roomTotal.subtract(discRoom);
-        BigDecimal finalService = serviceTotal.subtract(discService);
-        BigDecimal subTotal = finalRoom.add(finalService).add(surchargeTotal);
+        // Tổng tất cả các khoản tiền giảm từ 3 loại scope (ROOM, SERVICE, TOTAL)
+        BigDecimal totalDiscount = discRoom.add(discService).add(discTotal);
 
-        return subTotal.subtract(discTotal).max(BigDecimal.ZERO);
+        // Tổng tiền gốc trước giảm = Tiền phòng + Tiền dịch vụ + Phụ thu
+        BigDecimal grossTotal = roomTotal.add(serviceTotal).add(surchargeTotal);
+
+        // Lấy tổng gốc trừ đi tổng tiền giảm (đảm bảo không bao giờ âm)
+        return grossTotal.subtract(totalDiscount).max(BigDecimal.ZERO);
     }
 
 

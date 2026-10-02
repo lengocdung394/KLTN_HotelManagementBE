@@ -5,14 +5,11 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCheckRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.WalkInCustomerRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerCheckResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerFindByIdResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerRegisterResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.*;
 
 public interface CustomerService {
 
-    Customer createWalkInCustomer(WalkInCustomerRequest request, Long hotelId);
+    CustomerResponse createWalkInCustomer(WalkInCustomerRequest request, Long hotelId);
 
     CustomerFindByIdResponse getCustomerById(String id);
 

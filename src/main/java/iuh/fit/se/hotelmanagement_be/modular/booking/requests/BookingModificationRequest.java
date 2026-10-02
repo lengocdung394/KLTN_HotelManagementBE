@@ -29,4 +29,9 @@ public class BookingModificationRequest {
     //6. THÊM TRƯỜNG NÀY ĐỂ NHẬN YÊU CẦU CẬP NHẬT/GIẢM SỐ LƯỢNG DỊCH VỤ THEO PHÒNG
     List<UpdateServiceQuantityRequest> serviceQuantityUpdates;
 
+    // 7. PHAN CHECK LAI KHUYEN MAI  CUA CHI NHANH- HOAC CUA CHINH KHACH HANG
+    PromotionRequest promotionRequest;
+    CustomerPromotionRequest customerPromotionRequest;
+
+
 }

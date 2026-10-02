@@ -7,6 +7,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Data
@@ -18,9 +20,8 @@ import java.time.LocalDateTime;
 @Table(name = "booking_services")
 public class BookingServiceDetail {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "booking_service_id")
-    Long id;
+    String id;
 
     int quantity;
 
@@ -57,7 +58,19 @@ public class BookingServiceDetail {
     LocalDateTime cancelledAt;
 
     @PrePersist
+
     protected void onCreate() {
+        // Tự động sinh ID kiểu String nếu chưa được gán trước đó
+        if (this.id == null || this.id.trim().isEmpty()) {
+            // Cách 1: Sinh mã dạng tiền tố kèm thời gian và chuỗi ngẫu nhiên cho đẹp mắt
+            String dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            String randomStr = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            this.id = "BSD_" + dateStr + "_" + randomStr;
+
+            // Hoặc đơn giản là dùng UUID chuẩn:
+            // this.id = UUID.randomUUID().toString();
+        }
+
         if (this.usedAt == null) {
             this.usedAt = LocalDateTime.now();
         }
@@ -67,5 +80,6 @@ public class BookingServiceDetail {
         if (this.cancelled == null) {
             this.cancelled = false;
         }
+
     }
 }

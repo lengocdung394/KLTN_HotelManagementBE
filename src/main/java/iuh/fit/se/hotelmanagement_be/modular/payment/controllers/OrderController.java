@@ -69,7 +69,7 @@ public class OrderController {
     )
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrdersByStatus(
             @Parameter(description = "Trạng thái hóa đơn: OPEN, CLOSED, CANCELLED", example = "OPEN")
-            @RequestParam(required = false, defaultValue = "OPEN") OrderStatusType status) {
+            @RequestParam(required = false) OrderStatusType status) {
 
         return ResponseEntity.ok(ApiResponse.<List<OrderResponse>>builder()
                 .code(1000)

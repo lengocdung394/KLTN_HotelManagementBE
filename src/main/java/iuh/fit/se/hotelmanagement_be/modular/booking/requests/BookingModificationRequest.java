@@ -13,7 +13,7 @@ import java.util.List;
 public class BookingModificationRequest {
     String employeeId;
     // 1. Phần HỦY PHÒNG & HỦY DỊCH VỤ LẺ
-    List<Long> bookingDetailIdsToCancel; // Các phòng muốn hủy
+    List<String> bookingDetailIdsToCancel; // Các phòng muốn hủy
 
     List<ServiceCancellationRequest> servicesToCancel;  // Hủy dịch vụ lẻ (đã gom theo từng phòng)
 
@@ -21,13 +21,12 @@ public class BookingModificationRequest {
     List<NewRoomRequest> roomsToAdd;
 
     // 3. Phần ĐỔI PHÒNG
-    List<UpdateRoomChangeRequest> roomsToChange;
-
-    List<RoomDateUpdateRequest> roomsToUpdateDates;
+    List<RoomUpdateRequest> roomsToChange;
 
     // 5.PHẦN THÊM DỊCH VỤ PHÁT SINH cho phòng đang ở sẵn (Phòng cũ)
     List<RoomServiceAdditionRequest> servicesToAddForExistingRooms;
 
     //6. THÊM TRƯỜNG NÀY ĐỂ NHẬN YÊU CẦU CẬP NHẬT/GIẢM SỐ LƯỢNG DỊCH VỤ THEO PHÒNG
     List<UpdateServiceQuantityRequest> serviceQuantityUpdates;
+
 }

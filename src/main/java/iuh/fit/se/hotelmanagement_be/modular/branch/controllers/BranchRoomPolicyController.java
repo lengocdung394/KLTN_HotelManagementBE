@@ -28,9 +28,16 @@ public class BranchRoomPolicyController {
 
     // 1. Lấy danh sách loại phòng và chính sách giá theo chi nhánh (hotelId)
     @GetMapping("/hotel")
-    public ResponseEntity<List<BranchRoomPolicy>> getPoliciesByHotel(Authentication authentication) {
-        Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+    public ResponseEntity<List<BranchRoomPolicy>> getPoliciesByHotel(
+            Authentication authentication,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        if (hotelId == null && authentication != null && authentication.getPrincipal() instanceof Account account) {
+            hotelId = account.getHotelId();
+        }
+        if (hotelId == null) {
+            hotelId = 1L; // Mặc định Sen Việt Sài Gòn
+        }
         List<BranchRoomPolicy> policies = branchRoomPolicyService.getPoliciesByHotel(hotelId);
         return ResponseEntity.ok(policies);
     }
@@ -43,7 +50,10 @@ public class BranchRoomPolicyController {
             @RequestBody BranchRoomPolicyRequest request,
             Authentication authentication
     ) {
-        Account account = (Account) authentication.getPrincipal();
+        Account account = null;
+        if (authentication != null && authentication.getPrincipal() instanceof Account acc) {
+            account = acc;
+        }
         BranchRoomPolicy updatedPolicy = branchRoomPolicyService.updateRoomPolicy(policyId, request, account);
         return ResponseEntity.ok(updatedPolicy);
     }

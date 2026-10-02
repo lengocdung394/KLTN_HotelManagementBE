@@ -656,7 +656,7 @@ public class BookingServiceImpl implements BookingService {
         }
         Order order = booking.getOrder();
         return BookingResponseForHotel.builder()
-                .orderId(order.getId())
+                .orderId(order != null ? order.getId() : null)
                 .bookingId(booking.getId())
                 .customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null)
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
@@ -667,7 +667,7 @@ public class BookingServiceImpl implements BookingService {
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
 
-                .surchargeTotalAmount(order.getSurchargeTotalAmount()) // tong tien phu thu
+                .surchargeTotalAmount(order != null ? order.getSurchargeTotalAmount() : null) // tong tien phu thu
 
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán

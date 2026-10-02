@@ -70,12 +70,14 @@ public class RoomController {
 
     @GetMapping("/hotel")
     @Operation(summary = "Lấy danh sách phòng thuộc khách sạn của tài khoản đang đăng nhập")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_STAFF')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE', 'ROLE_STAFF')")
     public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
 
         // 💡 Lấy hotelId từ token của nhân viên đang đăng nhập
-        // (Hãy thay thế bằng hàm lấy token thực tế trong dự án của bạn, ví dụ: SecurityUtils.getCurrentHotelId())
         Long hotelId = SecurityUtils.getCurrentUserHotelId();
+        if (hotelId == null) {
+            hotelId = 1L; // Fallback chi nhánh mặc định Sen Việt Sài Gòn
+        }
 
         // Gọi Service lấy danh sách phòng
         List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);

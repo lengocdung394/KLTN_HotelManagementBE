@@ -33,7 +33,10 @@ public class BranchRoomPolicyServiceImpl implements BranchRoomPolicyService {
     @Override
     public BranchRoomPolicy updateRoomPolicy(String id, BranchRoomPolicyRequest request, Account currentAccount) {
         // 1. Tìm chính sách phòng theo ID
-        BranchRoomPolicy policy = branchRoomPolicyRepository.findByIdAndHotelId(id, currentAccount.getHotelId())
+        Long hotelId = currentAccount != null ? currentAccount.getHotelId() : null;
+        BranchRoomPolicy policy = (hotelId != null
+                ? branchRoomPolicyRepository.findByIdAndHotelId(id, hotelId)
+                : branchRoomPolicyRepository.findById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND));
 
         // 2. Cập nhật các thông tin từ request (ví dụ: giá cơ bản, phụ thu, diện tích, sức chứa...)

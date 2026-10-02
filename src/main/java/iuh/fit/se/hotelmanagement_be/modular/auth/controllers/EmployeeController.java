@@ -57,10 +57,10 @@ public class EmployeeController {
     }
 
     @Operation(summary = "Lấy danh sách nhân viên theo chi nhánh khách sạn")
-    @GetMapping("/hotel/{hotelId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
-    public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesByHotel(@PathVariable("hotelId") Long hotelId) {
-        List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId);
+    @GetMapping({"/hotel/{hotelId}", "/hotel"})
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE')")
+    public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesByHotel(@PathVariable(value = "hotelId", required = false) Long hotelId) {
+        List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId != null && hotelId > 0 ? hotelId : 1L);
         return ResponseEntity.ok(ApiResponse.<List<EmployeeResponse>>builder()
                 .code(200)
                 .message("Lấy danh sách nhân viên thành công!")
@@ -70,7 +70,7 @@ public class EmployeeController {
 
     @Operation(summary = "Lấy thông tin chi tiết một nhân viên")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> getEmployeeDetail(@PathVariable("id") String id) {
         EmployeeResponse result = userService.getEmployeeById(id);
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()

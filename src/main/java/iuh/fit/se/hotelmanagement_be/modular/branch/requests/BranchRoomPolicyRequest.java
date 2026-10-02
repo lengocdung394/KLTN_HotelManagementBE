@@ -38,8 +38,6 @@ public class BranchRoomPolicyRequest {
     @DecimalMin(value = "0.0", message = "Giá cơ bản không được âm")
     Double basePrice;
 
-    @NotNull(message = "Diện tích phòng không được để trống")
     @DecimalMin(value = "0.0", message = "Diện tích phòng không được âm")
-    @Column(name = "room_area", nullable = false)
     Double area; // Đơn vị: m² (Ví dụ: 25.5, 30.0)
 }

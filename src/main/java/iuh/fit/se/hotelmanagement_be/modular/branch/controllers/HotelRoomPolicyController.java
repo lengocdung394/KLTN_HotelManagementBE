@@ -60,15 +60,19 @@ public class HotelRoomPolicyController {
         return ResponseEntity.ok(authService.getCustomersByHotelId(hotelId));
     }
 
+    private Long extractHotelId(Authentication authentication) {
+        if (authentication != null && authentication.getPrincipal() instanceof Account account) {
+            Long hotelId = account.getHotelId();
+            if (hotelId != null) return hotelId;
+        }
+        return 1L; // Fallback chi nhánh mặc định Sen Việt Sài Gòn
+    }
+
     // API lấy danh sách booking theo khách sạn (Lấy ngầm hotelId từ Token của nhân viên đăng nhập)
     @GetMapping("/bookings")
     @Operation(summary = "Lấy danh sách booking của khách sạn dựa vào token nhân viên đăng nhập")
     public ResponseEntity<List<BookingResponseForHotel>> getBookingsByHotel(Authentication authentication) {
-
-        Account account = (Account) authentication.getPrincipal();
-
-        Long hotelId = account.getHotelId();
-
+        Long hotelId = extractHotelId(authentication);
         List<BookingResponseForHotel> bookings = bookingService.getBookingsByHotel(hotelId);
         return ResponseEntity.ok(bookings);
     }
@@ -84,8 +88,7 @@ public class HotelRoomPolicyController {
             @RequestParam(required = false) BookingStatus bookingStatus,
             Authentication authentication
     ) {
-        Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+        Long hotelId = extractHotelId(authentication);
 
         BookingStatusType statusType = null;
         if (status != null && !status.isBlank()) {
@@ -109,8 +112,7 @@ public class HotelRoomPolicyController {
             @RequestParam(required = false) BookingStatus bookingStatus,
             Authentication authentication
     ) {
-        Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+        Long hotelId = extractHotelId(authentication);
 
         BookingStatusType statusType = null;
         if (status != null && !status.isBlank()) {
@@ -126,9 +128,6 @@ public class HotelRoomPolicyController {
         return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, statusType, bookingStatus));
     }
 
-
-
-
     @GetMapping("/matrix")
     @Operation(summary = "Lấy ma trận lịch tổng phòng của chi nhánh nhân viên đang làm việc")
     public ResponseEntity<List<RoomMatrixResponse>> getRoomMatrix(
@@ -136,10 +135,7 @@ public class HotelRoomPolicyController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             Authentication authentication
     ) {
-        // Lấy ngầm hotelId từ Token
-        Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId(); // Hoặc account.getEmployee().getHotel().getId()
-
+        Long hotelId = extractHotelId(authentication);
         List<RoomMatrixResponse> response = bookingService.getRoomMatrix(hotelId, startDate, endDate);
         return ResponseEntity.ok(response);
     }

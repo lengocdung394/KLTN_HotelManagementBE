@@ -44,7 +44,7 @@ public class CheckInOutController {
      */
     @PostMapping("/{bookingId}/check-out/bulk")
     @Operation(summary = "Thực hiện thủ tục trả phòng đồng loạt (Bulk Check-out), tính phụ thu lố giờ, chốt tiền dịch vụ và đóng Order CLOSED")
-    public ResponseEntity<BookingResponse> processBulkCheckOut(
+    public ResponseEntity<BookingResponse> c(
             @PathVariable String bookingId,
             @RequestBody List<String> bookingDetailIds,
             Authentication authentication) {

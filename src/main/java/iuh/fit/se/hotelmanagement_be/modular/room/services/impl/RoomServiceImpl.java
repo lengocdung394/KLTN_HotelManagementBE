@@ -26,6 +26,7 @@ import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
+import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -130,13 +131,32 @@ public class RoomServiceImpl implements RoomService {
         }
 
         // 3. Upload ảnh mới và đưa tiếp vào danh sách sau ảnh cũ
+//        List<MultipartFile> validNewFiles = validateAndFilterImages(imageFiles, false);
+//        if (validNewFiles != null && !validNewFiles.isEmpty()) {
+//            List<String> uploadedNewUrls = cloudinaryService.uploadMultipleImages(validNewFiles, "room");
+//            for (String url : uploadedNewUrls) {
+//                finalRoomImages.add(RoomImage.builder()
+//                        .url(url)
+//                        .isDefault(false) // Tạm thời để false hết
+//                        .build());
+//            }
+//        }
+        String branchName = "default-branch";
+        if (newFloor.getBuilding() != null && newFloor.getBuilding().getHotel() != null) {
+            branchName = newFloor.getBuilding().getHotel().getName();
+        } else if (room.getFloor() != null && room.getFloor().getBuilding() != null && room.getFloor().getBuilding().getHotel() != null) {
+            branchName = room.getFloor().getBuilding().getHotel().getName();
+        }
+        // ===================================================================================
+
+        // 3. Upload ảnh mới và đưa tiếp vào danh sách sau ảnh cũ (Dùng uploadBranchImages theo chi nhánh)
         List<MultipartFile> validNewFiles = validateAndFilterImages(imageFiles, false);
         if (validNewFiles != null && !validNewFiles.isEmpty()) {
-            List<String> uploadedNewUrls = cloudinaryService.uploadMultipleImages(validNewFiles, "room");
+            List<String> uploadedNewUrls = cloudinaryService.uploadBranchImages(validNewFiles, branchName, ImageCategory.ROOMS);
             for (String url : uploadedNewUrls) {
                 finalRoomImages.add(RoomImage.builder()
                         .url(url)
-                        .isDefault(false) // Tạm thời để false hết
+                        .isDefault(false)
                         .build());
             }
         }
@@ -244,8 +264,14 @@ public class RoomServiceImpl implements RoomService {
         // ===================================================================================
 
         // 3. Upload ảnh lên Cloudinary
-        List<String> uploadedUrls = cloudinaryService.uploadMultipleImages(validFiles, "room");
+        //List<String> uploadedUrls = cloudinaryService.uploadMultipleImages(validFiles, "room");
+        // Lấy tên chi nhánh (Hotel Name) từ thông tin Floor -> Building -> Hotel
+        String branchName = (floor.getBuilding() != null && floor.getBuilding().getHotel() != null)
+                ? floor.getBuilding().getHotel().getName()
+                : "default-branch";
 
+        //ĐOẠN CODE MỚI: Upload theo chi nhánh và danh mục ROOMS
+        List<String> uploadedUrls = cloudinaryService.uploadBranchImages(validFiles, branchName, ImageCategory.ROOMS);
         // 4. Xác định vị trí ảnh đại diện
         int targetDefaultIndex = 0;
         if (dto.getDefaultImageIndex() != null

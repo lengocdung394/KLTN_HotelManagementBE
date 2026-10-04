@@ -8,10 +8,13 @@ import iuh.fit.se.hotelmanagement_be.modular.service.requests.CreateServiceReque
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.UpdateServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.service.responses.ServiceResponse;
 import iuh.fit.se.hotelmanagement_be.modular.service.services.HotelServiceService;
+import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
+import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,6 +26,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     ServiceRepository serviceRepository;
     HotelRepository hotelRepository;
+    CloudinaryService cloudinaryService; // 💡 Inject thêm CloudinaryService
 
     private ServiceResponse toResponse(Service service) {
         return ServiceResponse.builder()
@@ -49,7 +53,6 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         List<Service> list;
 
         if (hotelId != null) {
-            // Lấy các dịch vụ của chi nhánh đó hoặc dùng chung toàn hệ thống
             list = serviceRepository.findAvailableServicesForHotel(hotelId);
         } else {
             list = serviceRepository.findAll();
@@ -69,15 +72,28 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     @Override
     @Transactional
-    public ServiceResponse createService(CreateServiceRequest request) {
+    public ServiceResponse createService(CreateServiceRequest request, MultipartFile imageFile, Long hotelId) { // 💡 Thêm tham số MultipartFile imageFile
         if (serviceRepository.existsByNameIgnoreCase(request.getName().trim())) {
             throw new RuntimeException("Tên dịch vụ '" + request.getName() + "' đã tồn tại trong hệ thống!");
         }
 
         Hotel hotel = null;
-        if (request.getHotelId() != null) {
-            hotel = hotelRepository.findById(request.getHotelId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + request.getHotelId()));
+        if (hotelId != null) {
+            hotel = hotelRepository.findById(hotelId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
+        }
+
+        // 💡 Xử lý upload ảnh dịch vụ lên Cloudinary
+        String imageUrl = null;
+        if (imageFile != null && !imageFile.isEmpty()) {
+            if (hotel != null && hotel.getName() != null) {
+                // Nếu dịch vụ thuộc chi nhánh cụ thể -> Lưu vào thư mục của chi nhánh
+                List<String> uploadedUrls = cloudinaryService.uploadBranchImages(List.of(imageFile), hotel.getName(), ImageCategory.SERVICES);
+                imageUrl = uploadedUrls.isEmpty() ? null : uploadedUrls.get(0);
+            } else {
+                // Nếu là dịch vụ chung toàn chuỗi -> Lưu vào system/services
+                imageUrl = cloudinaryService.uploadImage(imageFile, "system/services");
+            }
         }
 
         Service service = Service.builder()
@@ -86,7 +102,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
                 .price(request.getPrice())
                 .unit(request.getUnit().trim())
                 .category(request.getCategory().trim())
-                .imageUrl(request.getImageUrl())
+                .imageUrl(imageUrl) // 💡 Gán URL ảnh vào Entity
                 .active(true)
                 .hotel(hotel)
                 .build();
@@ -96,7 +112,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
 
     @Override
     @Transactional
-    public ServiceResponse updateService(String id, UpdateServiceRequest request) {
+    public ServiceResponse updateService(String id, UpdateServiceRequest request, MultipartFile imageFile, Long hotelId) { // 💡 Thêm tham số MultipartFile imageFile
         Service service = findOrThrow(id);
 
         if (serviceRepository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
@@ -104,9 +120,23 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         }
 
         Hotel hotel = null;
-        if (request.getHotelId() != null) {
-            hotel = hotelRepository.findById(request.getHotelId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + request.getHotelId()));
+        if (hotelId != null) {
+            hotel = hotelRepository.findById(hotelId)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
+        }
+
+        // 💡 Xử lý cập nhật ảnh mới nếu có truyền lên
+        if (imageFile != null && !imageFile.isEmpty()) {
+            String imageUrl;
+            Hotel targetHotel = hotel != null ? hotel : service.getHotel();
+
+            if (targetHotel != null && targetHotel.getName() != null) {
+                List<String> uploadedUrls = cloudinaryService.uploadBranchImages(List.of(imageFile), targetHotel.getName(), ImageCategory.SERVICES);
+                imageUrl = uploadedUrls.isEmpty() ? null : uploadedUrls.get(0);
+            } else {
+                imageUrl = cloudinaryService.uploadImage(imageFile, "system/services");
+            }
+            service.setImageUrl(imageUrl);
         }
 
         service.setName(request.getName().trim());
@@ -114,7 +144,6 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         service.setPrice(request.getPrice());
         service.setUnit(request.getUnit().trim());
         service.setCategory(request.getCategory().trim());
-        service.setImageUrl(request.getImageUrl());
         if (request.getActive() != null) {
             service.setActive(request.getActive());
         }
@@ -127,7 +156,6 @@ public class HotelServiceServiceImpl implements HotelServiceService {
     @Transactional
     public void deleteService(String id) {
         Service service = findOrThrow(id);
-        // Soft delete: chuyển trạng thái active = false để không ảnh hưởng dữ liệu lịch sử đặt phòng
         service.setActive(false);
         serviceRepository.save(service);
     }

@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.service.services;
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.CreateServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.UpdateServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.service.responses.ServiceResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -12,9 +13,9 @@ public interface HotelServiceService {
 
     ServiceResponse getServiceById(String id);
 
-    ServiceResponse createService(CreateServiceRequest request);
+    ServiceResponse createService(CreateServiceRequest request, MultipartFile imageFile, Long  hotelId);
 
-    ServiceResponse updateService(String id, UpdateServiceRequest request);
+    ServiceResponse updateService(String id, UpdateServiceRequest request, MultipartFile imageFile, Long hotelId);
 
     void deleteService(String id);
 

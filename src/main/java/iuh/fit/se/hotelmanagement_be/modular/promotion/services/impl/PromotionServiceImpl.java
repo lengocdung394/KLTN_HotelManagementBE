@@ -19,6 +19,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
+import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -100,9 +101,24 @@ public class PromotionServiceImpl implements PromotionService {
 
 
         // Upload banner ảnh nếu có
+        String branchName = "system"; // Mặc định cho toàn hệ thống
+        if (hotelId != null) {
+            Hotel hotelObj = hotelRepository.findById(hotelId).orElse(null);
+            if (hotelObj != null && hotelObj.getName() != null) {
+                branchName = hotelObj.getName();
+            }
+        }
+
         String imageUrl = null;
         if (imageFile != null && !imageFile.isEmpty()) {
-            imageUrl = cloudinaryService.uploadImage(imageFile, "promotions");
+            // Nếu có hotelId -> Dùng hàm uploadBranchImages theo tên chi nhánh + danh mục PROMOTIONS
+            // Nếu là system -> Dùng hàm uploadImage gốc với folder "system/promotions"
+            if (hotelId != null) {
+                List<String> uploadedUrls = cloudinaryService.uploadBranchImages(List.of(imageFile), branchName, ImageCategory.PROMOTIONS);
+                imageUrl = uploadedUrls.isEmpty() ? null : uploadedUrls.get(0);
+            } else {
+                imageUrl = cloudinaryService.uploadImage(imageFile, "system/promotions");
+            }
         }
 
         Hotel hotel = hotelRepository.findById(hotelId).orElse(null);
@@ -180,10 +196,28 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         validateDates(request.getStartDate(), request.getEndDate());
-//        validateDiscountValue(request.getType(), request.getDiscountValue());
+//      validateDiscountValue(request.getType(), request.getDiscountValue());
 
         if (imageFile != null && !imageFile.isEmpty()) {
-            String imageUrl = cloudinaryService.uploadImage(imageFile, "promotions");
+            // Xác định tên chi nhánh từ khuyến mãi hiện tại hoặc tham số truyền vào
+            String branchName = "system";
+            Long targetHotelId = hotelId != null ? hotelId : (promotion.getHotel() != null ? promotion.getHotel().getId() : null);
+
+            if (targetHotelId != null) {
+                Hotel hotelObj = hotelRepository.findById(targetHotelId).orElse(null);
+                if (hotelObj != null && hotelObj.getName() != null) {
+                    branchName = hotelObj.getName();
+                }
+            }
+
+            String imageUrl;
+            if (targetHotelId != null) {
+                List<String> uploadedUrls = cloudinaryService.uploadBranchImages(List.of(imageFile), branchName, ImageCategory.PROMOTIONS);
+                imageUrl = uploadedUrls.isEmpty() ? null : uploadedUrls.get(0);
+            } else {
+                imageUrl = cloudinaryService.uploadImage(imageFile, "system/promotions");
+            }
+
             promotion.setImageUrl(imageUrl);
         }
 

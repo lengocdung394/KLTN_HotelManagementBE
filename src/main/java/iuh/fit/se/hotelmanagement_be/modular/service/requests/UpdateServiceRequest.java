@@ -38,7 +38,4 @@ public class UpdateServiceRequest {
 
     @Schema(description = "Trạng thái khả dụng của dịch vụ", example = "true")
     Boolean active;
-
-    @Schema(description = "ID khách sạn áp dụng (để trống nếu áp dụng cho toàn bộ chi nhánh)", example = "1")
-    Long hotelId;
 }

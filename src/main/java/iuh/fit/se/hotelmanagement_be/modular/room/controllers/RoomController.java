@@ -73,10 +73,10 @@ public class RoomController {
     @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE', 'ROLE_STAFF')")
     public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
 
-        // 💡 Lấy hotelId từ token của nhân viên đang đăng nhập
+        // Lấy hotelId từ token của nhân viên đang đăng nhập
         Long hotelId = SecurityUtils.getCurrentUserHotelId();
         if (hotelId == null) {
-            hotelId = 1L; // Fallback chi nhánh mặc định Sen Việt Sài Gòn
+            throw new RuntimeException("Không tìm thấy thông tin chi nhánh của tài khoản này!");
         }
 
         // Gọi Service lấy danh sách phòng

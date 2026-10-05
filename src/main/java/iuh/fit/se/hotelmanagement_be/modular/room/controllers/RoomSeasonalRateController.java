@@ -56,7 +56,7 @@ public class RoomSeasonalRateController {
             hotelId = account.getHotelId();
         }
         if (hotelId == null) {
-            hotelId = 1L;
+            throw new RuntimeException("Không tìm thấy thông tin chi nhánh!");
         }
         Page<RoomSeasonalRate> result = roomSeasonalRateService.getRatesByDate(hotelId, roomType, date, pageable);
         return ResponseEntity.ok(result);
@@ -118,7 +118,7 @@ public class RoomSeasonalRateController {
             hotelId = account.getHotelId();
         }
         if (hotelId == null) {
-            hotelId = 1L;
+            throw new RuntimeException("Không tìm thấy thông tin chi nhánh!");
         }
 
         List<RoomSeasonalRateResponse> responses = roomSeasonalRateService.getRatesByMonth(hotelId, month, year);

@@ -1,7 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,13 +21,9 @@ public class BookingExpiryScheduler {
 
     @Scheduled(fixedRate = 60000) // mỗi 1 phút
     public void releaseExpiredPendingBookings() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(15);
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
 
-        List<Booking> expiredBookings = bookingRepository.findExpiredPendingBookings(
-                threshold,
-                BookingStatus.PENDING,
-                BookingChannel.ONLINE
-        );
+        List<Booking> expiredBookings = bookingRepository.findExpiredPendingBookings(threshold, BookingStatus.PENDING);
 
         if (expiredBookings.isEmpty()) {
             return;

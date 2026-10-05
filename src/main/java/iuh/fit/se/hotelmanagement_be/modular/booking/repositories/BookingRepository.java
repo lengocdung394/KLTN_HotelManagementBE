@@ -2,7 +2,6 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,11 +29,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
                 select b
                 from Booking b
                 where b.bookingStatus = :status
-                  and b.bookingChannel = :channel
                   and b.createdAt < :threshold
             """)
-    List<Booking> findExpiredPendingBookings(
-            @Param("threshold") LocalDateTime threshold,
-            @Param("status") BookingStatus status,
-            @Param("channel") BookingChannel channel);
+    List<Booking> findExpiredPendingBookings(@Param("threshold") LocalDateTime threshold, @Param("status") BookingStatus status);
 }

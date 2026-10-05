@@ -49,6 +49,8 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/rooms/public/**").permitAll()
+                        // TODO: cho phan hoan thien upload file
+                        .requestMatchers("/servicesImport/**").permitAll()
                         // TODO: Xóa dòng này sau khi hoàn thiện Auth cho module KM
                         .requestMatchers("/management-rooms/**").permitAll()
                         .requestMatchers("/management-bookings/**").permitAll()

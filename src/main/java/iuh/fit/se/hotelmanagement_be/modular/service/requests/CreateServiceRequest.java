@@ -36,6 +36,4 @@ public class CreateServiceRequest {
     @Schema(example = "https://images.unsplash.com/photo-1552566626-52f8b828?q=80&w=700")
     String imageUrl;
 
-    @Schema(description = "ID khách sạn áp dụng (để trống nếu áp dụng cho toàn bộ chi nhánh)", example = "1")
-    Long hotelId;
 }

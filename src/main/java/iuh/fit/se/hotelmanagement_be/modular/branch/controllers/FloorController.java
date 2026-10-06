@@ -30,7 +30,7 @@ public class FloorController {
     @Operation(
             summary = "Lấy danh sách tòa nhà theo ID của tòa"
     )
-    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByBuildingId(@RequestParam Long buildingId) {
+    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByBuildingId(@RequestParam String buildingId) {
         List<FloorResponse> floorResponseList = floorService.getFloorsByBuildingId(buildingId);
         return ResponseEntity.ok(ApiResponse.<List<FloorResponse>>builder()
                 .code(200)

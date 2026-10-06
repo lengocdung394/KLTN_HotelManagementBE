@@ -15,6 +15,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +47,7 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    @PreAuthorize("hasAuthority('CREATE_BOOKING')")
     @PostMapping("/counter")
     @Operation(summary = "Nhân viên hỗ trợ đặt phòng tại quầy")
     public ResponseEntity<BookingResponse> createCounterBooking(

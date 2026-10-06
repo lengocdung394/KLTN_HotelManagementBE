@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -29,6 +30,7 @@ public class BookingManagementController {
      * @param request   DTO chứa danh sách các thay đổi.
      * @return Thông báo thành công kèm theo request gốc hoặc kết quả trả về.
      */
+    @PreAuthorize("hasAuthority('UPDATE_BOOKING')")
     @PutMapping("/{bookingId}/modify")
     public ResponseEntity<ApiResponse<BookingModificationResponse>> modifyBooking(
             @PathVariable String bookingId,

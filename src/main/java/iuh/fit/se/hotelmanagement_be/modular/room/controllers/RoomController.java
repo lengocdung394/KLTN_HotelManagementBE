@@ -34,7 +34,7 @@ public class RoomController {
 
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     //Chỉ cho phép người dùng có Role ADMIN hoặc MANAGER gọi API này
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('CREATE_ROOM')")
     public ResponseEntity<ApiResponse<RoomCreateResponse>> createRoom(
             @Parameter(
                     content = @Content(
@@ -65,21 +65,14 @@ public class RoomController {
                 .result(roomResponseList)
                 .message("Lay thanh cong danh sach")
                 .build());
-
     }
 
     @GetMapping("/hotel")
     @Operation(summary = "Lấy danh sách phòng thuộc khách sạn của tài khoản đang đăng nhập")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE', 'ROLE_STAFF')")
+    @PreAuthorize("hasAuthority('VIEW_ROOMS')")
     public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
-
-        // Lấy hotelId từ token của nhân viên đang đăng nhập
         Long hotelId = SecurityUtils.getCurrentUserHotelId();
-        if (hotelId == null) {
-            throw new RuntimeException("Không tìm thấy thông tin chi nhánh của tài khoản này!");
-        }
 
-        // Gọi Service lấy danh sách phòng
         List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
 
         return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
@@ -113,7 +106,7 @@ public class RoomController {
                 .build());
     }
 
-    // chinh sua mot phong
+    @PreAuthorize("hasAuthority('UPDATE_ROOM')")
     @PutMapping(value = "/updateRoomById/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<RoomCreateResponse>> updateRoom(
             @PathVariable String roomId,

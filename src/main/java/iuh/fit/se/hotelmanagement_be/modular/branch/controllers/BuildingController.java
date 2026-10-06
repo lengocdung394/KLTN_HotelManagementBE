@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +27,7 @@ import java.util.List;
 public class BuildingController {
     BuildingService buildingService;
 
+    @PreAuthorize("hasAuthority('VIEW_BUILDINGS')")
     @GetMapping("/getBuildingByHotelId")
     @Operation(
             summary = "Lấy danh sách tòa theo ID của khách sạn"

@@ -43,7 +43,7 @@ public class BranchRoomPolicyController {
     }
 
     // 2. Chỉnh sửa giá và chính sách cho từng loại phòng chỉ cho admin and quan li chinh sua
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('MANAGE_BRANCH_SETTINGS')")
     @PutMapping("/{policyId}")
     public ResponseEntity<BranchRoomPolicy> updateRoomPolicy(
             @PathVariable String policyId,

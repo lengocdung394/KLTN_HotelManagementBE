@@ -19,7 +19,7 @@ public class FloorServiceImpl implements FloorService {
     FloorRepository floorRepository;
 
     @Override
-    public List<FloorResponse> getFloorsByBuildingId(Long buildingId) {
+    public List<FloorResponse> getFloorsByBuildingId(String buildingId) {
         return floorRepository.findByBuildingId(buildingId).stream().map(f -> FloorResponse.builder()
                         .id(f.getId())
                         .floorNumber(f.getFloorNumber())

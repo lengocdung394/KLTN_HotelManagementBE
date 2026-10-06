@@ -18,5 +18,5 @@ public interface RoomRepository extends JpaRepository<Room, String> {
     // 2. Hàm kiểm tra xem phòng có số `roomNumber` đã tồn tại trong `floor.id` hay chưa (Trả về true/false)
     boolean existsByFloorIdAndRoomNumber(String floorId, String roomNumber);
     boolean existsByFloorIdAndRoomNumberAndIdNot(String id, String roomNumber,String roomId);
-
+    boolean existsByFloorIdAndRoomType(String floorId, iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType roomType);
 }

@@ -18,6 +18,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -39,6 +40,7 @@ public class ShiftController {
         return (tokenHotelId != null) ? tokenHotelId : 1L;
     }
 
+    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
     @GetMapping("/today")
     @Operation(summary = "Lấy danh sách ca trực hôm nay (Tab 1: Ca trực hôm nay)",
             description = "Trả về danh sách nhân viên trực ca sáng / tối kèm vị trí và công việc của ngày hôm nay.")
@@ -56,6 +58,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
     @GetMapping("/today/summary")
     @Operation(summary = "Lấy tóm tắt ca trực trong ngày",
             description = "Bao gồm ngày, thứ, trạng thái đủ ca và danh sách phân công.")
@@ -73,6 +76,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
     @GetMapping("/weekly")
     @Operation(summary = "Lấy lịch phân ca cả tuần (Tab 3: Lịch phân ca tuần)",
             description = "Trả về ma trận 7 ngày (từ Thứ 2 đến Chủ nhật) kèm thống kê số ca đã phân công và nhân viên trực.")
@@ -90,6 +94,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
     @PostMapping("/assign")
     @Operation(summary = "Phân công một ca trực cho nhân viên",
             description = "Tạo mới hoặc cập nhật phân công nhân viên vào ca làm việc theo ngày và vị trí.")
@@ -106,6 +111,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
     @PostMapping("/assign-batch")
     @Operation(summary = "Lưu phân công ca trực hàng loạt cho cả tuần",
             description = "Nhận danh sách phân ca của nhiều ngày/nhiều vị trí và lưu đồng loạt vào CSDL.")
@@ -122,6 +128,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
     @DeleteMapping("/{shiftId}")
     @Operation(summary = "Hủy / Xóa phân công một ca trực")
     public ResponseEntity<ApiResponse<Void>> deleteShift(@PathVariable String shiftId) {
@@ -132,6 +139,7 @@ public class ShiftController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
     @PostMapping("/init-default")
     @Operation(summary = "Tự động tạo lịch phân ca mẫu nếu tuần chưa có lịch")
     public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> initDefaultWeeklySchedule(

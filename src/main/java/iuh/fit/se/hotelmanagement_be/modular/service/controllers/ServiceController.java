@@ -1,8 +1,12 @@
 package iuh.fit.se.hotelmanagement_be.modular.service.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.CreateServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.UpdateServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.service.responses.ServiceResponse;
@@ -13,8 +17,12 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -53,13 +61,18 @@ public class ServiceController {
                 .build());
     }
 
-    @PostMapping
+    @PreAuthorize("hasAuthority('CREATE_SERVICE')")
+    @PostMapping(value = "/createService",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo mới dịch vụ khách sạn (Dành cho Quản lý / Admin)")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<ServiceResponse>> createService(
-            @Valid @RequestBody CreateServiceRequest request) {
+            @RequestPart("service") @Valid CreateServiceRequest request, // Đổi tên part cho tường minh giống Room
+            @RequestPart(value = "imageFile", required = false) MultipartFile imageFile, // Nhận 1 file đơn
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId();
 
-        ServiceResponse result = hotelServiceService.createService(request);
+        ServiceResponse result = hotelServiceService.createService(request, imageFile, hotelId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<ServiceResponse>builder()
                 .code(201)
                 .message("Tạo dịch vụ thành công")
@@ -67,14 +80,19 @@ public class ServiceController {
                 .build());
     }
 
-    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('UPDATE_SERVICE')")
+    @PutMapping(value = "updateService/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
     public ResponseEntity<ApiResponse<ServiceResponse>> updateService(
             @PathVariable String id,
-            @Valid @RequestBody UpdateServiceRequest request) {
+            @RequestPart("service") @Valid UpdateServiceRequest request,
+            @RequestPart(value = "imageFile", required = false) MultipartFile imageFile, // Nhận 1 file đơn
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId();
 
-        ServiceResponse result = hotelServiceService.updateService(id, request);
+        ServiceResponse result = hotelServiceService.updateService(id, request, imageFile, hotelId);
         return ResponseEntity.ok(ApiResponse.<ServiceResponse>builder()
                 .code(200)
                 .message("Cập nhật dịch vụ thành công")
@@ -82,6 +100,7 @@ public class ServiceController {
                 .build());
     }
 
+    @PreAuthorize("hasAuthority('DELETE_SERVICE')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Ẩn / Xóa dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
@@ -92,7 +111,7 @@ public class ServiceController {
                 .message("Đã ẩn dịch vụ thành công")
                 .build());
     }
-
+    @PreAuthorize("hasAuthority('MANAGE_SERVICE_STATUS')")
     @PatchMapping("/{id}/toggle-status")
     @Operation(summary = "Bật / Tắt trạng thái kinh doanh của dịch vụ")
     @SecurityRequirement(name = "bearerAuth")

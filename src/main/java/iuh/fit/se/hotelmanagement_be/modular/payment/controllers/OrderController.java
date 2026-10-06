@@ -46,6 +46,7 @@ public class OrderController {
                 .build());
     }
 
+
     @GetMapping("/booking/{bookingId}")
     @Operation(
             summary = "Lấy hóa đơn theo mã đặt phòng (Booking ID)",
@@ -62,7 +63,7 @@ public class OrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'MANAGER')")
+    @PreAuthorize("hasAuthority('VIEW_INVOICES')")
     @Operation(
             summary = "Lấy danh sách hóa đơn theo trạng thái",
             description = "Lọc hóa đơn theo trạng thái: OPEN (đang mở/chưa trả đủ), CLOSED (đã quyết toán), CANCELLED (hủy)"
@@ -77,7 +78,7 @@ public class OrderController {
                 .message("Lấy danh sách hóa đơn thành công")
                 .build());
     }
-
+    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
     @PostMapping("/payments")
     @Operation(
             summary = "Thực hiện thanh toán / Ghi nhận tiền cọc hoặc thanh toán tại quầy",
@@ -96,7 +97,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{id}/close")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE', 'MANAGER')")
+    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
     @Operation(
             summary = "Quyết toán và đóng hóa đơn thủ công",
             description = "Nhân viên/Lễ tân chủ động đóng hóa đơn khi hoàn tất thủ tục trả phòng"

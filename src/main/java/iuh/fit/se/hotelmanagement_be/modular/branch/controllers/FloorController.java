@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,35 +23,33 @@ import java.util.List;
 @RequestMapping("/floor")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Tag(name = "Floor", description = "APIs liên quan đến quản lý tang")
+@Tag(name = "Floor", description = "APIs liên quan đến quản lý tầng")
 public class FloorController {
     FloorService floorService;
 
     @GetMapping("/getFloorsByBuildingId")
-    @Operation(
-            summary = "Lấy danh sách tòa nhà theo ID của tòa"
-    )
-    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByBuildingId(@RequestParam Long buildingId) {
-        List<FloorResponse> floorResponseList = floorService.getFloorsByBuildingId(buildingId);
-        return ResponseEntity.ok(ApiResponse.<List<FloorResponse>>builder()
-                .code(200)
-                .result(floorResponseList)
-                .build()
-
-        );
-    }
-
-    // lay ds tang nha
-    @GetMapping("/getFloorsByHotelId")
-    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByHotelId(Authentication authentication) {
+    @PreAuthorize("hasAuthority('VIEW_FLOORS')")
+    @Operation(summary = "Lấy danh sách tầng theo ID tòa nhà")
+    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByBuildingId(
+            @RequestParam String buildingId,
+            Authentication authentication) {
         Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
-        List<FloorResponse> floorResponseList = floorService.getAllFloors(hotelId);
+        List<FloorResponse> floors = floorService.getFloorsByBuildingId(buildingId);
         return ResponseEntity.ok(ApiResponse.<List<FloorResponse>>builder()
                 .code(200)
-                .result(floorResponseList)
+                .result(floors)
                 .build());
     }
 
-
+    @GetMapping("/getFloorsByHotelId")
+    @PreAuthorize("hasAuthority('VIEW_FLOORS')")
+    @Operation(summary = "Lấy danh sách tầng thuộc khách sạn của tài khoản đăng nhập")
+    public ResponseEntity<ApiResponse<List<FloorResponse>>> getFloorsByHotelId(Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        List<FloorResponse> floors = floorService.getAllFloors(account.getHotelId());
+        return ResponseEntity.ok(ApiResponse.<List<FloorResponse>>builder()
+                .code(200)
+                .result(floors)
+                .build());
+    }
 }

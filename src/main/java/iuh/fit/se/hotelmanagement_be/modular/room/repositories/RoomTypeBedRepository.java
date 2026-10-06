@@ -8,5 +8,5 @@ import java.util.List;
 
 public interface RoomTypeBedRepository extends JpaRepository<RoomTypeBed, Long> {
     List<RoomTypeBed> findByRoomType(RoomType roomType);
-
+    boolean existsByRoomTypeAndBedTypeId(RoomType roomType, Long bedTypeId);
 }

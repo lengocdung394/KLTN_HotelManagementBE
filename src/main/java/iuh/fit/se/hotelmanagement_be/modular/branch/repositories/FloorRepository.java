@@ -15,5 +15,6 @@ public interface FloorRepository extends JpaRepository<Floor,String> {
     Optional<Floor> findById(String floorId);
     Optional<Floor> findByBuildingNameAndFloorNumber(String buildingName, int floorNumber);
 
+    boolean existsByBuilding_IdAndFloorNumber(String buildingId, int floorNumber);
     Optional<Floor> findByIdAndBuilding_Hotel_Id(String floorId, Long hotelId);
 }

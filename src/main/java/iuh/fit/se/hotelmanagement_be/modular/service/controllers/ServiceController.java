@@ -19,6 +19,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -60,7 +61,7 @@ public class ServiceController {
                 .build());
     }
 
-    // Tạo mới dịch vụ
+    @PreAuthorize("hasAuthority('CREATE_SERVICE')")
     @PostMapping(value = "/createService",consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo mới dịch vụ khách sạn (Dành cho Quản lý / Admin)")
     @SecurityRequirement(name = "bearerAuth")
@@ -79,7 +80,7 @@ public class ServiceController {
                 .build());
     }
 
-    // Cập nhật dịch vụ
+    @PreAuthorize("hasAuthority('UPDATE_SERVICE')")
     @PutMapping(value = "updateService/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
@@ -99,7 +100,7 @@ public class ServiceController {
                 .build());
     }
 
-
+    @PreAuthorize("hasAuthority('DELETE_SERVICE')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Ẩn / Xóa dịch vụ khách sạn")
     @SecurityRequirement(name = "bearerAuth")
@@ -110,7 +111,7 @@ public class ServiceController {
                 .message("Đã ẩn dịch vụ thành công")
                 .build());
     }
-
+    @PreAuthorize("hasAuthority('MANAGE_SERVICE_STATUS')")
     @PatchMapping("/{id}/toggle-status")
     @Operation(summary = "Bật / Tắt trạng thái kinh doanh của dịch vụ")
     @SecurityRequirement(name = "bearerAuth")

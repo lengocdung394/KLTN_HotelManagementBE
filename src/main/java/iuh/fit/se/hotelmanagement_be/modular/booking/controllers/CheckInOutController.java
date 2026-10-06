@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +26,7 @@ public class CheckInOutController {
     /**
      * POST: /bookings/{bookingId}/bulk-check-in?employeeId=...
      */
+    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
     @PostMapping("/{bookingId}/check-in/bulk")
     @Operation(summary = "Thực hiện thủ tục nhận phòng đồng loạt (Bulk Check-in) cho danh sách phòng được chọn và tính phụ thu sớm")
     public ResponseEntity<BookingResponse> processBulkCheckIn(
@@ -42,6 +44,7 @@ public class CheckInOutController {
     /**
      * POST: /bookings/{bookingId}/bulk-check-out?employeeId=...
      */
+    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
     @PostMapping("/{bookingId}/check-out/bulk")
     @Operation(summary = "Thực hiện thủ tục trả phòng đồng loạt (Bulk Check-out), tính phụ thu lố giờ, chốt tiền dịch vụ và đóng Order CLOSED")
     public ResponseEntity<BookingResponse> c(

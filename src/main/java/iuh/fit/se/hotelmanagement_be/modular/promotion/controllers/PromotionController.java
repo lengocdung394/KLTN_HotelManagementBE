@@ -44,7 +44,7 @@ public class PromotionController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Tạo mới khuyến mãi")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('CREATE_PROMOTION')")
     public ResponseEntity<ApiResponse<PromotionResponse>> createPromotion(
             @Parameter(
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -123,7 +123,7 @@ public class PromotionController {
                 .build());
     }
 
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('UPDATE_PROMOTION')")
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Cập nhật thông tin khuyến mãi")
     public ResponseEntity<ApiResponse<PromotionResponse>> update(
@@ -146,7 +146,7 @@ public class PromotionController {
                 .build());
     }
 
-
+    @PreAuthorize("hasAuthority('UPDATE_PROMOTION')")
     @PatchMapping("/{id}/status")
     @Operation(summary = "Thay đổi trạng thái khuyến mãi",
             description = "DRAFT→ACTIVE/INACTIVE | ACTIVE→INACTIVE/EXPIRED | INACTIVE→ACTIVE/EXPIRED")
@@ -161,9 +161,8 @@ public class PromotionController {
                 .build());
     }
 
-    // ============================================================
-    // DELETE /promotions/{id} — Xóa mềm
-    // ============================================================
+
+    @PreAuthorize("hasAuthority('DELETE_PROMOTION')")
     @DeleteMapping("/{id}")
     @Operation(summary = "Xóa khuyến mãi (soft delete)")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {

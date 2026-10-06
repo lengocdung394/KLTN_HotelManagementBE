@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -61,8 +62,16 @@ public class Account implements UserDetails {
         if (this.roles == null || this.roles.isEmpty()) {
             return List.of();
         }
-        return this.roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName()))
+
+        Set<String> authorityNames = new HashSet<>();
+        for (Role role : this.roles) {
+            authorityNames.add(role.getName());
+            if (role.getPermissions() != null) {
+                role.getPermissions().forEach(permission -> authorityNames.add(permission.getName()));
+            }
+        }
+        return authorityNames.stream()
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }
 

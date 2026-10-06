@@ -102,6 +102,8 @@ public class CustomerController {
         return ResponseEntity.ok(customer);
     }
 
+
+    @PreAuthorize("hasAuthority('MANAGE_CUSTOMER')")
     @Operation(summary = "Nhân viên cập nhật thông tin khách hàng tại quầy")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse>> updateCustomer(

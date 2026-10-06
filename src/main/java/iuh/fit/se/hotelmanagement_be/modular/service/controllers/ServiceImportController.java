@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,6 +27,7 @@ public class ServiceImportController {
     @Autowired
     private ServiceImportService serviceImportService;
 
+    @PreAuthorize("hasAuthority('CREATE_SERVICE')")
     @PostMapping("/import-urls-async")
     public ResponseEntity<?> startUrlImport(
             @RequestBody ServiceExcelImportRequest request,
@@ -39,9 +41,8 @@ public class ServiceImportController {
         ));
     }
 
-    /**
-     * 2. API để Frontend gọi định kỳ (polling) kiểm tra tiến trình dựa vào taskId
-     */
+
+    @PreAuthorize("hasAuthority('CREATE_SERVICE')")
     @GetMapping("/import-status/{taskId}")
     public ResponseEntity<ImportTaskStatus> getImportStatus(@PathVariable String taskId) {
         ImportTaskStatus status = serviceImportService.getTaskStatus(taskId);

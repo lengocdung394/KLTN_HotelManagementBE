@@ -23,7 +23,7 @@ public class RoomExcelController {
     private final RoomExcelService roomExcelService;
 
     @PostMapping("/importRooms")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('CREATE_ROOM')")
     public ResponseEntity<Map<String, String>> importRooms(@RequestBody RoomExcelImportRequest request) {
         Long hotelId = SecurityUtils.getCurrentUserHotelId();
         if (hotelId == null) {
@@ -38,7 +38,7 @@ public class RoomExcelController {
     }
 
     @GetMapping("/status/{taskId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('CREATE_ROOM')")
     public ResponseEntity<ImportTaskStatus> getImportStatus(@PathVariable String taskId) {
         return ResponseEntity.ok(roomExcelService.getTaskStatus(taskId));
     }

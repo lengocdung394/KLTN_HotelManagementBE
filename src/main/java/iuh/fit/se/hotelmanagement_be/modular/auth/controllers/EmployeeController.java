@@ -34,7 +34,7 @@ public class EmployeeController {
 
     @Operation(summary = "Tạo tài khoản nhân sự cấp dưới")
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('ADD_STAFF')")
     public ResponseEntity<ApiResponse<Object>> createNewStaff(
             @Parameter(
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -58,7 +58,7 @@ public class EmployeeController {
 
     @Operation(summary = "Lấy danh sách nhân viên theo chi nhánh khách sạn")
     @GetMapping("/hotel/{hotelId}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('VIEW_STAFFS')")
     public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesByHotel(@PathVariable("hotelId") Long hotelId) {
         List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId);
         return ResponseEntity.ok(ApiResponse.<List<EmployeeResponse>>builder()
@@ -70,7 +70,7 @@ public class EmployeeController {
 
     @Operation(summary = "Lấy thông tin chi tiết một nhân viên")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('VIEW_STAFFS')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> getEmployeeDetail(@PathVariable("id") String id) {
         EmployeeResponse result = userService.getEmployeeById(id);
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
@@ -82,7 +82,7 @@ public class EmployeeController {
 
     @Operation(summary = "Cập nhật thông tin nhân sự")
     @PutMapping(value = "/update/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('UPDATE_STAFF')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> updateEmployee(
             @PathVariable("id") String id,
             @Parameter(

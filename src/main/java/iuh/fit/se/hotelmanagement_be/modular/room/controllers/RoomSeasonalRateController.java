@@ -31,10 +31,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class RoomSeasonalRateController {
-    // lay ds gia cho su kien
-    // them su kien gia
-    // chinh sua su kien gia
-    // lấy tât cả ds sự kiện
+
     RoomSeasonalRateService roomSeasonalRateService;
 
     /**
@@ -43,6 +40,7 @@ public class RoomSeasonalRateController {
      * @param roomType Loại phòng (Không bắt buộc: ?roomType=DELUXE. Nếu bỏ trống sẽ lấy tất cả loại phòng)
      * @param pageable Phân trang & sắp xếp tự động nhận từ Spring: ?page=0&size=10&sort=startDate,asc
      */
+
     @GetMapping("/hotel/by-date")
     public ResponseEntity<Page<RoomSeasonalRate>> getSeasonalRatesByDate(
             Authentication authentication,
@@ -57,11 +55,8 @@ public class RoomSeasonalRateController {
         return ResponseEntity.ok(result);
     }
 
-    /**
-     * API Tạo mới đợt giá mùa vụ cho chi nhánh
-     * Đồng thời check trùng lịch và bắn Socket realtime qua tầng Service
-     */
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+
+    @PreAuthorize("hasAuthority('UPDATE_ROOM')")
     @PostMapping("/createSeasonalRate")
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> createSeasonalRate(
             @RequestBody List<@Valid RoomSeasonalRateCreateRequest> requests,
@@ -79,7 +74,7 @@ public class RoomSeasonalRateController {
         );
     }
 
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAuthority('UPDATE_ROOM')")
     @PostMapping("/updateSeasonalRate")
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> updateSeasonalRate(
             @RequestBody List<@Valid RoomSeasonalRateUpdateRequest> requests,
@@ -96,7 +91,7 @@ public class RoomSeasonalRateController {
 
     }
 
-    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAuthority('VIEW_ROOMS')")
     @GetMapping("/hotel/{hotelId}/monthly")
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> getRatesByMonth(
             Authentication authentication,

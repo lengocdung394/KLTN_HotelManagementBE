@@ -77,6 +77,27 @@ public class RbacInitializer implements CommandLineRunner {
         // ==========================================
         // 1. KHỞI TẠO PERMISSIONS & ROLES (RBAC)
         // ==========================================
+        Role legacyAdminRole = roleRepository.findByName("ROLE_ADMIN").orElse(null);
+        Role superAdminRole = roleRepository.findByName("ROLE_SUPER_ADMIN").orElse(null);
+        if (legacyAdminRole != null && superAdminRole == null) {
+            legacyAdminRole.setName("ROLE_SUPER_ADMIN");
+            roleRepository.save(legacyAdminRole);
+        } else if (legacyAdminRole != null) {
+            jdbcTemplate.update(
+                    "DELETE FROM account_role legacy WHERE legacy.role_id = ? " +
+                            "AND EXISTS (SELECT 1 FROM account_role current " +
+                            "WHERE current.account_id = legacy.account_id AND current.role_id = ?)",
+                    legacyAdminRole.getId(),
+                    superAdminRole.getId()
+            );
+            jdbcTemplate.update(
+                    "UPDATE account_role SET role_id = ? WHERE role_id = ?",
+                    superAdminRole.getId(),
+                    legacyAdminRole.getId()
+            );
+            roleRepository.delete(legacyAdminRole);
+        }
+
         Map<String, Permission> permissionMap = new HashMap<>();
 
         for (String p : rbacConfig.getPermissions()) {
@@ -96,14 +117,19 @@ public class RbacInitializer implements CommandLineRunner {
                                     .build()
                     ));
 
+            role.getPermissions().clear();
             for (String p : rbacConfig.getRoles().get(roleName)) {
                 role.getPermissions().add(permissionMap.get(p));
             }
             roleRepository.save(role);
         }
 
-        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
-                .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_ADMIN"));
+        Role systemAdminRole = roleRepository.findByName("ROLE_SUPER_ADMIN")
+                .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_SUPER_ADMIN"));
+        Role managerRole = roleRepository.findByName("ROLE_MANAGER")
+                .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_MANAGER"));
+        Role employeeRole = roleRepository.findByName("ROLE_EMPLOYEE")
+                .orElseThrow(() -> new RuntimeException("Lỗi cấu hình: File JSON thiếu ROLE_EMPLOYEE"));
 
         System.out.println(">>> [STARTUP] Khởi tạo hệ thống Permission & Role hoàn tất.");
 
@@ -111,7 +137,8 @@ public class RbacInitializer implements CommandLineRunner {
         // 2. KHỞI TẠO CHI NHÁNH 1: SÀI GÒN
         // ==========================================
         if (!hotelRepository.existsByName("Sài Gòn Sky Hotel & Residence")) {
-            Province provinceHcm = provinceRepository.save(Province.builder().name("TP. Hồ Chí Minh").build());
+            Province provinceHcm = provinceRepository.findByName("TP. Hồ Chí Minh")
+                    .orElseGet(() -> provinceRepository.save(Province.builder().name("TP. Hồ Chí Minh").build()));
 
             Hotel hotel1 = hotelRepository.save(
                     Hotel.builder()
@@ -176,7 +203,7 @@ public class RbacInitializer implements CommandLineRunner {
                     "0901111111",
                     "Admin Chi nhánh Sài Gòn",
                     hotel1,
-                    adminRole
+                    managerRole
             );
             System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 1: Sài Gòn Sky Hotel & Policy kèm theo.");
         }
@@ -185,7 +212,8 @@ public class RbacInitializer implements CommandLineRunner {
         // 3. KHỞI TẠO CHI NHÁNH 2: HÀ NỘI
         // ==========================================
         if (!hotelRepository.existsByName("Hà Nội Grand Hotel")) {
-            Province provinceHanoi = provinceRepository.save(Province.builder().name("TP. Hà Nội").build());
+            Province provinceHanoi = provinceRepository.findByName("TP. Hà Nội")
+                    .orElseGet(() -> provinceRepository.save(Province.builder().name("TP. Hà Nội").build()));
 
             Hotel hotel2 = hotelRepository.save(
                     Hotel.builder()
@@ -250,20 +278,45 @@ public class RbacInitializer implements CommandLineRunner {
                     "0902222222",
                     "Admin Chi nhánh Hà Nội",
                     hotel2,
-                    adminRole
+                    managerRole
             );
             System.out.println(">>> [STARTUP] Đã tạo Chi nhánh 2: Hà Nội Grand Hotel & Policy kèm theo.");
         }
+
+        ensureBranchSeedData("Sài Gòn Sky Hotel & Residence", "Tòa A - Sài Gòn");
+        ensureBranchSeedData("Hà Nội Grand Hotel", "Tòa Hoàn Kiếm - Hà Nội");
+
+        ensureBranchTestAccounts(
+                "Sài Gòn Sky Hotel & Residence",
+                "saigon",
+                "Sài Gòn",
+                "0901111111",
+                "0901111112",
+                "0901111113",
+                managerRole,
+                employeeRole
+        );
+        ensureBranchTestAccounts(
+                "Hà Nội Grand Hotel",
+                "hanoi",
+                "Hà Nội",
+                "0902222222",
+                "0902222223",
+                "0902222224",
+                managerRole,
+                employeeRole
+        );
 
         // ==========================================
         // 4. KHỞI TẠO ADMIN TỔNG (SUPER ADMIN)
         // ==========================================
         String superAdminEmail = "admin@senviet.vn";
-        if (!accountRepository.existsByEmail(superAdminEmail)) {
+        Account existingSuperAdmin = accountRepository.findByEmail(superAdminEmail).orElse(null);
+        if (existingSuperAdmin == null) {
             Account superAdminAccount = Account.builder()
                     .email(superAdminEmail)
                     .password(passwordEncoder.encode("admin123"))
-                    .roles(Set.of(adminRole))
+                    .roles(Set.of(systemAdminRole))
                     .build();
 
             Employee superAdminEmployee = Employee.builder()
@@ -276,56 +329,56 @@ public class RbacInitializer implements CommandLineRunner {
 
             employeeRepository.save(superAdminEmployee);
             System.out.println(">>> [STARTUP] Đã tạo Tài khoản Admin Tổng: " + superAdminEmail);
+        } else {
+            if (!hasRole(existingSuperAdmin, systemAdminRole)) {
+                Set<Role> roles = existingSuperAdmin.getRoles() == null
+                        ? new HashSet<>()
+                        : new HashSet<>(existingSuperAdmin.getRoles());
+                roles.add(systemAdminRole);
+                existingSuperAdmin.setRoles(roles);
+                accountRepository.save(existingSuperAdmin);
+            }
+            if (existingSuperAdmin.getEmployee() == null) {
+                employeeRepository.save(Employee.builder()
+                        .fullName("Admin Tổng Toàn Hệ Thống")
+                        .phone("0901234567")
+                        .position("Super Admin")
+                        .hotel(null)
+                        .account(existingSuperAdmin)
+                        .build());
+            }
         }
 
         // ==========================================
         // 5. KHỞI TẠO DANH MỤC LOẠI GIƯỜNG & PHÂN BỔ GIƯỜNG
         // ==========================================
-        if (bedTypeRepository.count() == 0) {
-            bedTypeRepository.saveAll(List.of(
-                    BedType.builder().name("Single Bed").description("Giường đơn tiêu chuẩn kích thước 1m2 x 2m").capacity(1).isExtraBed(false).build(),
-                    BedType.builder().name("Queen Bed").description("Giường đôi vừa kích thước 1m6 x 2m").capacity(2).isExtraBed(false).build(),
-                    BedType.builder().name("King Bed").description("Giường đôi lớn kích thước 1m8 x 2m").capacity(2).isExtraBed(false).build(),
-                    BedType.builder().name("Super King Bed").description("Giường đôi siêu lớn kích thước 2m x 2m2").capacity(2).isExtraBed(false).build(),
-                    BedType.builder().name("Sofa Bed").description("Giường sofa đa năng đặt tại phòng khách").capacity(2).isExtraBed(true).build(),
-                    BedType.builder().name("Extra Bed").description("Giường phụ di động kê thêm khi có yêu cầu").capacity(1).isExtraBed(true).build()
-            ));
-            System.out.println(">>> [STARTUP] Đã khởi tạo danh mục các Loại giường.");
-        }
+        ensureBedType("Single Bed", "Giường đơn tiêu chuẩn kích thước 1m2 x 2m", 1, false);
+        ensureBedType("Queen Bed", "Giường đôi vừa kích thước 1m6 x 2m", 2, false);
+        ensureBedType("King Bed", "Giường đôi lớn kích thước 1m8 x 2m", 2, false);
+        ensureBedType("Super King Bed", "Giường đôi siêu lớn kích thước 2m x 2m2", 2, false);
+        ensureBedType("Sofa Bed", "Giường sofa đa năng đặt tại phòng khách", 2, true);
+        ensureBedType("Extra Bed", "Giường phụ di động kê thêm khi có yêu cầu", 1, true);
 
-        if (roomTypeBedRepository.count() == 0) {
-            BedType queenBed = bedTypeRepository.findByName("Queen Bed");
-            BedType kingBed = bedTypeRepository.findByName("King Bed");
-            BedType superKingBed = bedTypeRepository.findByName("Super King Bed");
-            BedType sofaBed = bedTypeRepository.findByName("Sofa Bed");
-
-            if (queenBed != null && kingBed != null && superKingBed != null && sofaBed != null) {
-                roomTypeBedRepository.saveAll(List.of(
-                        RoomTypeBed.builder().roomType(RoomType.STANDARD).bedType(queenBed).quantity(1).build(),
-                        RoomTypeBed.builder().roomType(RoomType.DELUXE).bedType(kingBed).quantity(1).build(),
-                        RoomTypeBed.builder().roomType(RoomType.SUITE).bedType(superKingBed).quantity(1).build(),
-                        RoomTypeBed.builder().roomType(RoomType.SUITE).bedType(sofaBed).quantity(1).build(),
-                        RoomTypeBed.builder().roomType(RoomType.FAMILY).bedType(queenBed).quantity(2).build()
-                ));
-                System.out.println(">>> [STARTUP] Đã phân bổ cấu trúc giường mặc định cho từng Loại phòng thành công.");
-            }
-        }
+        ensureRoomTypeBed(RoomType.STANDARD, "Queen Bed", 1);
+        ensureRoomTypeBed(RoomType.DELUXE, "King Bed", 1);
+        ensureRoomTypeBed(RoomType.SUITE, "Super King Bed", 1);
+        ensureRoomTypeBed(RoomType.SUITE, "Sofa Bed", 1);
+        ensureRoomTypeBed(RoomType.FAMILY, "Queen Bed", 2);
 
         // ==========================================
         // 6. KHỞI TẠO KHÁCH HÀNG MẪU (NẾU CHƯA CÓ)
         // ==========================================
         try {
-            if (customerRepository.count() == 0) {
-                Role customerRole = roleRepository.findByName("ROLE_CUSTOMER").orElse(null);
-                Account customerAccount = accountRepository.findByEmail("customer@senviet.vn")
-                        .orElseGet(() -> accountRepository.save(
-                                Account.builder()
-                                        .email("customer@senviet.vn")
-                                        .password(passwordEncoder.encode("customer123"))
-                                        .roles(customerRole != null ? Set.of(customerRole) : Set.of())
-                                        .build()
-                        ));
-
+            Role customerRole = roleRepository.findByName("ROLE_CUSTOMER")
+                    .orElseThrow(() -> new RuntimeException("Thiếu cấu hình ROLE_CUSTOMER"));
+            Account customerAccount = accountRepository.findByEmail("customer@senviet.vn")
+                    .orElseGet(() -> accountRepository.save(Account.builder()
+                            .email("customer@senviet.vn")
+                            .password(passwordEncoder.encode("customer123"))
+                            .roles(Set.of(customerRole))
+                            .build()));
+            if (customerRepository.findByAccount(customerAccount).isEmpty()
+                    && customerRepository.findByEmail("customer@senviet.vn").isEmpty()) {
                 Customer defaultCustomer = Customer.builder()
                         .fullName("Huỳnh Văn Hiếu")
                         .phone("0901234567")
@@ -346,63 +399,7 @@ public class RbacInitializer implements CommandLineRunner {
         // 7. KHỞI TẠO PHÒNG MẪU (NẾU CHƯA CÓ)
         // ==========================================
         try {
-            if (roomRepository.count() == 0) {
-                List<Floor> floors = floorRepository.findAll();
-                if (!floors.isEmpty()) {
-                    List<Room> initialRooms = new ArrayList<>();
-                    for (Floor floor : floors) {
-                        initialRooms.add(Room.builder()
-                                .floor(floor)
-                                .roomStatus(RoomStatus.READY)
-                                .roomType(RoomType.STANDARD)
-
-                                .basePrice(1000000.0)
-                                .avatarUrl(List.of(RoomImage.builder()
-                                        .url("https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=900&auto=format&fit=crop")
-                                        .isDefault(true).build()))
-                                .amenities(Set.of())
-                                .build());
-
-                        initialRooms.add(Room.builder()
-                                .floor(floor)
-                                .roomStatus(RoomStatus.READY)
-                                .roomType(RoomType.DELUXE)
-
-                                .basePrice(2000000.0)
-                                .avatarUrl(List.of(RoomImage.builder()
-                                        .url("https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=900&auto=format&fit=crop")
-                                        .isDefault(true).build()))
-                                .amenities(Set.of())
-                                .build());
-
-                        initialRooms.add(Room.builder()
-                                .floor(floor)
-                                .roomStatus(RoomStatus.READY)
-                                .roomType(RoomType.SUITE)
-
-                                .basePrice(3000000.0)
-                                .avatarUrl(List.of(RoomImage.builder()
-                                        .url("https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=900&auto=format&fit=crop")
-                                        .isDefault(true).build()))
-                                .amenities(Set.of())
-                                .build());
-
-                        initialRooms.add(Room.builder()
-                                .floor(floor)
-                                .roomStatus(RoomStatus.READY)
-                                .roomType(RoomType.FAMILY)
-
-                                .basePrice(3500000.0)
-                                .avatarUrl(List.of(RoomImage.builder()
-                                        .url("https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop")
-                                        .isDefault(true).build()))
-                                .amenities(Set.of())
-                                .build());
-                    }
-                    roomRepository.saveAll(initialRooms);
-                    System.out.println(">>> [STARTUP] Đã khởi tạo phòng mẫu thành công.");
-                }
-            }
+            ensureSampleRooms();
         } catch (Exception e) {
             System.err.println(">>> [STARTUP WARN] Khởi tạo phòng mẫu thất bại: " + e.getMessage());
         }
@@ -428,6 +425,12 @@ public class RbacInitializer implements CommandLineRunner {
                                 .maxExtraGuests(rt == RoomType.FAMILY ? 4 : (rt == RoomType.DELUXE || rt == RoomType.SUITE ? 3 : 2))
                                 .extraAdultFee(200000.0)
                                 .extraChildFee(100000.0)
+                                .area(switch (rt) {
+                                    case STANDARD -> 20.5;
+                                    case DELUXE -> 30.5;
+                                    case SUITE -> 40.5;
+                                    case FAMILY -> 50.5;
+                                })
                                 .basePrice(base)
                                 .build());
                     }
@@ -460,5 +463,188 @@ public class RbacInitializer implements CommandLineRunner {
 
             employeeRepository.save(employee);
         }
+    }
+
+    private void ensureBranchSeedData(String hotelName, String buildingName) {
+        Hotel hotel = hotelRepository.findByName(hotelName)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chi nhánh: " + hotelName));
+
+        Building building = buildingRepository.findByHotelIdAndName(hotel.getId(), buildingName)
+                .orElseGet(() -> buildingRepository.save(Building.builder()
+                        .name(buildingName)
+                        .hotel(hotel)
+                        .build()));
+
+        for (int floorNumber = 1; floorNumber <= 2; floorNumber++) {
+            if (!floorRepository.existsByBuilding_IdAndFloorNumber(building.getId(), floorNumber)) {
+                floorRepository.save(Floor.builder()
+                        .floorNumber(floorNumber)
+                        .building(building)
+                        .build());
+            }
+        }
+    }
+
+    private void ensureBedType(String name, String description, int capacity, boolean extraBed) {
+        if (bedTypeRepository.findByName(name) == null) {
+            bedTypeRepository.save(BedType.builder()
+                    .name(name)
+                    .description(description)
+                    .capacity(capacity)
+                    .isExtraBed(extraBed)
+                    .build());
+        }
+    }
+
+    private void ensureRoomTypeBed(RoomType roomType, String bedTypeName, int quantity) {
+        BedType bedType = bedTypeRepository.findByName(bedTypeName);
+        if (bedType != null && !roomTypeBedRepository.existsByRoomTypeAndBedTypeId(roomType, bedType.getId())) {
+            roomTypeBedRepository.save(RoomTypeBed.builder()
+                    .roomType(roomType)
+                    .bedType(bedType)
+                    .quantity(quantity)
+                    .build());
+        }
+    }
+
+    private void ensureSampleRooms() {
+        List<Floor> floors = floorRepository.findAll();
+        RoomType[] roomTypes = RoomType.values();
+        String[] imageUrls = {
+                "https://images.unsplash.com/photo-1611892440504-42a792e24d32?q=80&w=900&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=900&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=900&auto=format&fit=crop",
+                "https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=900&auto=format&fit=crop"
+        };
+        double[] basePrices = {1_000_000.0, 2_000_000.0, 3_000_000.0, 3_500_000.0};
+
+        for (Floor floor : floors) {
+            for (int i = 0; i < roomTypes.length; i++) {
+                RoomType roomType = roomTypes[i];
+                if (roomRepository.existsByFloorIdAndRoomType(floor.getId(), roomType)) {
+                    continue;
+                }
+
+                int number = floor.getFloorNumber() * 100 + i + 1;
+                String roomNumber = String.valueOf(number);
+                while (roomRepository.existsByFloorIdAndRoomNumber(floor.getId(), roomNumber)) {
+                    roomNumber = String.valueOf(++number);
+                }
+
+                roomRepository.save(Room.builder()
+                        .floor(floor)
+                        .roomNumber(roomNumber)
+                        .roomStatus(RoomStatus.READY)
+                        .roomType(roomType)
+                        .basePrice(basePrices[i])
+                        .avatarUrl(List.of(RoomImage.builder()
+                                .url(imageUrls[i])
+                                .isDefault(true)
+                                .build()))
+                        .amenities(Set.of())
+                        .build());
+            }
+        }
+    }
+
+    private void ensureBranchTestAccounts(
+            String hotelName,
+            String branchCode,
+            String branchLabel,
+            String adminPhone,
+            String managerPhone,
+            String employeePhone,
+            Role managerRole,
+            Role employeeRole
+    ) {
+        Hotel hotel = hotelRepository.findByName(hotelName)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chi nhánh: " + hotelName));
+
+        ensureBranchTestAccount(
+                "admin." + branchCode + "@senviet.vn",
+                "Admin Chi nhánh " + branchLabel,
+                adminPhone,
+                "Admin Chi nhánh",
+                hotel,
+                managerRole
+        );
+        ensureBranchTestAccount(
+                "manager." + branchCode + "@senviet.vn",
+                "Quản lý " + branchLabel,
+                managerPhone,
+                "Quản lý",
+                hotel,
+                managerRole
+        );
+        ensureBranchTestAccount(
+                "employee." + branchCode + "@senviet.vn",
+                "Nhân viên " + branchLabel,
+                employeePhone,
+                "Nhân viên",
+                hotel,
+                employeeRole
+        );
+    }
+
+    private void ensureBranchTestAccount(
+            String email,
+            String fullName,
+            String phone,
+            String position,
+            Hotel hotel,
+            Role role
+    ) {
+        Account existingAccount = accountRepository.findByEmail(email).orElse(null);
+        if (existingAccount != null) {
+            if (!hasRole(existingAccount, role)) {
+                Set<Role> roles = existingAccount.getRoles() == null
+                        ? new HashSet<>()
+                        : new HashSet<>(existingAccount.getRoles());
+                roles.add(role);
+                existingAccount.setRoles(roles);
+                accountRepository.save(existingAccount);
+            }
+            Employee existingEmployee = existingAccount.getEmployee();
+            if (existingEmployee != null) {
+                boolean employeeChanged = !Objects.equals(existingEmployee.getFullName(), fullName)
+                        || !Objects.equals(existingEmployee.getPhone(), phone)
+                        || !Objects.equals(existingEmployee.getPosition(), position)
+                        || existingEmployee.getHotel() == null
+                        || !Objects.equals(existingEmployee.getHotel().getId(), hotel.getId());
+                if (employeeChanged) {
+                    existingEmployee.setFullName(fullName);
+                    existingEmployee.setPhone(phone);
+                    existingEmployee.setPosition(position);
+                    existingEmployee.setHotel(hotel);
+                    employeeRepository.save(existingEmployee);
+                }
+                return;
+            }
+        }
+
+        Account account = existingAccount != null
+                ? existingAccount
+                : Account.builder()
+                .email(email)
+                .password(passwordEncoder.encode("admin123"))
+                .roles(Set.of(role))
+                .build();
+
+        Employee employee = Employee.builder()
+                .fullName(fullName)
+                .phone(phone)
+                .position(position)
+                .hotel(hotel)
+                .account(account)
+                .build();
+
+        employeeRepository.save(employee);
+        System.out.println(">>> [STARTUP] Đã tạo tài khoản kiểm thử: " + email);
+    }
+
+    private boolean hasRole(Account account, Role expectedRole) {
+        return account.getRoles() != null
+                && account.getRoles().stream()
+                .anyMatch(role -> Objects.equals(role.getId(), expectedRole.getId()));
     }
 }

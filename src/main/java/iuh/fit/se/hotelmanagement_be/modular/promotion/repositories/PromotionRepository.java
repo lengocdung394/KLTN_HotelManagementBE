@@ -67,4 +67,13 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
               AND p.endDate < :now
             """)
     int bulkExpirePromotions(@Param("now") LocalDateTime now);
+
+
+    @Query("""
+            SELECT p FROM Promotion p
+            WHERE p.deleted = false
+              AND (p.hotel.id = :hotelId OR p.hotel IS NULL)
+            ORDER BY p.createdAt DESC
+            """)
+    List<Promotion> findBranchAndSharedPromotions(@Param("hotelId") Long hotelId);
 }

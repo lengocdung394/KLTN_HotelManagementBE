@@ -11,7 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelRawRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelRawRequest;
 import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class RoomExcelService {
 
     Map<String, ImportTaskStatus> taskStatusMap = new ConcurrentHashMap<>();
 
-    public String startAsyncRoomImport(iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelImportRequest request, Long hotelId) {
+    public String startAsyncRoomImport(iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelImportRequest request, Long hotelId) {
         if (request == null || request.getRooms() == null || request.getRooms().isEmpty()) {
             throw new IllegalArgumentException("Không có dữ liệu phòng để nhập.");
         }
@@ -51,7 +51,7 @@ public class RoomExcelService {
         return taskStatusMap.getOrDefault(taskId, new ImportTaskStatus(0, "Không tìm thấy tiến trình.", "NOT_FOUND"));
     }
 
-    private void processRoomImportTask(String taskId, iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelImportRequest request, Long hotelId) {
+    private void processRoomImportTask(String taskId, iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelImportRequest request, Long hotelId) {
         List<Map<String, Object>> details = new ArrayList<>();
         List<Room> roomsToSave = new ArrayList<>();
         Set<String> roomKeys = new HashSet<>();

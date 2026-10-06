@@ -2,7 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.room.controllers;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelImportRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelImportRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.impl.RoomExcelService;
 import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
 import lombok.AccessLevel;

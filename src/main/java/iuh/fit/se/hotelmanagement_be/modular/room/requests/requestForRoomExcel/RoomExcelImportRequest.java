@@ -1,4 +1,4 @@
-package iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel;
+package iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel;
 
 import lombok.*;
 import lombok.experimental.FieldDefaults;

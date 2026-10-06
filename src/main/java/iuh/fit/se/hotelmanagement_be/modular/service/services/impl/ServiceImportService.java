@@ -3,7 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.service.services.impl;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
-import iuh.fit.se.hotelmanagement_be.modular.service.requests.ServiceExcelRequest;
+import iuh.fit.se.hotelmanagement_be.modular.service.requests.requestForExcel.ServiceExcelRequest;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import iuh.fit.se.hotelmanagement_be.shared.entities.CustomMultipartFile;
 import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;

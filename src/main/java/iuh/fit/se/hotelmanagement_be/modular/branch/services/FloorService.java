@@ -5,6 +5,6 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.responses.FloorResponse;
 import java.util.List;
 
 public interface FloorService {
-    List<FloorResponse> getFloorsByBuildingId(Long buildingId);
+    List<FloorResponse> getFloorsByBuildingId(String buildingId);
     List<FloorResponse> getAllFloors(Long hotelId);
 }

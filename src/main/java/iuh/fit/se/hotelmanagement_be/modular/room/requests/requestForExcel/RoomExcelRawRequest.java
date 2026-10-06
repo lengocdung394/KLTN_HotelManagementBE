@@ -10,7 +10,7 @@ import java.util.List;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RoomExcelRaw {
+public class RoomExcelRawRequest {
     Integer rowNumber;
     String roomNumber;
     String floorId;

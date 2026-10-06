@@ -11,7 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelRaw;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForExcel.RoomExcelRawRequest;
 import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -60,7 +60,7 @@ public class RoomExcelService {
         taskStatusMap.put(taskId, new ImportTaskStatus(5, "Đang kiểm tra URL ảnh và dữ liệu phòng...", "PROCESSING"));
         try {
             for (int index = 0; index < total; index++) {
-                RoomExcelRaw item = request.getRooms().get(index);
+                RoomExcelRawRequest item = request.getRooms().get(index);
                 int rowNumber = item.getRowNumber() == null ? index + 2 : item.getRowNumber();
                 String roomNumber = item.getRoomNumber() == null ? "" : item.getRoomNumber().trim();
 

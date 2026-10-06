@@ -10,5 +10,5 @@ import java.util.List;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomExcelImportRequest {
-    List<RoomExcelRaw> rooms;
+    List<RoomExcelRawRequest> rooms;
 }

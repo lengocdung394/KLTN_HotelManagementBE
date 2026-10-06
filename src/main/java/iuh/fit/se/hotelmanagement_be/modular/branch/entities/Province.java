@@ -27,6 +27,8 @@ public class Province {
     @Column(name = "name", nullable = false)
     String name; // Tên tỉnh/thành phố (Ví dụ: "Hồ Chí Minh")
 
+    @Column( nullable = false)
+    String backgroundImageUrl;
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "province", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

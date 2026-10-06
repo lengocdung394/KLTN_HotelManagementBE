@@ -53,6 +53,7 @@ public class SecurityConfig {
                         .requestMatchers("/servicesImport/**").permitAll()
                         .requestMatchers("/roomsExcel/**").permitAll()
                         .requestMatchers("/amenitiesExcel/**").permitAll()
+                        .requestMatchers("/superAdmin/**").permitAll()
                         // TODO: Xóa dòng này sau khi hoàn thiện Auth cho module KM
                         .requestMatchers("/management-rooms/**").permitAll()
                         .requestMatchers("/management-bookings/**").permitAll()

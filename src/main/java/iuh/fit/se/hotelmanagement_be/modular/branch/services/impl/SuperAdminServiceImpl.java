@@ -2,6 +2,12 @@ package iuh.fit.se.hotelmanagement_be.modular.branch.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
@@ -25,11 +31,13 @@ import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceReposit
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Service
@@ -47,7 +55,10 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     PromotionRepository promotionRepository;
     EmployeeServiceImpl employeeService;
     BookingService bookingService;
-
+    RoleRepository roleRepository;
+    AccountRepository accountRepository;
+    EmployeeRepository employeeRepository;
+    private final PasswordEncoder passwordEncoder;
 
     // Ham tra ve ds tinh moi tinh - kem theo list khach san
     @Override
@@ -147,17 +158,85 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     }
 
     // ham tao chi nhanh
-    @Override
-    public SuperAdminBranchSummaryResponse createBranch(SuperAdminCreateBranchRequest request) {
-
+    @Transactional
+    public SuperAdminBranchSummaryResponse createBranch(
+            SuperAdminCreateBranchRequest request
+    ) {
         inValidation(request);
 
+        Province province = provinceRepository.findByName(request.getProvinceName())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy tỉnh/thành: " + request.getProvinceName()
+                ));
+
+        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
+                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_ADMIN"));
+
+        Role managerRole = roleRepository.findByName("ROLE_MANAGER")
+                .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_MANAGER"));
+
         Hotel hotel = hotelRepository.save(Hotel.builder()
-                .name(request.getName())
+                .name(request.getName().trim())
                 .address(request.getAddress().trim())
                 .phone(request.getPhone().trim())
-                .province(provinceRepository.findByName(request.getProvinceName()).get())
+                .province(province)
                 .build());
+
+        // Account hiện đăng nhập bằng email; username admin cần là email hợp lệ.
+        String adminEmail = request.getAdminAccount()
+                .getUsername()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        if (accountRepository.existsByEmail(adminEmail)) {
+            throw new IllegalArgumentException("Email tài khoản admin đã tồn tại");
+        }
+
+        Account adminAccount = Account.builder()
+                .email(adminEmail)
+                .password(passwordEncoder.encode(
+                        request.getAdminAccount().getPassword()
+                ))
+                .roles(Set.of(adminRole))
+                .build();
+
+        Employee adminEmployee = Employee.builder()
+                .fullName("Admin - " + hotel.getName())
+                .phone(hotel.getPhone())
+                .position("Admin chi nhánh")
+                .hotel(hotel)
+                .account(adminAccount)
+                .build();
+
+        employeeRepository.save(adminEmployee);
+
+        String managerEmail = request.getManagerAccount()
+                .getEmail()
+                .trim()
+                .toLowerCase(Locale.ROOT);
+
+        if (accountRepository.existsByEmail(managerEmail)) {
+            throw new IllegalArgumentException("Email tài khoản quản lý đã tồn tại");
+        }
+
+        Account managerAccount = Account.builder()
+                .email(managerEmail)
+                .password(passwordEncoder.encode(
+                        request.getManagerAccount().getPassword()
+                ))
+                .roles(Set.of(managerRole))
+                .build();
+
+        Employee managerEmployee = Employee.builder()
+                .fullName(request.getManagerAccount().getFullName().trim())
+                .phone(request.getManagerAccount().getPhone().trim())
+                .position("Quản lý chi nhánh")
+                .hotel(hotel)
+                .account(managerAccount)
+                .build();
+
+        employeeRepository.save(managerEmployee);
+
         return summarizeBranch(hotel);
     }
 

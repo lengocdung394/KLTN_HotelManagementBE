@@ -10,8 +10,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -65,9 +65,12 @@ public class Account implements UserDetails {
 
         Set<String> authorityNames = new HashSet<>();
         for (Role role : this.roles) {
-            authorityNames.add(role.getName());
+            authorityNames.add(role.getCode());
+
             if (role.getPermissions() != null) {
-                role.getPermissions().forEach(permission -> authorityNames.add(permission.getName()));
+                role.getPermissions().forEach(permission ->
+                        authorityNames.add(permission.getCode())
+                );
             }
         }
         return authorityNames.stream()
@@ -109,7 +112,6 @@ public class Account implements UserDetails {
             this.id = "ACC" + dateStr + randomNum; // Ví dụ: ACC202609228492
         }
     }
-
 
 
     // Helper method lấy Employee ID (nếu là nhân viên)

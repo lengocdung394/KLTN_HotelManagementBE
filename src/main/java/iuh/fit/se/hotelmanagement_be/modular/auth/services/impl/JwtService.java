@@ -43,10 +43,12 @@ public class JwtService {
             if (emp.getHotel() != null) {
                 extraClaims.put("hotelId", emp.getHotel().getId());
                 extraClaims.put("hotelName", emp.getHotel().getName());
+
             } else {
                 // Super Admin (không thuộc chi nhánh nào)
                 extraClaims.put("hotelId", null);
                 extraClaims.put("hotelName", "Toàn hệ thống");
+
             }
         }
         // 2. Xử lý trường hợp là Khách hàng
@@ -63,7 +65,7 @@ public class JwtService {
         // 3. Đút danh sách Roles vào Token cho Frontend kiểm tra quyền
         if (account.getRoles() != null) {
             List<String> roles = account.getRoles().stream()
-                    .map(Role::getName)
+                    .map(Role::getCode)
                     .collect(Collectors.toList());
             extraClaims.put("roles", roles);
         }

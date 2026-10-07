@@ -22,5 +22,5 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             String fullNamePattern,
             Pageable pageable
     );
-
+    Optional<Permission> findByCode(String code);
 }

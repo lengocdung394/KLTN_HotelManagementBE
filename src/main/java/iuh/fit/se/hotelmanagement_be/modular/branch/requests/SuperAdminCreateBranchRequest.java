@@ -1,5 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.requests;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.AdminAccountRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ManagerAccountRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
@@ -17,10 +20,19 @@ public class SuperAdminCreateBranchRequest {
     @NotBlank(message = "Địa chỉ không được để trống")
     String address;
 
-    @NotBlank(message = "Số điện thoại không được để trống")
-    @Pattern(regexp = "^\\+?[0-9. ()-]{10,25}$", message = "Số điện thoại không hợp lệ")
+    @NotBlank(message = "Số điện thoại chi nhánh không được để trống")
+    @Pattern(
+            regexp = "^\\+?[0-9. ()-]{10,25}$",
+            message = "Số điện thoại chi nhánh không hợp lệ"
+    )
     String phone;
 
     @NotBlank(message = "Tên tỉnh/thành phố không được để trống")
     String provinceName;
+
+    @Valid
+    AdminAccountRequest adminAccount;
+
+    @Valid
+    ManagerAccountRequest managerAccount;
 }

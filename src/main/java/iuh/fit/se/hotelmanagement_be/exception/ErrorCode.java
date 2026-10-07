@@ -133,8 +133,10 @@ public enum ErrorCode {
     INVALID_ROOM_POLICY_DATA(1010, "Mỗi loại phòng cần đủ giá, diện tích, sức chứa và phụ thu", HttpStatus.BAD_REQUEST),
     DUPLICATE_ROOM_POLICY_TYPE(1011, "Không được gửi trùng loại phòng", HttpStatus.BAD_REQUEST),
     INVALID_ROOM_POLICY_COUNT(1012, "Cần cấu hình chính xác cho đúng 4 loại phòng", HttpStatus.BAD_REQUEST),
-    INVALID_ROOM_POLICY_TYPES(1013, "Danh sách loại phòng không hợp lệ. Phải bao gồm đủ 4 loại phòng quy định", HttpStatus.BAD_REQUEST);
+    INVALID_ROOM_POLICY_TYPES(1013, "Danh sách loại phòng không hợp lệ. Phải bao gồm đủ 4 loại phòng quy định", HttpStatus.BAD_REQUEST),
     //HOTEL_NOT_FOUND(1014, "Không tìm thấy khách sạn", HttpStatus.NOT_FOUND);
+    ROLE_NOT_FOUND(1014, "Khong tim thay role", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_FOUND(1015, "Khong tim thay permisison", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

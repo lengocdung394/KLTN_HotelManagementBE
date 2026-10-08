@@ -1,9 +1,13 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CreateRoleRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportPermissionCatalogRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportRolePermissionsRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.PermissionCatalogItemRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.PermissionCatalogResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.RolePermissionOverviewResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.RoleResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.PermissionCatalogService;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.RolePermissionService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
@@ -23,7 +27,9 @@ import java.util.List;
 public class RolePermissionController {
 
     RolePermissionService roleService;
+    PermissionCatalogService permissionCatalogService;
 
+    // lay tat ca role
     @GetMapping("/roles")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ApiResponse<List<RoleResponse>> getRoles() {
@@ -34,6 +40,7 @@ public class RolePermissionController {
         );
     }
 
+    // tao role
     @PostMapping("/roles")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ApiResponse<RoleResponse> createRole(
@@ -45,6 +52,7 @@ public class RolePermissionController {
         );
     }
 
+    // lay tat ca permisison thuoc role
     @GetMapping("/roles/permissions")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ApiResponse<List<RolePermissionOverviewResponse>> getRolePermissions() {
@@ -55,6 +63,7 @@ public class RolePermissionController {
         );
     }
 
+    // import bang file cho permisison vao role
     @PostMapping("/roles/permissions/import")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ApiResponse<List<RolePermissionOverviewResponse>> importRolePermissions(
@@ -66,6 +75,7 @@ public class RolePermissionController {
         );
     }
 
+    // xoa permisison khoi role
     @DeleteMapping("/roles/{roleCode}/permissions/{permissionCode}")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Void> removePermissionFromRole(
@@ -75,6 +85,7 @@ public class RolePermissionController {
         return ResponseEntity.noContent().build();
     }
 
+    // them permisison vao role
     @PostMapping("/roles/{roleCode}/permissions/{permissionCode}")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Void> addPermissionToRole(@PathVariable String roleCode, @PathVariable String permissionCode) {
@@ -82,5 +93,42 @@ public class RolePermissionController {
         return ResponseEntity.noContent().build();
     }
 
+    // lay tat ca ds permission
+    @GetMapping("/permissions")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<List<PermissionCatalogResponse
+            >> getPermissions() {
+        return new ApiResponse<>(
+                200,
+                "Success",
+                permissionCatalogService.getPermissions()
+        );
+    }
+
+    // them le permission
+    @PostMapping("/permissions")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<PermissionCatalogResponse> createPermission(
+            @Valid @RequestBody PermissionCatalogItemRequest request
+    ) {
+        return new ApiResponse<>(
+                201,
+                "Permission created",
+                permissionCatalogService.createPermission(request)
+        );
+    }
+
+    // import permission bang file
+    @PostMapping("/permissions/import")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<List<PermissionCatalogResponse>> importPermissions(
+            @Valid @RequestBody ImportPermissionCatalogRequest request
+    ) {
+        return new ApiResponse<>(
+                200,
+                "Permissions imported",
+                permissionCatalogService.importPermissions(request)
+        );
+    }
 
 }

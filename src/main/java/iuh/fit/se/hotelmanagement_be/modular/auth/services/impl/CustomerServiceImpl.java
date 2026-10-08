@@ -41,6 +41,7 @@ public class CustomerServiceImpl implements CustomerService {
     RoleRepository roleRepository;
     PasswordEncoder passwordEncoder;
     CustomerSocketEmitter customerSocketEmitter;
+    AccountSocketEmitter accountSocketEmitter;
 
     @Override
     public CustomerResponse createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
@@ -67,9 +68,12 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setRegistered(false);
         customer.setAccount(null);
 
-        Customer savedCustomer = customerRepository.save(customer);
 
+        Customer savedCustomer = customerRepository.save(customer);
+        // ban socket khi khach hang vai lai o mot chi nhanh
         customerSocketEmitter.emitCustomerCreated(hotelId, customer);
+
+        accountSocketEmitter.emitGuestCustomerCreated(savedCustomer.getId(), hotelId);
 
         return toCustomerResponse(savedCustomer);
     }
@@ -237,6 +241,12 @@ public class CustomerServiceImpl implements CustomerService {
         Customer savedCustomer =
                 customerRepository.save(customer);
 
+        // ban socket khi ma tao tai khoan
+        accountSocketEmitter.emitAccountCreated(
+                savedCustomer.getAccount().getId(),
+                savedCustomer.getId(),
+                "CUSTOMER",
+                null);
         otpService.clearOtp(request.getEmail());
 
         return UserResponse.builder()

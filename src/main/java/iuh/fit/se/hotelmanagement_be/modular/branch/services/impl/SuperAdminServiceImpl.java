@@ -9,6 +9,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.AccountSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
@@ -59,6 +60,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     AccountRepository accountRepository;
     EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
+    AccountSocketEmitter accountSocketEmitter;
 
     // Ham tra ve ds tinh moi tinh - kem theo list khach san
     @Override
@@ -236,7 +238,11 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .build();
 
         employeeRepository.save(managerEmployee);
-
+        accountSocketEmitter.emitAccountCreated(
+                adminEmployee.getAccount().getId(), adminEmployee.getId(), "STAFF", hotel.getId());
+        accountSocketEmitter.emitAccountCreated(
+                managerEmployee.getAccount().getId(), managerEmployee.getId(), "STAFF", hotel.getId());
+        accountSocketEmitter.emitBranchCreated(hotel.getId(), hotel.getName());
         return summarizeBranch(hotel);
     }
 

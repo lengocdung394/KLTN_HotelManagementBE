@@ -26,4 +26,6 @@ public interface RoleRepository  extends JpaRepository<Role,Long> {
     );
 
     boolean existsByPermissions_Id(Long permissionId);
+    Optional<Role> findByCode(String code);
+    boolean existsByCode(String code);
 }

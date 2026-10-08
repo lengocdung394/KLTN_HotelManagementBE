@@ -52,7 +52,8 @@ public enum ErrorCode {
     UNAUTHORIZED_PROMOTION(5012, "[5012] You do not have permission to use this promotion code", HttpStatus.FORBIDDEN),
 
     PROMOTION_ALREADY_USED(5007, "[5007] This exclusive promotion code has already been used", HttpStatus.BAD_REQUEST),
-
+    // PROVINCE
+    PROVINCE_NOT_FOUND(6001, "[6001] Province not found", HttpStatus.NOT_FOUND),
     PROMOTION_OUT_OF_STOCK(5009, "[5009] Promotion code usage limit has been reached", HttpStatus.BAD_REQUEST),
     PROMOTION_MIN_ORDER_NOT_MET(5010, "[5010] Order value does not meet the minimum requirement for this promotion", HttpStatus.BAD_REQUEST),
     PROMOTION_INACTIVE(5011, "[5011] Promotion is currently not active", HttpStatus.BAD_REQUEST),
@@ -119,8 +120,29 @@ public enum ErrorCode {
     INVALID_IMAGE_FORMAT(1006, "Định dạng ảnh không hợp lệ (Chỉ hỗ trợ file ảnh định dạng JPG, JPEG, PNG, WEBP)", HttpStatus.BAD_REQUEST),
     IMAGE_SIZE_TOO_LARGE(1007, "Dung lượng ảnh vượt quá giới hạn cho phép (Tối đa 5MB cho mỗi file)", HttpStatus.BAD_REQUEST),
     // --- THÊM LỖI NÀY VÀO ---
-    UNAUTHORIZED_BRANCH_ACCESS(1003, "Bạn không có quyền tạo hoặc thao tác khuyến mãi trên chi nhánh khác", HttpStatus.FORBIDDEN);
+    UNAUTHORIZED_BRANCH_ACCESS(1003, "Bạn không có quyền tạo hoặc thao tác khuyến mãi trên chi nhánh khác", HttpStatus.FORBIDDEN),
+    // Ví dụ các ErrorCode cho phần Branch/Province
+    INVALID_BRANCH_NAME(1001, "Tên chi nhánh không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_ADDRESS(1002, "Địa chỉ không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_PHONE(1003, "Số điện thoại không hợp lệ hoặc không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_PROVINCE_NAME(1004, "Tên tỉnh/thành phố không được để trống", HttpStatus.BAD_REQUEST),
+    ADDRESS_EXISTED(1008, "Địa chỉ này đã có chi nhánh sử dụng", HttpStatus.BAD_REQUEST),
+    BRANCH_EXISTED(1008, "chi nhanh  này đã có chi nhánh sử dụng", HttpStatus.BAD_REQUEST),
 
+    ROOM_POLICY_REQUIRED(1009, "Cần gửi ít nhất một cấu hình loại phòng", HttpStatus.BAD_REQUEST),
+    INVALID_ROOM_POLICY_DATA(1010, "Mỗi loại phòng cần đủ giá, diện tích, sức chứa và phụ thu", HttpStatus.BAD_REQUEST),
+    DUPLICATE_ROOM_POLICY_TYPE(1011, "Không được gửi trùng loại phòng", HttpStatus.BAD_REQUEST),
+    INVALID_ROOM_POLICY_COUNT(1012, "Cần cấu hình chính xác cho đúng 4 loại phòng", HttpStatus.BAD_REQUEST),
+    INVALID_ROOM_POLICY_TYPES(1013, "Danh sách loại phòng không hợp lệ. Phải bao gồm đủ 4 loại phòng quy định", HttpStatus.BAD_REQUEST),
+    //HOTEL_NOT_FOUND(1014, "Không tìm thấy khách sạn", HttpStatus.NOT_FOUND);
+    ROLE_NOT_FOUND(1014, "Khong tim thay role", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_FOUND(1015, "Khong tim thay permisison", HttpStatus.BAD_REQUEST),
+    PERMISSION_EXIST(1015, " permisison đã tồn tại trước đó", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_CATEGORY(1016, "permisison phai co kem theo phaan loai", HttpStatus.BAD_REQUEST),
+    ROLE_NOT_PERMISSION(1017, "Vai trò (role) không có phân quyền nào (Permisison)", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_NAME(1018,"Phân quyền phải có tên", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_CODE(1018,"Phân quyền phải có code", HttpStatus.BAD_REQUEST),
+    PERMISSION_CODE_NOTVALID(1019, "Mã phân quyền không hợp lệ", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

@@ -15,5 +15,6 @@ public class PermissionAssignmentRequest {
     String code;
     @NotBlank String name;
     String description;
+    String category;
     boolean granted;
 }

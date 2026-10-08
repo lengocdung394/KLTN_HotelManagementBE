@@ -17,6 +17,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.services.RolePermissionService
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.boot.task.ThreadPoolTaskExecutorBuilder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -24,12 +25,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class RolePermissionPermissionServiceImpl implements RolePermissionService {
     RoleRepository roleRepository;
     PermissionRepository permissionRepository;
+    private final ThreadPoolTaskExecutorBuilder threadPoolTaskExecutorBuilder;
 
     @Override
     public RoleResponse createRole(CreateRoleRequest request) {
@@ -88,9 +91,7 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
             }
 
             Role role = roleRepository.findByCode(roleCode)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy role " + roleCode
-                    ));
+                    .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
             Set<String> processedPermissionCodes = new HashSet<>();
             Set<Permission> grantedPermissions = new HashSet<>();
@@ -99,21 +100,23 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
                 String permissionCode = item.getCode().trim().toUpperCase(Locale.ROOT);
 
                 if (!permissionCode.matches("^[A-Z][A-Z0-9_.:-]*$")) {
-                    throw new IllegalArgumentException(
-                            "Mã quyền không hợp lệ: " + permissionCode
-                    );
+                    throw new AppException(ErrorCode.PERMISSION_CODE_NOTVALID);
                 }
 
                 if (!processedPermissionCodes.add(permissionCode)) {
-                    throw new IllegalArgumentException(
-                            "Quyền " + permissionCode + " bị lặp trong role " + roleCode
-                    );
+                    throw new AppException(ErrorCode.PERMISSION_EXIST);
+                }
+
+                if (item.getCategory().isEmpty()) {
+                    throw new AppException(ErrorCode.PERMISSION_NOT_CATEGORY);
                 }
 
                 Permission permission = permissionRepository.findByCode(permissionCode)
                         .orElseGet(() -> {
                             Permission newPermission = new Permission();
+                            newPermission.setName(item.getName());
                             newPermission.setCode(permissionCode);
+                            newPermission.setCategory(item.getCategory());
                             return newPermission;
                         });
 
@@ -121,6 +124,7 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
                 permission.setDescription(
                         item.getDescription() == null ? "" : item.getDescription().trim()
                 );
+                permission.setCategory(item.getCategory());
 
                 Permission savedPermission = permissionRepository.save(permission);
 
@@ -153,6 +157,7 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
                                     permission.getCode(),
                                     permission.getName(),
                                     permission.getDescription(),
+                                    permission.getCategory(),
                                     assignedCodes.contains(permission.getCode())
                             ))
                             .toList();

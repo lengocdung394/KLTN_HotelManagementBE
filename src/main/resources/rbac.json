@@ -3,17 +3,20 @@
     {
       "code": "ROLE_MANAGE",
       "name": "Quản lý role",
-      "description": "Tạo và xem role"
+      "description": "Tạo và xem role",
+      "category": "Quản trị phân quyền"
     },
     {
       "code": "PERMISSION_MANAGE",
       "name": "Quản lý phân quyền",
-      "description": "Nhập và gán permission"
+      "description": "Nhập và gán permission",
+      "category": "Quản trị phân quyền"
     },
     {
       "code": "BRANCH_CREATE",
       "name": "Tạo chi nhánh",
-      "description": "Tạo chi nhánh và tài khoản ban đầu"
+      "description": "Tạo chi nhánh và tài khoản ban đầu",
+      "category": "Quản lý chi nhánh"
     }
   ]
 }

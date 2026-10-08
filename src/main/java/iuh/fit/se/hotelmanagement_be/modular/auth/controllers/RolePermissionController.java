@@ -5,6 +5,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportPermissionCatal
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportRolePermissionsRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.PermissionCatalogItemRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.PermissionCatalogResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.PermissionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.RolePermissionOverviewResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.RoleResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.PermissionCatalogService;
@@ -108,7 +109,7 @@ public class RolePermissionController {
     // them le permission
     @PostMapping("/permissions")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ApiResponse<PermissionCatalogResponse> createPermission(
+    public ApiResponse<PermissionResponse> createPermission(
             @Valid @RequestBody PermissionCatalogItemRequest request
     ) {
         return new ApiResponse<>(

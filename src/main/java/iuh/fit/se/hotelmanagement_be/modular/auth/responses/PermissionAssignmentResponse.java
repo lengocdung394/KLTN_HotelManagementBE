@@ -15,5 +15,6 @@ public class PermissionAssignmentResponse {
     String code;
     String name;
     String description;
+    String category;
     boolean granted;
 }

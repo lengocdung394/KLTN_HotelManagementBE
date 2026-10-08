@@ -18,4 +18,5 @@ public class PermissionCatalogItemRequest {
     String name;
 
     String description;
+    String category;
 }

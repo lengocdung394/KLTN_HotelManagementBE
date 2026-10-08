@@ -9,12 +9,14 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PermissionAssignmentRequest {
+public class PermissionCatalogItemRequest {
 
     @NotBlank
     String code;
-    @NotBlank String name;
+
+    @NotBlank
+    String name;
+
     String description;
     String category;
-    boolean granted;
 }

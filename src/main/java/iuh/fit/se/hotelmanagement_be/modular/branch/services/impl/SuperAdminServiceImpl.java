@@ -169,10 +169,10 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                         "Không tìm thấy tỉnh/thành: " + request.getProvinceName()
                 ));
 
-        Role adminRole = roleRepository.findByName("ROLE_ADMIN")
+        Role adminRole = roleRepository.findByCode("ROLE_ADMIN")
                 .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_ADMIN"));
 
-        Role managerRole = roleRepository.findByName("ROLE_MANAGER")
+        Role managerRole = roleRepository.findByCode("ROLE_MANAGER")
                 .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_MANAGER"));
 
         Hotel hotel = hotelRepository.save(Hotel.builder()

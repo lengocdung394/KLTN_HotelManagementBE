@@ -10,11 +10,10 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PermissionAssignmentResponse {
-
-    String code;
+public class PermissionResponse {
+    Long id;
     String name;
     String description;
+    String code;
     String category;
-    boolean granted;
 }

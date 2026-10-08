@@ -136,7 +136,13 @@ public enum ErrorCode {
     INVALID_ROOM_POLICY_TYPES(1013, "Danh sách loại phòng không hợp lệ. Phải bao gồm đủ 4 loại phòng quy định", HttpStatus.BAD_REQUEST),
     //HOTEL_NOT_FOUND(1014, "Không tìm thấy khách sạn", HttpStatus.NOT_FOUND);
     ROLE_NOT_FOUND(1014, "Khong tim thay role", HttpStatus.BAD_REQUEST),
-    PERMISSION_NOT_FOUND(1015, "Khong tim thay permisison", HttpStatus.BAD_REQUEST);
+    PERMISSION_NOT_FOUND(1015, "Khong tim thay permisison", HttpStatus.BAD_REQUEST),
+    PERMISSION_EXIST(1015, " permisison đã tồn tại trước đó", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_CATEGORY(1016, "permisison phai co kem theo phaan loai", HttpStatus.BAD_REQUEST),
+    ROLE_NOT_PERMISSION(1017, "Vai trò (role) không có phân quyền nào (Permisison)", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_NAME(1018,"Phân quyền phải có tên", HttpStatus.BAD_REQUEST),
+    PERMISSION_NOT_CODE(1018,"Phân quyền phải có code", HttpStatus.BAD_REQUEST),
+    PERMISSION_CODE_NOTVALID(1019, "Mã phân quyền không hợp lệ", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

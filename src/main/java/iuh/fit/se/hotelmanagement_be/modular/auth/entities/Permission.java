@@ -27,4 +27,8 @@ public class Permission {
     private String name;
 
     private String description;
+
+
+    private String category;
+
 }

@@ -1,5 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.config.rbac;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
@@ -65,15 +67,11 @@ public class RbacInitializer implements CommandLineRunner {
             if (configured == null
                     || configured.getCode() == null
                     || configured.getCode().isBlank()) {
-                throw new IllegalStateException(
-                        "Permission nền tảng phải có code"
-                );
+                throw new AppException(ErrorCode.PERMISSION_NOT_CODE);
             }
 
             if (configured.getName() == null || configured.getName().isBlank()) {
-                throw new IllegalStateException(
-                        "Permission " + configured.getCode() + " phải có name"
-                );
+                throw new AppException(ErrorCode.PERMISSION_NOT_NAME);
             }
 
             String code = configured.getCode()
@@ -94,14 +92,17 @@ public class RbacInitializer implements CommandLineRunner {
                             ? ""
                             : configured.getDescription().trim()
             );
+            if (configured.getCategory() == null || configured.getCategory().isBlank()) {
+                throw new AppException(ErrorCode.PERMISSION_NOT_CATEGORY);
+            }
+
+            permission.setCategory(configured.getCategory().trim());
 
             permissions.add(permissionRepository.save(permission));
         }
 
         if (permissions.isEmpty()) {
-            throw new IllegalStateException(
-                    "Không có permission nền tảng hợp lệ cho Super Admin"
-            );
+            throw new AppException(ErrorCode.ROLE_NOT_PERMISSION);
         }
 
         return permissions;
@@ -112,24 +113,26 @@ public class RbacInitializer implements CommandLineRunner {
      * Không xóa các permission khác đã được gán cho role này.
      */
     private Role ensureSuperAdminRole(Set<Permission> bootstrapPermissions) {
-        Role role = roleRepository.findByName("Quan lí chi nhánh")
+        // Sửa lại: Tìm theo code thay vì name để đảm bảo chính xác tuyệt đối
+        Role role = roleRepository.findByCode(SUPER_ADMIN_ROLE)
                 .orElseGet(() -> Role.builder()
-                        .name("Quan lí chi nhánh")
+                        .name("Super Admin") // Tên hiển thị
                         .code(SUPER_ADMIN_ROLE)
                         .permissions(new HashSet<>())
                         .build()
                 );
 
-        Set<Permission> assignedPermissions = role.getPermissions() == null
-                ? new HashSet<>()
-                : new HashSet<>(role.getPermissions());
+        // Đảm bảo khởi tạo Set nếu đang null
+        if (role.getPermissions() == null) {
+            role.setPermissions(new HashSet<>());
+        }
 
-        assignedPermissions.addAll(bootstrapPermissions);
-        role.setPermissions(assignedPermissions);
+        // Thêm các quyền mới vào
+        role.getPermissions().addAll(bootstrapPermissions);
 
-        return roleRepository.save(role);
+        // Lưu và flush thẳng xuống DB để cập nhật bảng trung gian ngay lập tức
+        return roleRepository.saveAndFlush(role);
     }
-
     /**
      * Tạo tài khoản Super Admin nếu chưa có.
      * Nếu đã tồn tại thì giữ mật khẩu hiện tại và chỉ bổ sung role nếu cần.

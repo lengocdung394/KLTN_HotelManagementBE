@@ -10,14 +10,13 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomBed;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.*;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomTypeBedRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomBedRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomBedResponse;
@@ -51,6 +50,8 @@ public class RoomServiceImpl implements RoomService {
     AmenityRepository amenityRepository;
     CloudinaryService cloudinaryService;
     RoomTypeBedRepository roomTypeBedRepository;
+    BedTypeRepository bedTypeRepository;
+
     private final BranchRoomPolicyRepository branchRoomPolicyRepository;
     private final HotelRepository hotelRepository;
     RoomSocketEmitter roomSocketEmitter;
@@ -130,17 +131,6 @@ public class RoomServiceImpl implements RoomService {
                     .build());
         }
 
-        // 3. Upload ảnh mới và đưa tiếp vào danh sách sau ảnh cũ
-//        List<MultipartFile> validNewFiles = validateAndFilterImages(imageFiles, false);
-//        if (validNewFiles != null && !validNewFiles.isEmpty()) {
-//            List<String> uploadedNewUrls = cloudinaryService.uploadMultipleImages(validNewFiles, "room");
-//            for (String url : uploadedNewUrls) {
-//                finalRoomImages.add(RoomImage.builder()
-//                        .url(url)
-//                        .isDefault(false) // Tạm thời để false hết
-//                        .build());
-//            }
-//        }
         String branchName = "default-branch";
         if (newFloor.getBuilding() != null && newFloor.getBuilding().getHotel() != null) {
             branchName = newFloor.getBuilding().getHotel().getName();
@@ -195,6 +185,12 @@ public class RoomServiceImpl implements RoomService {
         // gia phong tieu chua
         room.setBasePrice(branchRoomPolicy.getBasePrice());
         // 7. Lưu thay đổi xuống CSDL
+
+        if (dto.getBeds() != null) {
+            replaceRoomBeds(room, dto.getBeds());
+        }
+
+       // 7. Lưu thay đổi xuống CSDL
         Room updatedRoom = roomRepository.save(room);
 
         RoomCreateResponse response = RoomCreateResponse.builder()
@@ -211,7 +207,10 @@ public class RoomServiceImpl implements RoomService {
                 .build();
 
         // 8. Bắn sự kiện qua Socket
-        roomSocketEmitter.emitRoomRoomUpdate(currentHotelId, updatedRoom);
+        roomSocketEmitter.emitRoomUpdated(roomHotelId, Map.of(
+                "roomId", updatedRoom.getId(),
+                "roomNumber", updatedRoom.getRoomNumber()
+        ));
         return response;
     }
 
@@ -311,6 +310,7 @@ public class RoomServiceImpl implements RoomService {
                 .build();
 
         Room savedRoom = roomRepository.save(newRoom);
+        replaceRoomBeds(savedRoom, dto.getBeds());
 
         BranchRoomPolicy branchRoomPolicy = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, savedRoom.getRoomType());
 
@@ -328,7 +328,11 @@ public class RoomServiceImpl implements RoomService {
 
                 .build();
         // ban su kien soc ket
-        roomSocketEmitter.emitRoomRoomCreate(userHotelId, savedRoom);
+        roomSocketEmitter.emitRoomCreated(floorHotelId, Map.of(
+                "roomId", savedRoom.getId(),
+                "roomNumber", savedRoom.getRoomNumber()
+        ));
+
         return response;
     }
 
@@ -380,6 +384,7 @@ public class RoomServiceImpl implements RoomService {
 
             // 3. Lấy danh sách giường theo RoomType (như phần trước)
             List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(room.getRoomType());
+
             List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
                     RoomBedResponse.builder()
                             .bedTypeName(rtb.getBedType().getName())
@@ -497,5 +502,56 @@ public class RoomServiceImpl implements RoomService {
         }
 
         return validFiles;
+    }
+
+    private List<RoomBedResponse> getBedsForRoom(Room room) {
+        List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomId(room.getId());
+        if (!roomBeds.isEmpty()) {
+            return roomBeds.stream().map(roomBed -> toBedResponse(
+                    roomBed.getBedType(), roomBed.getQuantity())).toList();
+        }
+        return roomTypeBedRepository.findByRoomType(room.getRoomType()).stream()
+                .map(roomTypeBed -> toBedResponse(roomTypeBed.getBedType(), roomTypeBed.getQuantity()))
+                .toList();
+    }
+
+    private RoomBedResponse toBedResponse(iuh.fit.se.hotelmanagement_be.modular.room.entities.BedType bedType, Integer quantity) {
+        return RoomBedResponse.builder()
+                .bedTypeName(bedType.getName())
+                .description(bedType.getDescription())
+                .quantity(quantity)
+                .capacity(bedType.getCapacity())
+                .isExtraBed(bedType.getIsExtraBed())
+                .build();
+    }
+
+
+    private void replaceRoomBeds(Room room, List<RoomBedRequest> requestedBeds) {
+        if (requestedBeds == null || requestedBeds.isEmpty()) {
+            throw new IllegalArgumentException("Vui lòng chọn ít nhất một loại giường cho phòng.");
+        }
+        Set<Long> bedTypeIds = new HashSet<>();
+        for (RoomBedRequest requestedBed : requestedBeds) {
+            if (requestedBed == null || requestedBed.getBedTypeId() == null
+                    || requestedBed.getQuantity() == null || requestedBed.getQuantity() < 1) {
+                throw new IllegalArgumentException("Mỗi loại giường cần có số lượng từ 1 trở lên.");
+            }
+            if (!bedTypeIds.add(requestedBed.getBedTypeId())) {
+                throw new IllegalArgumentException("Không được chọn trùng loại giường cho cùng một phòng.");
+            }
+        }
+        List<BedType> bedTypes = bedTypeRepository.findAllById(bedTypeIds);
+        if (bedTypes.size() != bedTypeIds.size()) {
+            throw new IllegalArgumentException("Có loại giường không tồn tại trong danh mục.");
+        }
+        Map<Long, BedType> bedTypesById = new HashMap<>();
+        bedTypes.forEach(bedType -> bedTypesById.put(bedType.getId(), bedType));
+        roomTypeBedRepository.deleteByRoomId(room.getId());
+        List<RoomBed> roomBeds = (List<RoomBed>) requestedBeds.stream().map(requestedBed -> RoomBed.builder()
+                .room(room)
+                .bedType(bedTypesById.get(requestedBed.getBedTypeId()))
+                .quantity(requestedBed.getQuantity())
+                .build()).toList();
+        roomTypeBedRepository.saveAll(roomBeds);
     }
 }

@@ -20,4 +20,6 @@ public interface RoomTypeBedRepository extends JpaRepository<RoomBed, Long> {
     // Bổ sung thêm hàm tìm theo ID phòng cụ thể (vì mỗi phòng giờ tự cấu hình giường riêng)
     @Query("SELECT rb FROM RoomBed rb WHERE rb.room.id = :roomId")
     List<RoomBed> findByRoomId(@Param("roomId") String roomId);
+
+    boolean deleteByRoomId(String roomId);
 }

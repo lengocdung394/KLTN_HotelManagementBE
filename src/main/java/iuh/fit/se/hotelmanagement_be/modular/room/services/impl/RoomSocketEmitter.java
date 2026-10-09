@@ -1,10 +1,15 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -12,29 +17,51 @@ import org.springframework.stereotype.Component;
 public class RoomSocketEmitter {
     private final SocketIOServer socketIOServer;
 
-    // su kien them thanh cong phong
+    private static final String SUPER_ADMIN_ROOM = "super_admin_accounts";
 
-
-    public void emitRoomRoomCreate(Long hotelId, Object roomData)
-    {
-
-        if (hotelId != null) {
-            String roomName = "hotel_" + hotelId;
-            socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("room_create", "DS phong duoc lam moi do co phong moi!");
-            log.info("🏢 [Room Socket] Đã gửi 'room_create' tới room chi nhánh: {}",roomData);
-        }
+    public void emitRoomCreated(Long hotelId, Object roomData) {
+        emitRoomChanged(hotelId, "CREATED", roomData);
     }
 
-    public void emitRoomRoomUpdate(Long hotelId, Object roomData)
-    {
+    public void emitRoomUpdated(Long hotelId, Object roomData) {
+        emitRoomChanged(hotelId, "UPDATED", roomData);
+    }
 
-        if (hotelId != null) {
-            String roomName = "hotel_" + hotelId;
-            socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("room_update", "DS phong duoc lam moi do co phong duoc update!");
-            log.info("🏢 [Rooom Socket] Đã gửi 'room_update' tới room chi nhánh: {}",roomData);
+    public void emitRoomsImported(Long hotelId, int count) {
+        emitRoomChanged(hotelId, "IMPORTED", Map.of("count", count));
+    }
+
+    private void emitRoomChanged(Long hotelId, String action, Object roomData) {
+        if (hotelId == null) {
+            log.warn("Cannot emit room change event without hotelId");
+            return;
+        }
+        String event = "UPDATED".equals(action) ? "room_update" : "room_create";
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("hotelId", hotelId);
+        payload.put("action", action);
+        payload.put("data", roomData);
+        payload.put("occurredAt", Instant.now().toString());
+
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations("hotel_" + hotelId).sendEvent(event, payload);
+                socketIOServer.getRoomOperations(SUPER_ADMIN_ROOM).sendEvent(event, payload);
+                log.info("Emitted {} ({}) to hotel_{} and {}", event, action, hotelId, SUPER_ADMIN_ROOM);
+            } catch (RuntimeException exception) {
+                log.error("Could not emit {} ({}) for hotel {}", event, action, hotelId, exception);
+            }
+        };
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
+        } else {
+            emit.run();
         }
     }
-    // su kien cap nhat thanh cong phong
 }

@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.requests;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomBed;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.validation.constraints.Min;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.util.List;
 import java.util.Set;
 
 @Data
@@ -36,4 +38,6 @@ public class RoomCreateRequest {
 
     @Schema(description = "Danh sách ID các tiện ích được chọn", example = "[1, 2, 5]")
     Set<Long> amenityIds;
+
+    List<RoomBedRequest> beds;
 }

@@ -16,6 +16,7 @@ public class RoomExcelRawRequest {
     String floorId;
     String roomType;
     String roomStatus;
+    List<RoomBedImportRequest> beds;
     List<Long> amenityIds;
     List<String> imageUrls;
 

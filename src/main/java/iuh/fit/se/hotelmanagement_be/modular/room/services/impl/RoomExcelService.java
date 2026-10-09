@@ -4,13 +4,13 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.*;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomTypeBedRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelRawRequest;
 import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
 import lombok.AccessLevel;
@@ -18,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URI;
 import java.util.*;
@@ -33,7 +35,10 @@ public class RoomExcelService {
     AmenityRepository amenityRepository;
     RoomRepository roomRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
-
+    RoomTypeBedRepository roomBedRepository;
+    BedTypeRepository bedTypeRepository;
+    PlatformTransactionManager transactionManager;
+    RoomImportSocketEmitter roomImportSocketEmitter;
     Map<String, ImportTaskStatus> taskStatusMap = new ConcurrentHashMap<>();
 
     public String startAsyncRoomImport(iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel.RoomExcelImportRequest request, Long hotelId) {
@@ -43,6 +48,7 @@ public class RoomExcelService {
 
         String taskId = UUID.randomUUID().toString();
         taskStatusMap.put(taskId, new ImportTaskStatus(0, "Đang khởi tạo tiến trình nhập phòng...", "PROCESSING"));
+        roomImportSocketEmitter.emitImportProgress(hotelId, taskId, 0, "Đang khởi tạo tiến trình nhập phòng...", "PROCESSING", List.of(), false);
         CompletableFuture.runAsync(() -> processRoomImportTask(taskId, request, hotelId));
         return taskId;
     }
@@ -55,9 +61,11 @@ public class RoomExcelService {
         List<Map<String, Object>> details = new ArrayList<>();
         List<Room> roomsToSave = new ArrayList<>();
         Set<String> roomKeys = new HashSet<>();
+        List<RoomBed> roomBedsToSave = new ArrayList<>();
         int total = request.getRooms().size();
 
         taskStatusMap.put(taskId, new ImportTaskStatus(5, "Đang kiểm tra URL ảnh và dữ liệu phòng...", "PROCESSING"));
+        roomImportSocketEmitter.emitImportProgress(hotelId, taskId, 5, "Đang kiểm tra URL ảnh và dữ liệu phòng...", "PROCESSING", details, false);
         try {
             for (int index = 0; index < total; index++) {
                 RoomExcelRawRequest item = request.getRooms().get(index);
@@ -66,12 +74,11 @@ public class RoomExcelService {
 
                 try {
                     if (roomNumber.isBlank()) throw new IllegalArgumentException("Thiếu số phòng.");
-                    if (item.getFloorId() == null || item.getFloorId().isBlank()) throw new IllegalArgumentException("Thiếu ID tầng hợp lệ.");
+                    if (item.getFloorId() == null || item.getFloorId().isBlank())
+                        throw new IllegalArgumentException("Thiếu ID tầng hợp lệ.");
 
-                    Floor floor = floorRepository.findByIdAndBuilding_Hotel_Id(item.getFloorId(), hotelId)
-                            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tầng hoặc tầng không thuộc khách sạn của tài khoản."));
-                    if (!roomKeys.add(item.getFloorId() + ":" + roomNumber)
-                            || roomRepository.existsByFloorIdAndRoomNumber(item.getFloorId(), roomNumber)) {
+                    Floor floor = floorRepository.findByIdAndBuilding_Hotel_Id(item.getFloorId(), hotelId).orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tầng hoặc tầng không thuộc khách sạn của tài khoản."));
+                    if (!roomKeys.add(item.getFloorId() + ":" + roomNumber) || roomRepository.existsByFloorIdAndRoomNumber(item.getFloorId(), roomNumber)) {
                         throw new IllegalArgumentException("Số phòng đã tồn tại ở tầng này.");
                     }
 
@@ -86,55 +93,71 @@ public class RoomExcelService {
                     }
 
                     List<Long> amenityIds = item.getAmenityIds() == null ? List.of() : item.getAmenityIds();
-                    List<Amenity> foundAmenities = amenityIds.isEmpty()
-                            ? List.of()
-                            : amenityRepository.findAllById(amenityIds);
+                    List<Amenity> foundAmenities = amenityIds.isEmpty() ? List.of() : amenityRepository.findAllById(amenityIds);
                     if (foundAmenities.size() != new HashSet<>(amenityIds).size()) {
                         throw new IllegalArgumentException("Có tiện ích không tồn tại trong danh mục.");
                     }
+
+                    Set<Long> bedTypeIds = new HashSet<>();
+                    for (var bed : item.getBeds()) {
+                        if (bed == null || bed.getBedTypeId() == null || bed.getQuantity() == null || bed.getQuantity() < 1) {
+                            throw new IllegalArgumentException("Mỗi loại giường cần ID hợp lệ và số lượng từ 1 trở lên.");
+                        }
+                        if (!bedTypeIds.add(bed.getBedTypeId())) {
+                            throw new IllegalArgumentException("Không được khai báo trùng loại giường cho cùng một phòng.");
+                        }
+                    }
+                    // Phan loai giuong
+                    List<BedType> foundBedTypes = bedTypeRepository.findAllById(bedTypeIds);
+                    if (foundBedTypes.size() != bedTypeIds.size()) {
+                        throw new IllegalArgumentException("Có loại giường không tồn tại trong danh mục.");
+                    }
+                    Map<Long, BedType> bedTypesById = new HashMap<>();
+                    foundBedTypes.forEach(bedType -> bedTypesById.put(bedType.getId(), bedType));
+
 
                     BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, roomType);
                     Double basePrice = policy == null || policy.getBasePrice() == null ? 0.0 : policy.getBasePrice();
                     List<RoomImage> roomImages = new ArrayList<>();
                     for (int imageIndex = 0; imageIndex < imageUrls.size(); imageIndex++) {
-                        roomImages.add(RoomImage.builder()
-                                .url(imageUrls.get(imageIndex))
-                                .isDefault(imageIndex == 0)
-                                .build());
+                        roomImages.add(RoomImage.builder().url(imageUrls.get(imageIndex)).isDefault(imageIndex == 0).build());
                     }
 
-                    roomsToSave.add(Room.builder()
-                            .floor(floor)
-                            .roomNumber(roomNumber)
-                            .roomType(roomType)
-                            .roomStatus(roomStatus)
-                            .basePrice(basePrice)
-                            .avatarUrl(roomImages)
-                            .amenities(new HashSet<>(foundAmenities))
-                            .build());
+
+                    Room room = Room.builder().floor(floor).roomNumber(roomNumber).roomType(roomType).roomStatus(roomStatus).basePrice(basePrice).avatarUrl(roomImages).amenities(new HashSet<>(foundAmenities)).build();
+                    roomsToSave.add(room);
+
+
+                    item.getBeds().forEach(bed -> roomBedsToSave.add(RoomBed.builder().room(room).bedType(bedTypesById.get(bed.getBedTypeId())).quantity(bed.getQuantity()).build()));
+
                     details.add(detail(rowNumber, roomNumber, "SUCCESS", "Đã kiểm tra."));
                 } catch (RuntimeException error) {
                     details.add(detail(rowNumber, roomNumber, "FAILED", error.getMessage()));
                 }
 
                 int percent = 10 + (int) (((index + 1) / (double) total) * 75);
-                taskStatusMap.put(taskId, new ImportTaskStatus(percent,
-                        "Đang ánh xạ phòng và URL ảnh (" + (index + 1) + "/" + total + ").",
-                        "PROCESSING", details));
+                taskStatusMap.put(taskId, new ImportTaskStatus(percent, "Đang ánh xạ phòng và URL ảnh (" + (index + 1) + "/" + total + ").", "PROCESSING", details));
+
+                roomImportSocketEmitter.emitImportProgress(hotelId, taskId, percent, "Đang ánh xạ phòng và URL ảnh (" + (index + 1) + "/" + total + ").", "PROCESSING", details, false);
             }
 
             if (!roomsToSave.isEmpty()) {
-                roomRepository.saveAll(roomsToSave);
+                new TransactionTemplate(transactionManager).executeWithoutResult(transactionStatus -> {
+                    roomRepository.saveAll(roomsToSave);
+                    roomBedRepository.saveAll(roomBedsToSave);
+                });
             }
             long failedCount = details.stream().filter(row -> "FAILED".equals(row.get("result"))).count();
             String status = roomsToSave.isEmpty() ? "FAILED" : "SUCCESS";
-            String message = roomsToSave.size() + "/" + total + " phòng đã được lưu."
-                    + (failedCount > 0 ? " Có " + failedCount + " dòng không hợp lệ." : "");
+            String message = roomsToSave.size() + "/" + total + " phòng đã được lưu." + (failedCount > 0 ? " Có " + failedCount + " dòng không hợp lệ." : "");
             taskStatusMap.put(taskId, new ImportTaskStatus(100, message, status, details));
+            roomImportSocketEmitter.emitImportProgress(hotelId, taskId, 100, message, status, details, true);
         } catch (Exception error) {
             log.error("Room import task {} failed", taskId, error);
-            taskStatusMap.put(taskId, new ImportTaskStatus(0,
-                    "Lỗi khi lưu dữ liệu phòng: " + error.getMessage(), "FAILED", details));
+            String message = "Lỗi khi lưu dữ liệu phòng: " + error.getMessage();
+            taskStatusMap.put(taskId, new ImportTaskStatus(0, message, "FAILED", details));
+            roomImportSocketEmitter.emitImportProgress(hotelId, taskId, 100, message, "FAILED", details, true);
+
         }
     }
 
@@ -147,21 +170,13 @@ public class RoomExcelService {
         if (value == null || value.isBlank()) return false;
         try {
             URI uri = URI.create(value);
-            return "https".equalsIgnoreCase(uri.getScheme())
-                    && "res.cloudinary.com".equalsIgnoreCase(uri.getHost())
-                    && uri.getPath() != null
-                    && uri.getPath().contains("/image/upload/");
+            return "https".equalsIgnoreCase(uri.getScheme()) && "res.cloudinary.com".equalsIgnoreCase(uri.getHost()) && uri.getPath() != null && uri.getPath().contains("/image/upload/");
         } catch (IllegalArgumentException error) {
             return false;
         }
     }
 
     private static Map<String, Object> detail(int rowNumber, String roomNumber, String result, String message) {
-        return Map.of(
-                "rowNumber", rowNumber,
-                "roomNumber", roomNumber,
-                "result", result,
-                "message", message == null || message.isBlank() ? result : message
-        );
+        return Map.of("rowNumber", rowNumber, "roomNumber", roomNumber, "result", result, "message", message == null || message.isBlank() ? result : message);
     }
 }

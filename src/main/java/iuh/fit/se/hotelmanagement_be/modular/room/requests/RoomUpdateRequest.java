@@ -37,4 +37,8 @@ public class RoomUpdateRequest {
 
     @Schema(description = "Danh sách ID các tiện ích được chọn", example = "[1, 2, 5]")
     Set<Long> amenityIds;
+
+
+    List<RoomBedRequest> beds;
+
 }

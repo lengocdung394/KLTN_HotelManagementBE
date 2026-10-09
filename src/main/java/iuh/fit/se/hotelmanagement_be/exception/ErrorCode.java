@@ -142,7 +142,15 @@ public enum ErrorCode {
     ROLE_NOT_PERMISSION(1017, "Vai trò (role) không có phân quyền nào (Permisison)", HttpStatus.BAD_REQUEST),
     PERMISSION_NOT_NAME(1018,"Phân quyền phải có tên", HttpStatus.BAD_REQUEST),
     PERMISSION_NOT_CODE(1018,"Phân quyền phải có code", HttpStatus.BAD_REQUEST),
-    PERMISSION_CODE_NOTVALID(1019, "Mã phân quyền không hợp lệ", HttpStatus.BAD_REQUEST);
+    PERMISSION_CODE_NOTVALID(1019, "Mã phân quyền không hợp lệ", HttpStatus.BAD_REQUEST),
+    BUILDING_ALREADY_EXISTS(1020, "Toa nha nay da ton tai", HttpStatus.BAD_REQUEST),
+    BUILDING_ID_ALREADY_EXISTS(1021,"Mã tòa nhà này đã tồn tai", HttpStatus.BAD_REQUEST),
+    BUILDING_NAME_REQUIRED(1022,"Tên tòa nhà không hợp lệ", HttpStatus.BAD_REQUEST),
+    BUILDING_ID_REQUIRED(1023,"Id của tòa nhà không hợp lệ", HttpStatus.BAD_REQUEST),
+    FLOOR_NUMBER_REQUIRED(1024, "Tầng không hợp lệ",HttpStatus.BAD_REQUEST),
+    BUILDING_NOT_FOUND(1025,"Tòa nhà không tồn tại", HttpStatus.BAD_REQUEST),
+    FLOOR_ALREADY_EXISTS(1026, "Tầng nhà đã tồn tại", HttpStatus.BAD_REQUEST),
+    FLOOR_NUMBER_ALREADY_EXISTS(1027, "Số tầng này đã tồn tại", HttpStatus.BAD_REQUEST);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

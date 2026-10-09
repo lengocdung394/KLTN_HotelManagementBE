@@ -5,7 +5,9 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.text.Normalizer;
 import java.util.List;
+import java.util.Locale;
 
 @EqualsAndHashCode(callSuper = false)
 @Data
@@ -31,17 +33,38 @@ public class Building {
     @JoinColumn(name = "hotel_id")
     @ManyToOne(fetch = FetchType.LAZY)
     Hotel hotel;
-    /**
-     * 💡 Tự động sinh mã tòa nhà theo chuẩn: H[hotelId]_[tên hoặc số thứ tự viết gọn]
-     * Ví dụ: Khách sạn ID 1, tòa tên "Tòa A" -> ID tự sinh: "H1_TOA_A" hoặc bạn có thể custom theo ý muốn.
-     */
+    public static String generateId(Long hotelId, String name) {
+        if (hotelId == null || name == null) {
+            return null;
+        }
+
+        String normalizedName = Normalizer.normalize(name.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd')
+                .replace('Đ', 'D')
+                .toUpperCase(Locale.ROOT);
+        String slug = normalizedName.replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (slug.isEmpty()) {
+            slug = "BUILDING_" + Integer.toUnsignedString(name.trim().hashCode(), 36)
+                    .toUpperCase(Locale.ROOT);
+        }
+
+        String prefix = "H" + hotelId + "_";
+        int maximumSlugLength = 50 - prefix.length();
+        if (slug.length() > maximumSlugLength) {
+            String suffix = "_" + Integer.toUnsignedString(slug.hashCode(), 36).toUpperCase(Locale.ROOT);
+            int prefixLength = maximumSlugLength - suffix.length();
+            slug = slug.substring(0, prefixLength).replaceAll("_+$", "") + suffix;
+        }
+
+        return prefix + slug;
+    }
+
     @PrePersist
-    @PreUpdate
     public void generateBuildingId() {
         if (this.hotel != null && this.hotel.getId() != null && this.name != null) {
-            // Chuyển tên tòa thành chữ hoa, bỏ dấu hoặc thay khoảng trắng bằng gạch dưới để làm mã gọn gàng
-            String normalizedName = this.name.trim().toUpperCase().replaceAll("\\s+", "_");
-            this.id = "H" + this.hotel.getId() + "_" + normalizedName;
+            this.id = generateId(this.hotel.getId(), this.name);
         }
     }
 }

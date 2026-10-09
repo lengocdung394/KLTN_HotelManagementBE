@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.config;
 
 import com.corundumstudio.socketio.AuthorizationResult;
 import com.corundumstudio.socketio.SocketIOServer;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +17,12 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 @Slf4j
 public class SocketIOConfig {
+    private  final  AccountRepository  accountRepository;
+
+    public SocketIOConfig(AccountRepository accountRepository) {
+        this.accountRepository = accountRepository;
+    }
+
     @Bean
     public JwtDecoder jwtDecoder() {
         // Đổi chuỗi bên dưới thành đúng cái Secret Key ký JWT trong file application.yml/properties của ông
@@ -70,6 +77,28 @@ public class SocketIOConfig {
                 log.info("Client joined hotel room: hotel_{}", hotelId);
             } else {
                 log.warn("join_hotel_room received with empty hotelId");
+            }
+        });
+
+        server.addEventListener("join_super_admin_accounts_room", String.class, (client, ignored, ackSender) -> {
+            String token = client.getHandshakeData().getSingleUrlParam("token");
+            log.info("Received join_super_admin_accounts_room request from client {}", client.getSessionId());
+            try {
+                Jwt jwt = jwtDecoder().decode(token);
+                boolean isSuperAdmin = jwt.getClaimAsStringList("roles") != null
+                        && jwt.getClaimAsStringList("roles").stream()
+                        .anyMatch(role -> "ROLE_SUPER_ADMIN".equals(role));
+                if (isSuperAdmin) {
+                    client.joinRoom("super_admin_accounts");
+                    log.info("Super admin {} joined room super_admin_accounts", jwt.getSubject());
+                } else {
+                    log.warn("Denied access to super admin account socket room for subject {}. JWT roles: {}",
+                            jwt.getSubject(), jwt.getClaimAsStringList("roles"));
+                }
+            } catch (JwtException e) {
+                log.warn("Denied access to super admin account socket room: invalid token");
+            } catch (RuntimeException e) {
+                log.error("Could not add client {} to super_admin_accounts room", client.getSessionId(), e);
             }
         });
         log.info("SocketIO Server started with join_user_room listener");

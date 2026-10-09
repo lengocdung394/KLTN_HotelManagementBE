@@ -6,7 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface  BuildingRepository extends JpaRepository<Building, Long> {
+public interface  BuildingRepository extends JpaRepository<Building, String> {
     List<Building> findByHotelId(Long hotelId);
     Optional<Building> findByHotelIdAndName(Long hotelId, String name);
+    Optional<Building> findByHotelIdAndNameIgnoreCase(Long hotelId, String name);
+    Optional<Building> findByIdAndHotelId(String buildingId,Long  hotelId);
 }

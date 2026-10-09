@@ -14,6 +14,7 @@ public class RoomBedRequest {
     @NotNull(message = "Loại giường không được để trống.")
     Long bedTypeId;
 
+
     @NotNull(message = "Số lượng giường không được để trống.")
     @Min(value = 1, message = "Số lượng giường tối thiểu là 1.")
     Integer quantity;

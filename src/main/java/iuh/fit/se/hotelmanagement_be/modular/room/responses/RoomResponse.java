@@ -27,7 +27,7 @@ public class RoomResponse {
     Double basePrice;
     Double totalAmenitiesPrice;
     Double totalPrice;
-
+    Double area;
     List<RoomBedResponse> beds;
     String defaultImageUrl;      // URL ảnh đại diện chính (isDefault = true)
     List<RoomImage> avatarUrl;   // Danh sách toàn bộ ảnh đã upload

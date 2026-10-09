@@ -32,6 +32,7 @@ public class ServiceImportSocketEmitter {
                 "status", status,
                 "completed", completed
         );
+        socketIOServer.getRoomOperations("super_admin_accounts").sendEvent("service_import_progress", payload);
         socketIOServer.getRoomOperations(roomName).sendEvent("service_import_progress", payload);
         log.info("Service import progress sent to {}: {}% ({})", roomName, percent, status);
     }

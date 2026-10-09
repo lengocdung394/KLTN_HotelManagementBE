@@ -31,7 +31,7 @@ public class RoomSocketEmitter {
         emitRoomChanged(hotelId, "IMPORTED", Map.of("count", count));
     }
 
-    private void emitRoomChanged(Long hotelId, String action, Object roomData) {
+    void emitRoomChanged(Long hotelId, String action, Object roomData) {
         if (hotelId == null) {
             log.warn("Cannot emit room change event without hotelId");
             return;

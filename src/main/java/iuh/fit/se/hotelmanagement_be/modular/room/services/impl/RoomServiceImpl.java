@@ -205,7 +205,7 @@ public class RoomServiceImpl implements RoomService {
                 .avatarUrl(updatedRoom.getAvatarUrl())
                 .amenities(updatedRoom.getAmenities())
                 .build();
-
+        roomSocketEmitter.emitRoomChanged(roomHotelId, "UPDATE", response);
         // 8. Bắn sự kiện qua Socket
         roomSocketEmitter.emitRoomUpdated(roomHotelId, Map.of(
                 "roomId", updatedRoom.getId(),
@@ -214,7 +214,6 @@ public class RoomServiceImpl implements RoomService {
         return response;
     }
 
-    // ham them phong
     @Transactional
     @Override
     public RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles) {
@@ -328,6 +327,8 @@ public class RoomServiceImpl implements RoomService {
 
                 .build();
         // ban su kien soc ket
+
+        roomSocketEmitter.emitRoomChanged(floorHotelId, "CREATE", response);
         roomSocketEmitter.emitRoomCreated(floorHotelId, Map.of(
                 "roomId", savedRoom.getId(),
                 "roomNumber", savedRoom.getRoomNumber()
@@ -383,7 +384,7 @@ public class RoomServiceImpl implements RoomService {
                     .orElse(null);
 
             // 3. Lấy danh sách giường theo RoomType (như phần trước)
-            List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(room.getRoomType());
+            List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomId(room.getId());
 
             List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
                     RoomBedResponse.builder()
@@ -406,6 +407,7 @@ public class RoomServiceImpl implements RoomService {
                     .roomStatus(room.getRoomStatus())
                     .basePrice(room.getBasePrice())
                     .roomType(room.getRoomType())
+                    .area(policy.getArea())
                     .avatarUrl(room.getAvatarUrl())
                     .amenities(room.getAmenities())
                     .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
@@ -504,54 +506,44 @@ public class RoomServiceImpl implements RoomService {
         return validFiles;
     }
 
-    private List<RoomBedResponse> getBedsForRoom(Room room) {
-        List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomId(room.getId());
-        if (!roomBeds.isEmpty()) {
-            return roomBeds.stream().map(roomBed -> toBedResponse(
-                    roomBed.getBedType(), roomBed.getQuantity())).toList();
+
+    private void replaceRoomBeds(Room room, List<RoomBedRequest> newBedRequests) {
+        // 1. Lấy danh sách giường cũ và xóa
+        List<RoomBed> existingBeds = roomTypeBedRepository.findByRoomId(room.getId());
+        if (existingBeds != null && !existingBeds.isEmpty()) {
+            roomTypeBedRepository.deleteAll(existingBeds);
+
+            // 👉 BỔ SUNG DÒNG NÀY ĐỂ ÉP XÓA NGAY LẬP TỨC TRƯỚC KHI INSERT
+            roomTypeBedRepository.flush();
         }
-        return roomTypeBedRepository.findByRoomType(room.getRoomType()).stream()
-                .map(roomTypeBed -> toBedResponse(roomTypeBed.getBedType(), roomTypeBed.getQuantity()))
-                .toList();
-    }
 
-    private RoomBedResponse toBedResponse(iuh.fit.se.hotelmanagement_be.modular.room.entities.BedType bedType, Integer quantity) {
-        return RoomBedResponse.builder()
-                .bedTypeName(bedType.getName())
-                .description(bedType.getDescription())
-                .quantity(quantity)
-                .capacity(bedType.getCapacity())
-                .isExtraBed(bedType.getIsExtraBed())
-                .build();
-    }
-
-
-    private void replaceRoomBeds(Room room, List<RoomBedRequest> requestedBeds) {
-        if (requestedBeds == null || requestedBeds.isEmpty()) {
-            throw new IllegalArgumentException("Vui lòng chọn ít nhất một loại giường cho phòng.");
+        if (newBedRequests == null || newBedRequests.isEmpty()) {
+            return;
         }
-        Set<Long> bedTypeIds = new HashSet<>();
-        for (RoomBedRequest requestedBed : requestedBeds) {
-            if (requestedBed == null || requestedBed.getBedTypeId() == null
-                    || requestedBed.getQuantity() == null || requestedBed.getQuantity() < 1) {
-                throw new IllegalArgumentException("Mỗi loại giường cần có số lượng từ 1 trở lên.");
+
+        // 2. Lấy thông tin các loại giường từ DB dựa trên ID
+        Set<Long> bedTypeIds = newBedRequests.stream()
+                .map(RoomBedRequest::getBedTypeId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        Map<Long, BedType> bedTypesById = bedTypeRepository.findAllById(bedTypeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(BedType::getId, bt -> bt));
+
+        // 3. Tạo các bản ghi RoomBed mới
+        List<RoomBed> newRoomBeds = new ArrayList<>();
+        for (RoomBedRequest req : newBedRequests) {
+            BedType bedType = bedTypesById.get(req.getBedTypeId());
+            if (bedType == null) {
+                throw new IllegalArgumentException("Loại giường với ID " + req.getBedTypeId() + " không tồn tại.");
             }
-            if (!bedTypeIds.add(requestedBed.getBedTypeId())) {
-                throw new IllegalArgumentException("Không được chọn trùng loại giường cho cùng một phòng.");
-            }
+            newRoomBeds.add(RoomBed.builder()
+                    .room(room)
+                    .bedType(bedType)
+                    .quantity(req.getQuantity())
+                    .build());
         }
-        List<BedType> bedTypes = bedTypeRepository.findAllById(bedTypeIds);
-        if (bedTypes.size() != bedTypeIds.size()) {
-            throw new IllegalArgumentException("Có loại giường không tồn tại trong danh mục.");
-        }
-        Map<Long, BedType> bedTypesById = new HashMap<>();
-        bedTypes.forEach(bedType -> bedTypesById.put(bedType.getId(), bedType));
-        roomTypeBedRepository.deleteByRoomId(room.getId());
-        List<RoomBed> roomBeds = (List<RoomBed>) requestedBeds.stream().map(requestedBed -> RoomBed.builder()
-                .room(room)
-                .bedType(bedTypesById.get(requestedBed.getBedTypeId()))
-                .quantity(requestedBed.getQuantity())
-                .build()).toList();
-        roomTypeBedRepository.saveAll(roomBeds);
+
+        // 4. Lưu xuống database
+        roomTypeBedRepository.saveAll(newRoomBeds);
     }
 }

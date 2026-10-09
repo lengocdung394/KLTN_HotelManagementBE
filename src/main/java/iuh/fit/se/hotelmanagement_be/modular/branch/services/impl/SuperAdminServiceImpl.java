@@ -17,7 +17,6 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Province;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.*;
-import iuh.fit.se.hotelmanagement_be.modular.branch.requests.BranchRoomPolicyRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateBranchRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateProvinceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminBranchDetailResponse;
@@ -26,7 +25,6 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminHotelRes
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminProvinceResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.services.SuperAdminService;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
 import lombok.AccessLevel;
@@ -61,6 +59,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
     AccountSocketEmitter accountSocketEmitter;
+    BranchSocketEmitter branchSocketEmitter;
 
     // Ham tra ve ds tinh moi tinh - kem theo list khach san
     @Override
@@ -84,63 +83,63 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         ).toList();
     }
 
-    @Override
-    @Transactional
-    public List<SuperAdminBranchDetailResponse.RoomPolicyItem> saveBranchRoomPolicies(
-            Long hotelId,
-            List<BranchRoomPolicyRequest> requests) {
-        Hotel hotel = hotelRepository.findById(hotelId)
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-
-        if (requests == null || requests.isEmpty()) {
-            throw new AppException(ErrorCode.ROOM_POLICY_REQUIRED);
-        }
-
-        // Nếu bạn muốn ép buộc phải đúng 4 loại phòng như ý bạn đề cập ở trên:
-        if (requests.size() != 4) {
-            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_COUNT);
-        }
-
-        if (requests.stream().anyMatch(request -> request == null || request.getRoomType() == null
-                || request.getBasePrice() == null || request.getArea() == null
-                || request.getExtraAdultFee() == null || request.getExtraChildFee() == null
-                || request.getStandardCapacity() == null || request.getMaxExtraGuests() == null)) {
-            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_DATA);
-        }
-
-        // Kiểm tra định nghĩa 4 loại phòng bắt buộc (bạn thay các giá trị enum RoomType cho đúng với code thực tế của bạn)
-        Set<RoomType> requiredTypes = Set.of(RoomType.STANDARD, RoomType.FAMILY, RoomType.SUITE, RoomType.DELUXE);
-        boolean hasAllTypes = requests.stream()
-                .map(BranchRoomPolicyRequest::getRoomType)
-                .allMatch(requiredTypes::contains);
-
-        if (!hasAllTypes) {
-            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_TYPES);
-        }
-
-        long distinctRoomTypes = requests.stream().map(BranchRoomPolicyRequest::getRoomType).distinct().count();
-        if (distinctRoomTypes != requests.size()) {
-            throw new AppException(ErrorCode.DUPLICATE_ROOM_POLICY_TYPE);
-        }
-
-        List<BranchRoomPolicy> savedPolicies = requests.stream().map(request -> {
-            BranchRoomPolicy policy = branchRoomPolicyRepository
-                    .findByHotelAndRoomType(hotel, request.getRoomType())
-                    .orElseGet(() -> BranchRoomPolicy.builder()
-                            .hotel(hotel)
-                            .roomType(request.getRoomType())
-                            .build());
-            policy.setArea(request.getArea());
-            policy.setBasePrice(request.getBasePrice());
-            policy.setExtraAdultFee(request.getExtraAdultFee());
-            policy.setExtraChildFee(request.getExtraChildFee());
-            policy.setStandardCapacity(request.getStandardCapacity());
-            policy.setMaxExtraGuests(request.getMaxExtraGuests());
-            return branchRoomPolicyRepository.save(policy);
-        }).toList();
-
-        return savedPolicies.stream().map(this::toRoomPolicyItem).toList();
-    }
+//    @Override
+//    @Transactional
+//    public List<SuperAdminBranchDetailResponse.RoomPolicyItem> saveBranchRoomPolicies(
+//            Long hotelId,
+//            List<BranchRoomPolicyRequest> requests) {
+//        Hotel hotel = hotelRepository.findById(hotelId)
+//                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+//
+//        if (requests == null || requests.isEmpty()) {
+//            throw new AppException(ErrorCode.ROOM_POLICY_REQUIRED);
+//        }
+//
+//        // Nếu bạn muốn ép buộc phải đúng 4 loại phòng như ý bạn đề cập ở trên:
+//        if (requests.size() != 4) {
+//            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_COUNT);
+//        }
+//
+//        if (requests.stream().anyMatch(request -> request == null || request.getRoomType() == null
+//                || request.getBasePrice() == null || request.getArea() == null
+//                || request.getExtraAdultFee() == null || request.getExtraChildFee() == null
+//                || request.getStandardCapacity() == null || request.getMaxExtraGuests() == null)) {
+//            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_DATA);
+//        }
+//
+//        // Kiểm tra định nghĩa 4 loại phòng bắt buộc (bạn thay các giá trị enum RoomType cho đúng với code thực tế của bạn)
+//        Set<RoomType> requiredTypes = Set.of(RoomType.STANDARD, RoomType.FAMILY, RoomType.SUITE, RoomType.DELUXE);
+//        boolean hasAllTypes = requests.stream()
+//                .map(BranchRoomPolicyRequest::getRoomType)
+//                .allMatch(requiredTypes::contains);
+//
+//        if (!hasAllTypes) {
+//            throw new AppException(ErrorCode.INVALID_ROOM_POLICY_TYPES);
+//        }
+//
+//        long distinctRoomTypes = requests.stream().map(BranchRoomPolicyRequest::getRoomType).distinct().count();
+//        if (distinctRoomTypes != requests.size()) {
+//            throw new AppException(ErrorCode.DUPLICATE_ROOM_POLICY_TYPE);
+//        }
+//
+//        List<BranchRoomPolicy> savedPolicies = requests.stream().map(request -> {
+//            BranchRoomPolicy policy = branchRoomPolicyRepository
+//                    .findByHotelAndRoomType(hotel, request.getRoomType())
+//                    .orElseGet(() -> BranchRoomPolicy.builder()
+//                            .hotel(hotel)
+//                            .roomType(request.getRoomType())
+//                            .build());
+//            policy.setArea(request.getArea());
+//            policy.setBasePrice(request.getBasePrice());
+//            policy.setExtraAdultFee(request.getExtraAdultFee());
+//            policy.setExtraChildFee(request.getExtraChildFee());
+//            policy.setStandardCapacity(request.getStandardCapacity());
+//            policy.setMaxExtraGuests(request.getMaxExtraGuests());
+//            return branchRoomPolicyRepository.save(policy);
+//        }).toList();
+//
+//        return savedPolicies.stream().map(this::toRoomPolicyItem).toList();
+//    }
 
     @Override
     public List<SuperAdminBranchSummaryResponse> getBranches() {
@@ -236,6 +235,21 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .hotel(hotel)
                 .account(managerAccount)
                 .build();
+
+        List<BranchRoomPolicy> createdPolicies = branchRoomPolicyRepository.saveAll((Iterable<BranchRoomPolicy>) request.getRoomPolicies().stream()
+                .map(policy -> BranchRoomPolicy.builder()
+                        .hotel(hotel)
+                        .roomType(policy.getRoomType())
+                        .area(policy.getArea())
+                        .basePrice(policy.getBasePrice())
+                        .extraAdultFee(policy.getExtraAdultFee())
+                        .extraChildFee(policy.getExtraChildFee())
+                        .standardCapacity(policy.getStandardCapacity())
+                        .maxExtraGuests(policy.getMaxExtraGuests())
+                        .build())
+                .toList());
+
+        branchSocketEmitter.emitRoomPolicyChanged(hotel.getId(), "CREATED", createdPolicies);
 
         employeeRepository.save(managerEmployee);
         accountSocketEmitter.emitAccountCreated(

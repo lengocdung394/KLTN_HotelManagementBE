@@ -73,15 +73,15 @@ public class SuperAdminController {
                 superAdminService.getBranchDetails(hotelId),
                 "Lấy chi tiết chi nhánh thành công."));
     }
-
-    @PutMapping("/branches/{hotelId}/room-policies")
-    public ResponseEntity<ApiResponse<List<SuperAdminBranchDetailResponse.RoomPolicyItem>>> saveBranchRoomPolicies(
-            @PathVariable Long hotelId,
-            @RequestBody List<BranchRoomPolicyRequest> requests) {
-        return ResponseEntity.ok(response(
-                superAdminService.saveBranchRoomPolicies(hotelId, requests),
-                "Lưu cấu hình loại phòng cho chi nhánh thành công."));
-    }
+//
+//    @PutMapping("/branches/{hotelId}/room-policies")
+//    public ResponseEntity<ApiResponse<List<SuperAdminBranchDetailResponse.RoomPolicyItem>>> saveBranchRoomPolicies(
+//            @PathVariable Long hotelId,
+//            @RequestBody List<BranchRoomPolicyRequest> requests) {
+//        return ResponseEntity.ok(response(
+//                superAdminService.saveBranchRoomPolicies(hotelId, requests),
+//                "Lưu cấu hình loại phòng cho chi nhánh thành công."));
+//    }
 
     private <T> ApiResponse<T> response(T result, String message) {
         return ApiResponse.<T>builder()

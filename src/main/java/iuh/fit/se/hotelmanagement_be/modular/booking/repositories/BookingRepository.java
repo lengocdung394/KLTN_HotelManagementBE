@@ -4,13 +4,17 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
     // Lọc danh sách booking theo khách sạn (hotelId) thông qua chuỗi quan hệ phòng -> tầng -> tòa nhà -> khách sạn
@@ -32,4 +36,5 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
                   and b.createdAt < :threshold
             """)
     List<Booking> findExpiredPendingBookings(@Param("threshold") LocalDateTime threshold, @Param("status") BookingStatus status);
+
 }

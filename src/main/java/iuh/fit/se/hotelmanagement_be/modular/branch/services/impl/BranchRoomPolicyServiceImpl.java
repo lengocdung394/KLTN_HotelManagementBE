@@ -62,6 +62,7 @@ public class BranchRoomPolicyServiceImpl implements BranchRoomPolicyService {
 
         // 4. BẮN SOCKET THÔNG BÁO REAL-TIME NGAY LẬP TỨC
         if (policy.getHotel() != null) {
+
             branchSocketEmitter.emitRoomPolicyUpdate(policy.getHotel().getId(), updatedPolicy);
         }
 

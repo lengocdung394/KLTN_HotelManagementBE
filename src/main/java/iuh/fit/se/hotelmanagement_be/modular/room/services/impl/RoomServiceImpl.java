@@ -13,7 +13,7 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomImage;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomTypeBed;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomBed;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -379,8 +379,8 @@ public class RoomServiceImpl implements RoomService {
                     .orElse(null);
 
             // 3. Lấy danh sách giường theo RoomType (như phần trước)
-            List<RoomTypeBed> roomTypeBeds = roomTypeBedRepository.findByRoomType(room.getRoomType());
-            List<RoomBedResponse> bedResponses = roomTypeBeds.stream().map(rtb ->
+            List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(room.getRoomType());
+            List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
                     RoomBedResponse.builder()
                             .bedTypeName(rtb.getBedType().getName())
                             .description(rtb.getBedType().getDescription())
@@ -428,9 +428,9 @@ public class RoomServiceImpl implements RoomService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách cho loại phòng này tại chi nhánh."));
 
         // 3. Lấy Danh sách giường đi kèm của loại phòng này
-        List<RoomTypeBed> roomTypeBeds = roomTypeBedRepository.findByRoomType(roomType);
+        List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(roomType);
 
-        List<RoomBedResponse> bedResponses = roomTypeBeds.stream().map(rtb ->
+        List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
                 RoomBedResponse.builder()
                         .bedTypeName(rtb.getBedType().getName())
                         .description(rtb.getBedType().getDescription())

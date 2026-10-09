@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.requests;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.Column;
@@ -22,7 +23,6 @@ public class BranchRoomPolicyRequest {
     Long hotelId;
 
     RoomType roomType;
-
     @DecimalMin(value = "0.0", message = "Phí phụ thu người lớn không được âm")
     Double extraAdultFee;
 
@@ -34,7 +34,9 @@ public class BranchRoomPolicyRequest {
 
     @Min(value = 0, message = "Sức chứa phụ thu tối đa không được âm")
     Integer maxExtraGuests;
-    @JsonProperty("price")
+
+    @JsonProperty("basePrice")
+    @JsonAlias("price")
     @DecimalMin(value = "0.0", message = "Giá cơ bản không được âm")
     Double basePrice;
 

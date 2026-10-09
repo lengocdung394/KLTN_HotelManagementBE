@@ -74,6 +74,7 @@ public class BookingServiceImpl implements BookingService {
     BookingDetailRepository bookingDetailRepository;
     BookingSocketEmitter bookingSocketEmitter;
     private final CustomerSocketEmitter customerSocketEmitter;
+    RoomRedisLockService roomRedisLockService;
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -336,6 +337,7 @@ public class BookingServiceImpl implements BookingService {
         if (detailRequests == null || detailRequests.isEmpty()) {
             throw new AppException(ErrorCode.BOOKING_DETAILS_REQUIRED);
         }
+        // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
 
         return detailRequests.stream().map(detailReq -> {
             Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
@@ -361,6 +363,34 @@ public class BookingServiceImpl implements BookingService {
             if (!checkOutDate.isAfter(checkInDate)) {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
             }
+
+
+            // === 1. GIỮ CHỖ TẠM THỜI BẰNG REDIS TRONG ĐÚNG 3 PHÚT ===
+            boolean isRedisLocked = roomRedisLockService.lockRoomByDateRange(
+                    room.getId(), checkInDate, checkOutDate, booking.getCustomer().getFullName(), 3 // <--- Cài đặt 3 phút ở đây
+            );
+
+            if (!isRedisLocked) {
+                throw new AppException(ErrorCode.ROOM_IS_BEING_LOCKED); // Báo lỗi ngay nếu đang bị người khác giữ
+            }
+
+            // === 2. KHÓA BI QUAN TRONG DATABASE CHÍNH (Pessimistic Lock) ===
+            Room roomCheck = roomRepository.findByIdWithLock(room.getId())
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+            // === 3. KIỂM TRA CHỒNG CHÉO LỊCH (Overlap Check) TRONG DB ===
+            long overlappingCount = bookingDetailRepository.countOverlappingBookings(
+                    roomCheck.getId(), detailReq.getCheckInTime(), detailReq.getCheckOutTime()
+            );
+
+            if (overlappingCount > 0) {
+                // Nếu phát hiện trùng lịch, nhả ngay khóa Redis vừa giữ để trả chỗ
+                roomRedisLockService.releaseRoomLockByDateRange(roomCheck.getId(), checkInDate, checkOutDate);
+                throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
+            }
+
+
+            bookingSocketEmitter.emitRoomTemporarilyLocked(hotelId, roomCheck.getId(), booking.getCustomer().getFullName());
 
             long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
             if (nights <= 0) nights = 1;

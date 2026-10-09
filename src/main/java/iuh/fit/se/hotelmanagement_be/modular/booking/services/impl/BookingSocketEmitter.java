@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -57,5 +59,15 @@ public class BookingSocketEmitter {
 
             log.info("[Checkout late!!!!!]");
         }
+    }
+
+    // Trong BookingSocketEmitter.java
+    public void emitRoomTemporarilyLocked(Long hotelId, String roomId, String userId) {
+        socketIOServer.getRoomOperations("hotel_" + hotelId)
+                .sendEvent("room_locked_event", Map.of(
+                        "roomId", roomId,
+                        "status", "LOCKED",
+                        "message", "Phòng này đang có người thao tác chọn"
+                ));
     }
 }

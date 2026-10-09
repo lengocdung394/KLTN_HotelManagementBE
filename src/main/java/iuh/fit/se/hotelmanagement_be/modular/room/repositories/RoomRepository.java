@@ -1,11 +1,14 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, String> {
     // Hoặc lấy các Room thuộc về 1 Floor cụ thể
@@ -19,4 +22,7 @@ public interface RoomRepository extends JpaRepository<Room, String> {
     boolean existsByFloorIdAndRoomNumber(String floorId, String roomNumber);
     boolean existsByFloorIdAndRoomNumberAndIdNot(String id, String roomNumber,String roomId);
     boolean existsByFloorIdAndRoomType(String floorId, iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType roomType);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Room r WHERE r.id = :roomId")
+    Optional<Room> findByIdWithLock(@Param("roomId") String roomId);
 }

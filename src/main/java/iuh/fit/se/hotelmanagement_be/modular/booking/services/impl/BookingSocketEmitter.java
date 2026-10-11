@@ -6,6 +6,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -26,15 +30,30 @@ public class BookingSocketEmitter {
         }
     }
 
-    /**
-     * 2. Gửi thông báo chi tiết (Notification) có đơn mới cho nhân viên chi nhánh
-     */
-    public void emitNewBookingNotification(Long hotelId, Object bookingData) {
-        if (hotelId != null) {
-            String roomName = "hotel_" + hotelId;
-            socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("new_booking_notification", bookingData);
-            log.info("🔔 [Booking Socket] Đã gửi chuông thông báo 'new_booking_notification' tới room chi nhánh: {}", roomName);
+    public void emitNewBookingNotification(
+            Long hotelId,
+            Map<String, Object> bookingData
+    ) {
+        if (hotelId == null) {
+            log.warn("[Booking Socket] Không gửi thông báo vì hotelId bị null");
+            return;
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("hotelId", hotelId);
+        payload.put("action", "CREATED");
+        payload.put("data", bookingData);
+        payload.put("occurredAt", Instant.now().toString());
+
+        try {
+            socketIOServer.getRoomOperations("hotel_" + hotelId)
+                    .sendEvent("new_booking_notification", payload);
+            socketIOServer.getRoomOperations("super_admin_accounts")
+                    .sendEvent("new_booking_notification", payload);
+
+            log.info("Emitted new_booking_notification for hotel {}", hotelId);
+        } catch (RuntimeException exception) {
+            log.error("Could not emit new_booking_notification for hotel {}", hotelId, exception);
         }
     }
 
@@ -68,6 +87,29 @@ public class BookingSocketEmitter {
                         "roomId", roomId,
                         "status", "LOCKED",
                         "message", "Phòng này đang có người thao tác chọn"
+
+
                 ));
+    }
+
+    void emitRoomTemporarilyLocked(
+            Long hotelId,
+            String roomId,
+            LocalDate checkIn,
+            LocalDate checkOut,
+            String lockToken,
+            Instant expiresAt
+    ) {
+
+    }
+
+    void emitRoomTemporarilyUnlocked(
+            Long hotelId,
+            String roomId,
+            LocalDate checkIn,
+            LocalDate checkOut,
+            String lockToken
+    ) {
+
     }
 }

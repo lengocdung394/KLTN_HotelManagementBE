@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
@@ -19,6 +19,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -70,8 +71,10 @@ public class RoomController {
     @GetMapping("/hotel")
     @Operation(summary = "Lấy danh sách phòng thuộc khách sạn của tài khoản đang đăng nhập")
     @PreAuthorize("hasAuthority('VIEW_ROOMS')")
-    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
-        Long hotelId = SecurityUtils.getCurrentUserHotelId();
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel(Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+
+        Long hotelId = account.getHotelId();
 
         List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
 

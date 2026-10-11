@@ -73,8 +73,8 @@ public class BookingServiceImpl implements BookingService {
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
     BookingSocketEmitter bookingSocketEmitter;
-    private final CustomerSocketEmitter customerSocketEmitter;
-    RoomRedisLockService roomRedisLockService;
+
+
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -102,9 +102,6 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-//        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
-//        Hotel hotel = hotelRepository.findById(request.getHotelId())
-//                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
@@ -120,8 +117,14 @@ public class BookingServiceImpl implements BookingService {
 
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-        bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
 
+        Map<String, Object> bookingData = new LinkedHashMap<>();
+        bookingData.put("bookingId", savedBooking.getId());
+        // Có thể thêm customerName, totalAmount bằng getter thực tế của các entity.
+
+        bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+
+        bookingSocketEmitter.emitNewBookingNotification(hotelId, bookingData);
         // Báo về cho khách hàng trạng thái đơn hàng
         bookingSocketEmitter.emitCustomerBookingStatus(customerId, savedBooking);
         // ==========================================
@@ -169,8 +172,13 @@ public class BookingServiceImpl implements BookingService {
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
         if (hotelId != null) {
             bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-            bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
+            Map<String, Object> bookingData = new LinkedHashMap<>();
+            bookingData.put("bookingId", savedBooking.getId());
+            // Có thể thêm customerName, totalAmount bằng getter thực tế của các entity.
+
+            bookingSocketEmitter.emitNewBookingNotification(hotelId, bookingData);
         }
+
         // ====================================================
 
         return toBookingResponse(savedBooking);
@@ -364,34 +372,18 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
             }
 
-
-            // === 1. GIỮ CHỖ TẠM THỜI BẰNG REDIS TRONG ĐÚNG 3 PHÚT ===
-            boolean isRedisLocked = roomRedisLockService.lockRoomByDateRange(
-                    room.getId(), checkInDate, checkOutDate, booking.getCustomer().getFullName(), 3 // <--- Cài đặt 3 phút ở đây
-            );
-
-            if (!isRedisLocked) {
-                throw new AppException(ErrorCode.ROOM_IS_BEING_LOCKED); // Báo lỗi ngay nếu đang bị người khác giữ
-            }
-
-            // === 2. KHÓA BI QUAN TRONG DATABASE CHÍNH (Pessimistic Lock) ===
             Room roomCheck = roomRepository.findByIdWithLock(room.getId())
                     .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
-            // === 3. KIỂM TRA CHỒNG CHÉO LỊCH (Overlap Check) TRONG DB ===
             long overlappingCount = bookingDetailRepository.countOverlappingBookings(
-                    roomCheck.getId(), detailReq.getCheckInTime(), detailReq.getCheckOutTime()
+                    roomCheck.getId(),
+                    detailReq.getCheckInTime(),
+                    detailReq.getCheckOutTime()
             );
 
             if (overlappingCount > 0) {
-                // Nếu phát hiện trùng lịch, nhả ngay khóa Redis vừa giữ để trả chỗ
-                roomRedisLockService.releaseRoomLockByDateRange(roomCheck.getId(), checkInDate, checkOutDate);
                 throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
             }
-
-
-            bookingSocketEmitter.emitRoomTemporarilyLocked(hotelId, roomCheck.getId(), booking.getCustomer().getFullName());
-
             long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
             if (nights <= 0) nights = 1;
 

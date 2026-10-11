@@ -26,6 +26,10 @@ public class BookingResponse {
 
     String promotionId; // khuyen mai cua khach hang
     String customerPromotionId; // khuyen mai cua chi nhanh
+    LocalDateTime applyAt;
+
+    BigDecimal discountRoom;
+    BigDecimal discountService;
     //thêm field tiền đã thanh toán
     BigDecimal paidAmount;
     //tiền thieếu lại KH nếu có

@@ -220,7 +220,7 @@ public class PromotionServiceImpl implements PromotionService {
 
             promotion.setImageUrl(imageUrl);
         }
-
+        promotion.setStatus(request.getStatus());
         promotion.setName(request.getName().trim());
         promotion.setDescription(request.getDescription());
         promotion.setType(request.getType());

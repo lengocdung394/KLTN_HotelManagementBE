@@ -32,6 +32,7 @@ public class BookingCreateRequest {
     // Giá phòng thời điểm đó
     String customerPromotionId; // Voucher của khách (nếu có)
 
+    LocalDateTime applyAt;
     String promotionId;         // Mã giảm giá chung (nếu có)
 
     @NotEmpty(message = "Danh sách chi tiết phòng đặt không được để trống")

@@ -6,7 +6,6 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.CustomerSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
@@ -75,7 +74,6 @@ public class BookingServiceImpl implements BookingService {
     BookingSocketEmitter bookingSocketEmitter;
 
 
-
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
      */
@@ -84,7 +82,8 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse createCustomerBooking(BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
-
+        // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+        boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Tìm khách sạn an toàn và gán vào booking trước
         Hotel hotel = hotelRepository.findById(request.getHotelId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
@@ -108,6 +107,8 @@ public class BookingServiceImpl implements BookingService {
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
+        // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+        booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
         // 4. Lưu vào Database
         Booking savedBooking = bookingRepository.save(booking);
 
@@ -141,7 +142,8 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
-
+        // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+        boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Xử lý danh sách chi tiết đặt phòng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
@@ -159,6 +161,8 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
+        // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+        booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
         // 3. Tính toán và tạo Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
@@ -244,6 +248,7 @@ public class BookingServiceImpl implements BookingService {
                 .customer(customer)
                 .bookingChannel(channel)
                 .bookingStatus(status)
+
                 .build();
     }
 
@@ -570,6 +575,36 @@ public class BookingServiceImpl implements BookingService {
         }
     }
 
+
+    public void validatePromotionRulesPromotionOld(Promotion promotion, BigDecimal currentTotalAmount, LocalDateTime now, BigDecimal roomTotal, BigDecimal serviceTotal) {
+        if (promotion.getStatus() != PromotionStatus.ACTIVE) {
+            throw new AppException(ErrorCode.PROMOTION_INACTIVE);
+        }
+
+//        if (now.isBefore(promotion.getStartDate()) || now.isAfter(promotion.getEndDate())) {
+//            throw new AppException(ErrorCode.PROMOTION_EXPIRED);
+//        }
+
+        if (promotion.getUsageLimit() != null && promotion.getUsedCount() >= promotion.getUsageLimit()) {
+            throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
+        }
+
+        // Kiểm tra ngưỡng tổng đơn tối thiểu
+        if (promotion.getMinBookingValue() != null && currentTotalAmount.compareTo(promotion.getMinBookingValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
+        }
+
+        // Kiểm tra ngưỡng tiền phòng tối thiểu (MỚI)
+        if (promotion.getMinRoomValue() != null && roomTotal.compareTo(promotion.getMinRoomValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_ROOM_NOT_MET);
+        }
+
+        // Kiểm tra ngưỡng tiền dịch vụ tối thiểu (MỚI)
+        if (promotion.getMinServiceValue() != null && serviceTotal.compareTo(promotion.getMinServiceValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_SERVICE_NOT_MET);
+        }
+    }
+
     @Override
     public PromotionDiscountResult calculateDiscountBreakdown(Promotion promotion, BigDecimal roomTotal, BigDecimal serviceTotal) {
         BigDecimal roomDiscount = BigDecimal.ZERO;
@@ -688,9 +723,8 @@ public class BookingServiceImpl implements BookingService {
                 .promotionId(booking.getPromotion() != null ? booking.getPromotion().getId() : null)
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
-
                 .surchargeTotalAmount(order.getSurchargeTotalAmount()) // tong tien phu thu
-
+                .applyAt(booking.getApplyAt() != null ? booking.getApplyAt() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai

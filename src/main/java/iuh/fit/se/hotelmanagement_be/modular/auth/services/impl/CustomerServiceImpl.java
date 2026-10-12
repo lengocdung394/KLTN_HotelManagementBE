@@ -70,8 +70,6 @@ public class CustomerServiceImpl implements CustomerService {
 
 
         Customer savedCustomer = customerRepository.save(customer);
-        // ban socket khi khach hang vai lai o mot chi nhanh
-        customerSocketEmitter.emitCustomerCreated(hotelId, customer);
 
         accountSocketEmitter.emitGuestCustomerCreated(savedCustomer.getId(), hotelId);
 

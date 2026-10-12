@@ -125,7 +125,11 @@ public class BookingServiceImpl implements BookingService {
 
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
-        bookingSocketEmitter.emitNewBookingNotification(hotelId, bookingData);
+        bookingSocketEmitter.emitNewBookingNotification(
+                hotelId,
+                savedBooking,
+                bookingData
+        );
         // Báo về cho khách hàng trạng thái đơn hàng
         bookingSocketEmitter.emitCustomerBookingStatus(customerId, savedBooking);
         // ==========================================
@@ -180,7 +184,11 @@ public class BookingServiceImpl implements BookingService {
             bookingData.put("bookingId", savedBooking.getId());
             // Có thể thêm customerName, totalAmount bằng getter thực tế của các entity.
 
-            bookingSocketEmitter.emitNewBookingNotification(hotelId, bookingData);
+            bookingSocketEmitter.emitNewBookingNotification(
+                    hotelId,
+                    savedBooking,
+                    bookingData
+            );
         }
 
         // ====================================================

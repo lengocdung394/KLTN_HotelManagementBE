@@ -35,7 +35,9 @@ public class BookingExpiryScheduler {
                 bookingRepository.save(booking);
 
                 if (booking.getHotel() != null) {
-                    bookingSocketEmitter.emitRoomMatrixUpdate(booking.getHotel().getId());
+                    Long hotelId = booking.getHotel().getId();
+                    bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+                    bookingSocketEmitter.emitBookingCancelled(hotelId, booking.getId(), "quá thời gian chờ thanh toán");
                     log.info("Expired pending booking released: bookingId={}, hotelId={}",
                             booking.getId(), booking.getHotel().getId());
                 }

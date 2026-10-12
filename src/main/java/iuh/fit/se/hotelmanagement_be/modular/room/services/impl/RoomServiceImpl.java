@@ -205,7 +205,7 @@ public class RoomServiceImpl implements RoomService {
                 .avatarUrl(updatedRoom.getAvatarUrl())
                 .amenities(updatedRoom.getAmenities())
                 .build();
-        roomSocketEmitter.emitRoomChanged(roomHotelId, "UPDATE", response);
+
         // 8. Bắn sự kiện qua Socket
         roomSocketEmitter.emitRoomUpdated(roomHotelId, Map.of(
                 "roomId", updatedRoom.getId(),

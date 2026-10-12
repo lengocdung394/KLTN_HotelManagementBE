@@ -1,15 +1,16 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateCheckOutBookingNotificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -17,6 +18,7 @@ import java.util.Map;
 @Slf4j
 public class BookingSocketEmitter {
     private final SocketIOServer socketIOServer;
+    private final NotificationService notificationService;
 
     /**
      * 1. Bắn sự kiện cập nhật Lịch tổng phòng (Room Matrix) cho nhân viên chi nhánh
@@ -30,31 +32,47 @@ public class BookingSocketEmitter {
         }
     }
 
+    /**
+     * 2. Gửi thông báo chi tiết (Notification) có đơn mới cho nhân viên chi nhánh
+     */
     public void emitNewBookingNotification(
             Long hotelId,
-            Map<String, Object> bookingData
+            Booking booking,
+            Object bookingData
     ) {
-        if (hotelId == null) {
-            log.warn("[Booking Socket] Không gửi thông báo vì hotelId bị null");
-            return;
-        }
+        if (hotelId == null || booking == null) return;
 
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("hotelId", hotelId);
-        payload.put("action", "CREATED");
-        payload.put("data", bookingData);
-        payload.put("occurredAt", Instant.now().toString());
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.BOOKING_CREATED,
+                "Booking mới",
+                "Booking #" + booking.getId() + " vừa được tạo.",
+                "BOOKING",
+                booking.getId()
+        );
 
-        try {
-            socketIOServer.getRoomOperations("hotel_" + hotelId)
-                    .sendEvent("new_booking_notification", payload);
-            socketIOServer.getRoomOperations("super_admin_accounts")
-                    .sendEvent("new_booking_notification", payload);
+        String roomName = "hotel_" + hotelId;
+        socketIOServer.getRoomOperations(roomName)
+                .sendEvent("new_booking_notification", bookingData);
+        socketIOServer.getRoomOperations("super_admin_accounts")
+                .sendEvent(
+                        "new_booking_notification",
+                        Map.of("hotelId", hotelId, "data", bookingData)
+                );
 
-            log.info("Emitted new_booking_notification for hotel {}", hotelId);
-        } catch (RuntimeException exception) {
-            log.error("Could not emit new_booking_notification for hotel {}", hotelId, exception);
-        }
+        log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+    }
+
+    // chua co function cho huy booking
+    public void emitBookingCancelled(Long hotelId, String bookingId, String reason) {
+        if (hotelId == null) return;
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.BOOKING_CANCELLED,
+                "Booking đã bị hủy",
+                "Booking #" + bookingId + " đã bị hủy" + (reason == null || reason.isBlank() ? "." : ": " + reason),
+                "BOOKING",
+                bookingId);
     }
 
     /**

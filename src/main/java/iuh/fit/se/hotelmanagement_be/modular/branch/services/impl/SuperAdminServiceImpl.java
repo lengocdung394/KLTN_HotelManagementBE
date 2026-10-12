@@ -57,7 +57,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     RoleRepository roleRepository;
     AccountRepository accountRepository;
     EmployeeRepository employeeRepository;
-    private final PasswordEncoder passwordEncoder;
+    PasswordEncoder passwordEncoder;
     AccountSocketEmitter accountSocketEmitter;
     BranchSocketEmitter branchSocketEmitter;
 

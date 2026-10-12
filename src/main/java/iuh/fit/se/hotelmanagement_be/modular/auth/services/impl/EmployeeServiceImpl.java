@@ -8,9 +8,12 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepositor
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.EmployeeService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
@@ -20,7 +23,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,6 +37,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     HotelRepository hotelRepository;
     PasswordEncoder passwordEncoder;
     CloudinaryService cloudinaryService;
+    NotificationService notificationService;
+    CustomerSocketEmitter customerSocketEmitter;
 
     // Sử dụng khi quản lí tạo tài khoản cho nhân viên (kèm theo thông tin cá nhân)
     @Transactional
@@ -107,7 +111,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         // Lưu Employee (Cascade lưu luôn Account)
         Employee savedEmployee = employeeRepository.save(newEmployee);
-
+        notificationService.createAndPublish(
+                hotel.getId(),
+                NotificationType.EMPLOYEE_CREATED,
+                "Nhân viên mới",
+                "Nhân viên " + savedEmployee.getFullName() + " vừa được thêm vào chi nhánh.",
+                "EMPLOYEE",
+                savedEmployee.getId());
+        customerSocketEmitter.emitEmployeeCreated(hotel.getId(), toEmployeeResponse(savedEmployee));
         return EmployeeCreateResponse.builder()
                 .id(savedEmployee.getId())
                 .fullName(savedEmployee.getFullName())

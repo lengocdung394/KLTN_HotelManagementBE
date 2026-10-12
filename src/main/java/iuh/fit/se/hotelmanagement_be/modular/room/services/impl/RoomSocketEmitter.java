@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,7 +18,7 @@ import java.util.Map;
 @Slf4j
 public class RoomSocketEmitter {
     private final SocketIOServer socketIOServer;
-
+    private final NotificationService notificationService;
     private static final String SUPER_ADMIN_ROOM = "super_admin_accounts";
 
     public void emitRoomCreated(Long hotelId, Object roomData) {
@@ -37,6 +39,26 @@ public class RoomSocketEmitter {
             return;
         }
         String event = "UPDATED".equals(action) ? "room_update" : "room_create";
+        if ("CREATED".equals(action) || "UPDATED".equals(action)) {
+            NotificationType type = "CREATED".equals(action)
+                    ? NotificationType.ROOM_CREATED
+                    : NotificationType.ROOM_UPDATED;
+            String referenceId = null;
+            if (roomData instanceof Map<?, ?> data) {
+                Object id = data.get("roomId");
+                if (id == null) id = data.get("id");
+                if (id != null) referenceId = String.valueOf(id);
+            }
+            notificationService.createAndPublish(
+                    hotelId,
+                    type,
+                    "CREATED".equals(action) ? "Phòng mới" : "Phòng được cập nhật",
+                    "CREATED".equals(action)
+                            ? "Một phòng mới vừa được thêm vào chi nhánh."
+                            : "Thông tin một phòng tại chi nhánh vừa được cập nhật.",
+                    "ROOM",
+                    referenceId);
+        }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("hotelId", hotelId);
         payload.put("action", action);

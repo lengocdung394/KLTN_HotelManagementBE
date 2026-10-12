@@ -16,7 +16,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @org.springframework.stereotype.Service
@@ -27,6 +30,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
     ServiceRepository serviceRepository;
     HotelRepository hotelRepository;
     CloudinaryService cloudinaryService; // 💡 Inject thêm CloudinaryService
+    HotelServiceSocketEmitter hotelServiceSocketEmitter;
 
     private ServiceResponse toResponse(Service service) {
         return ServiceResponse.builder()
@@ -96,7 +100,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
             }
         }
 
-        Service service = Service.builder()
+        Service savedService = Service.builder()
                 .name(request.getName().trim())
                 .description(request.getDescription())
                 .price(request.getPrice())
@@ -107,7 +111,17 @@ public class HotelServiceServiceImpl implements HotelServiceService {
                 .hotel(hotel)
                 .build();
 
-        return toResponse(serviceRepository.save(service));
+        Long savedHotelId = savedService.getHotel() != null
+                ? savedService.getHotel().getId()
+                : null;
+
+        hotelServiceSocketEmitter.emitServiceCreated(
+                savedHotelId,
+                savedService.getId(),
+                savedService.getName()
+        );
+
+        return toResponse(serviceRepository.save(savedService));
     }
 
     @Override
@@ -118,6 +132,11 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         if (serviceRepository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
             throw new RuntimeException("Tên dịch vụ '" + request.getName() + "' đã được sử dụng bởi dịch vụ khác!");
         }
+        String oldName = service.getName();
+        Double oldPrice = service.getPrice();
+        String oldUnit = service.getUnit();
+        String oldCategory = service.getCategory();
+        Boolean oldActive = service.getActive();
 
         Hotel hotel = null;
         if (hotelId != null) {
@@ -148,8 +167,24 @@ public class HotelServiceServiceImpl implements HotelServiceService {
             service.setActive(request.getActive());
         }
         service.setHotel(hotel);
+        Service savedService = serviceRepository.save(service);
+        ServiceResponse response = toResponse(savedService);
 
-        return toResponse(serviceRepository.save(service));
+
+        Map<String, String> changes = new LinkedHashMap<>();
+        addChange(changes, "Tên dịch vụ", oldName, savedService.getName());
+        addChange(changes, "Giá", oldPrice, savedService.getPrice());
+        addChange(changes, "Đơn vị", oldUnit, savedService.getUnit());
+        addChange(changes, "Danh mục", oldCategory, savedService.getCategory());
+        addChange(changes, "Trạng thái", oldActive, savedService.getActive());
+
+        hotelServiceSocketEmitter.emitServiceUpdated(
+                savedService.getHotel().getId(),
+                savedService.getId(),
+                savedService.getName(),
+                changes
+        );
+        return response;
     }
 
     @Override
@@ -167,5 +202,21 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         boolean current = Boolean.TRUE.equals(service.getActive());
         service.setActive(!current);
         return toResponse(serviceRepository.save(service));
+    }
+
+    private void addChange(
+            Map<String, String> changes,
+            String label,
+            Object oldValue,
+            Object newValue
+    ) {
+        if (!Objects.equals(oldValue, newValue)) {
+            changes.put(
+                    label,
+                    Objects.toString(oldValue, "trống")
+                            + " → "
+                            + Objects.toString(newValue, "trống")
+            );
+        }
     }
 }

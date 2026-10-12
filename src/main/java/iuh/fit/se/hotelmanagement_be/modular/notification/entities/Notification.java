@@ -43,7 +43,11 @@ public class Notification {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt;
+    @Column(name = "visible_to_hotel", nullable = false)
+    boolean visibleToHotel = true;
 
+    @Column(name = "visible_to_super_admin", nullable = false)
+    boolean visibleToSuperAdmin = true;
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

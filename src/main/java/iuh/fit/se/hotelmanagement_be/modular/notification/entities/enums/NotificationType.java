@@ -20,4 +20,7 @@ public enum NotificationType {
     SERVICE_IMPORT_COMPLETED,
     SERVICE_IMPORT_FAILED,
     SYSTEM
+    // them khuyen mai he thong, cap nhat khuyen mai he thong
+    // kiem tra update thong tin tai khoan bao mat
+
 }

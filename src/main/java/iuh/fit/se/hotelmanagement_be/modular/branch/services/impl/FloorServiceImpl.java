@@ -21,6 +21,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -96,29 +97,46 @@ public class FloorServiceImpl implements FloorService {
 
     @Override
     @Transactional
-    public FloorResponse updateFloor(String floorId, FloorUpdateRequest request, Long hotelId) {
-        if (hotelId == null) {
+    public FloorResponse updateFloor(
+            String floorId,
+            FloorUpdateRequest request,
+            Long hotelId,
+            boolean isSuperAdmin
+    ) {
+        if (!isSuperAdmin && hotelId == null) {
             throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
         }
+
         if (request == null || request.getFloorNumber() == null) {
             throw new AppException(ErrorCode.FLOOR_NUMBER_REQUIRED);
         }
 
-        Floor floor = floorRepository.findByIdAndBuilding_Hotel_Id(floorId, hotelId)
+        Floor floor = isSuperAdmin
+                ? floorRepository.findById(floorId)
+                .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND))
+                : floorRepository.findByIdAndBuilding_Hotel_Id(floorId, hotelId)
                 .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND));
-        int floorNumber = request.getFloorNumber();
-        if (floorRepository.existsByBuilding_IdAndFloorNumber(floor.getBuilding().getId(), floorNumber)
-                && floor.getFloorNumber() != floorNumber) {
+
+        int oldFloorNumber = floor.getFloorNumber();
+        int newFloorNumber = request.getFloorNumber();
+
+        if (floorRepository.existsByBuilding_IdAndFloorNumber(
+                floor.getBuilding().getId(),
+                newFloorNumber
+        ) && oldFloorNumber != newFloorNumber) {
             throw new AppException(ErrorCode.FLOOR_NUMBER_ALREADY_EXISTS);
         }
 
-        boolean changed = floor.getFloorNumber() != floorNumber;
+        boolean changed = oldFloorNumber != newFloorNumber;
+
         if (changed) {
-            floor.setFloorNumber(floorNumber);
+            floor.setFloorNumber(newFloorNumber);
             floor = floorRepository.save(floor);
         }
 
         Building building = floor.getBuilding();
+        Long buildingHotelId = building.getHotel().getId();
+
         FloorResponse response = FloorResponse.builder()
                 .id(floor.getId())
                 .floorNumber(floor.getFloorNumber())
@@ -127,9 +145,34 @@ public class FloorServiceImpl implements FloorService {
                         .name(building.getName())
                         .build())
                 .build();
+
         if (changed) {
-            emitAfterCommit(() -> buildingFloorSocketEmitter.emitFloorChanged(hotelId, "UPDATED", response));
+            Map<String, Object> change = Map.of(
+                    "label", "Số tầng",
+                    "before", oldFloorNumber,
+                    "after", floor.getFloorNumber()
+            );
+
+            Map<String, Object> eventData = Map.of(
+                    "id", floor.getId(),
+                    "floorNumber", floor.getFloorNumber(),
+                    "building", Map.of(
+                            "id", building.getId(),
+                            "name", building.getName()
+                    ),
+                    "changes", List.of(change)
+            );
+
+            emitAfterCommit(() ->
+                    buildingFloorSocketEmitter.emitFloorChanged(
+                            buildingHotelId,
+                            "UPDATED",
+                            eventData,
+                            isSuperAdmin
+                    )
+            );
         }
+
         return response;
     }
 

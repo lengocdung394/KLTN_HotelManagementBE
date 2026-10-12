@@ -22,4 +22,5 @@ public interface RoomTypeBedRepository extends JpaRepository<RoomBed, Long> {
     List<RoomBed> findByRoomId(@Param("roomId") String roomId);
 
     boolean deleteByRoomId(String roomId);
+    List<RoomBed> findByRoom_Id(String roomId);
 }

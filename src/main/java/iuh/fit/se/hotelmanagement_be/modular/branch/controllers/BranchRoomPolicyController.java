@@ -11,8 +11,6 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,16 +33,26 @@ public class BranchRoomPolicyController {
         return ResponseEntity.ok(policies);
     }
 
-    // 2. Chỉnh sửa giá và chính sách cho từng loại phòng chỉ cho admin and quan li chinh sua
-    @PreAuthorize("hasAuthority('MANAGE_BRANCH_SETTINGS')")
+    // quan li va supper admin
+    @PreAuthorize(
+            "hasAuthority('MANAGE_BRANCH_SETTINGS') or hasAuthority('ROLE_SUPER_ADMIN')"
+    )
     @PutMapping("/{policyId}")
     public ResponseEntity<BranchRoomPolicy> updateRoomPolicy(
             @PathVariable String policyId,
             @RequestBody BranchRoomPolicyRequest request,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
+
         Account account = (Account) authentication.getPrincipal();
-        BranchRoomPolicy updatedPolicy = branchRoomPolicyService.updateRoomPolicy(policyId, request, account);
+
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority ->
+                        "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+
+        BranchRoomPolicy updatedPolicy =
+                branchRoomPolicyService.updateRoomPolicy(
+                        policyId, request, account, isSuperAdmin);
+
         return ResponseEntity.ok(updatedPolicy);
     }
 }

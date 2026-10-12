@@ -68,17 +68,22 @@ public class FloorController {
                 .result(floor)
                 .build());
     }
-
+    // quan li va supper admin
     @PutMapping("/updateFloor/{floorId}")
-    @PreAuthorize("hasAuthority('MANAGE_FLOORS') and principal.hotelId != null")
+    @PreAuthorize("(hasAuthority('MANAGE_FLOORS') and principal.hotelId != null )" + "or hasAuthority('ROLE_SUPER_ADMIN') ")
     @Operation(summary = "Cập nhật thông tin tầng") // Thêm @Operation cho đồng bộ nếu cần
     public ResponseEntity<ApiResponse<FloorResponse>> updateFloor(
             @PathVariable String floorId,
             @Valid @RequestBody FloorUpdateRequest request,
             Authentication authentication
     ) {
+
+
         Account account = (Account) authentication.getPrincipal();
-        FloorResponse floor = floorService.updateFloor(floorId, request, account.getHotelId());
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority ->
+                        "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        FloorResponse floor = floorService.updateFloor(floorId, request, account.getHotelId(), isSuperAdmin);
 
         return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.<FloorResponse>builder()
                 .code(HttpStatus.OK.value())

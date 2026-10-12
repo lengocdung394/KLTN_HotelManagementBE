@@ -4,7 +4,6 @@ import iuh.fit.se.hotelmanagement_be.modular.notification.entities.Notification;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,13 +14,23 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     @Query("""
             SELECT n FROM Notification n
-            WHERE ((:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-                OR (:superAdmin = false AND n.hotelId = :hotelFilter))
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
               AND (:type IS NULL OR n.type = :type)
-              AND (:unreadOnly = false OR NOT EXISTS (
-                    SELECT receipt.id FROM NotificationReadReceipt receipt
-                    WHERE receipt.notification = n AND receipt.accountId = :accountId
-              ))
+              AND (
+                    :unreadOnly = false
+                    OR NOT EXISTS (
+                        SELECT receipt.id FROM NotificationReadReceipt receipt
+                        WHERE receipt.notification = n
+                          AND receipt.accountId = :accountId
+                    )
+                  )
             """)
     Page<Notification> findVisibleNotifications(
             @Param("superAdmin") boolean superAdmin,
@@ -33,12 +42,19 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     @Query("""
             SELECT COUNT(n) FROM Notification n
-            WHERE ((:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-                OR (:superAdmin = false AND n.hotelId = :hotelFilter))
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
               AND NOT EXISTS (
                     SELECT receipt.id FROM NotificationReadReceipt receipt
-                    WHERE receipt.notification = n AND receipt.accountId = :accountId
-              )
+                    WHERE receipt.notification = n
+                      AND receipt.accountId = :accountId
+                  )
             """)
     long countUnread(
             @Param("superAdmin") boolean superAdmin,
@@ -47,8 +63,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     @Query("""
             SELECT COUNT(n) FROM Notification n
-            WHERE (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-               OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
             """)
     long countVisible(
             @Param("superAdmin") boolean superAdmin,
@@ -57,8 +79,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT n.type AS key, COUNT(n) AS total
             FROM Notification n
-            WHERE ((:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-                OR (:superAdmin = false AND n.hotelId = :hotelFilter))
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
             GROUP BY n.type
             """)
     List<NotificationCountProjection> countByType(
@@ -68,12 +96,19 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT n.type AS key, COUNT(n) AS total
             FROM Notification n
-            WHERE ((:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-                OR (:superAdmin = false AND n.hotelId = :hotelFilter))
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
               AND NOT EXISTS (
                     SELECT receipt.id FROM NotificationReadReceipt receipt
-                    WHERE receipt.notification = n AND receipt.accountId = :accountId
-              )
+                    WHERE receipt.notification = n
+                      AND receipt.accountId = :accountId
+                  )
             GROUP BY n.type
             """)
     List<NotificationCountProjection> countUnreadByType(
@@ -85,6 +120,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             SELECT n.hotelId AS key, COUNT(n) AS total
             FROM Notification n
             WHERE n.hotelId IS NOT NULL
+              AND n.visibleToSuperAdmin = true
             GROUP BY n.hotelId
             """)
     List<NotificationCountProjection> countByHotel();
@@ -93,22 +129,32 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             SELECT n.hotelId AS key, COUNT(n) AS total
             FROM Notification n
             WHERE n.hotelId IS NOT NULL
+              AND n.visibleToSuperAdmin = true
               AND NOT EXISTS (
                     SELECT receipt.id FROM NotificationReadReceipt receipt
-                    WHERE receipt.notification = n AND receipt.accountId = :accountId
-              )
+                    WHERE receipt.notification = n
+                      AND receipt.accountId = :accountId
+                  )
             GROUP BY n.hotelId
             """)
-    List<NotificationCountProjection> countUnreadByHotel(@Param("accountId") String accountId);
+    List<NotificationCountProjection> countUnreadByHotel(
+            @Param("accountId") String accountId);
 
     @Query("""
             SELECT n FROM Notification n
-            WHERE ((:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
-                OR (:superAdmin = false AND n.hotelId = :hotelFilter))
+            WHERE (
+                    (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter))
+                    OR (:superAdmin = false AND n.hotelId = :hotelFilter)
+                  )
+              AND (
+                    (:superAdmin = true AND n.visibleToSuperAdmin = true)
+                    OR (:superAdmin = false AND n.visibleToHotel = true)
+                  )
               AND NOT EXISTS (
                     SELECT receipt.id FROM NotificationReadReceipt receipt
-                    WHERE receipt.notification = n AND receipt.accountId = :accountId
-              )
+                    WHERE receipt.notification = n
+                      AND receipt.accountId = :accountId
+                  )
             """)
     List<Notification> findUnreadVisible(
             @Param("superAdmin") boolean superAdmin,
@@ -117,6 +163,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     interface NotificationCountProjection {
         Object getKey();
+
         Long getTotal();
     }
 }

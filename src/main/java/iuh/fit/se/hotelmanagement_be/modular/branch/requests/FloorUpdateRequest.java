@@ -11,8 +11,6 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class FloorUpdateRequest {
-    @NotBlank(message = "Tòa nhà không được để trống")
-    String buildingId;
 
     @NotNull(message = "Số tầng không được để trống")
     Integer floorNumber;

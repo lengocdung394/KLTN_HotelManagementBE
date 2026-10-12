@@ -10,5 +10,5 @@ public interface FloorService {
     List<FloorResponse> getFloorsByBuildingId(String buildingId);
     List<FloorResponse> getAllFloors(Long hotelId);
     FloorResponse createFloor(FloorCreateRequest request, Long hotelId);
-    FloorResponse updateFloor(String floorId, FloorUpdateRequest request, Long hotelId);
+    FloorResponse updateFloor(String floorId, FloorUpdateRequest request, Long hotelId, boolean isSuperAdmin);
 }

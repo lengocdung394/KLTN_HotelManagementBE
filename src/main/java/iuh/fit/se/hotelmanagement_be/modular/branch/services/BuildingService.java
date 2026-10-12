@@ -9,5 +9,5 @@ import java.util.List;
 public interface BuildingService {
     BuildingResponse createBuilding(BuildingCreateRequest building, Long hotelId);
     List<BuildingResponse> getBuildingsByHotelId(Long hotelId);
-    BuildingResponse updateBuilding(String buildingId, BuildingCreateRequest request, Long hotelId);
+    BuildingResponse updateBuilding(String buildingId, BuildingCreateRequest request, Long hotelId, boolean isSuperAdmin);
 }

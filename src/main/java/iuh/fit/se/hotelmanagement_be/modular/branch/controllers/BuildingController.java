@@ -61,16 +61,25 @@ public class BuildingController {
                 .build());
     }
 
+    // quan li va supper admin
     @PutMapping("/updateBuilding/{buildingId}")
-    @PreAuthorize("hasAuthority('MANAGE_FLOORS') and principal.hotelId != null")
-    @Operation(summary = "Cập nhật thông tin tầng") // Thêm @Operation cho đồng bộ nếu cần
+    @PreAuthorize(
+            "(hasAuthority('MANAGE_FLOORS') and principal.hotelId != null) " +
+                    "or hasAuthority('ROLE_SUPER_ADMIN')"
+    )
     public ResponseEntity<ApiResponse<BuildingResponse>> updateFloor(
             @PathVariable String buildingId,
             @Valid @RequestBody BuildingCreateRequest request,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
+
         Account account = (Account) authentication.getPrincipal();
-        BuildingResponse building = buildingService.updateBuilding(buildingId, request, account.getHotelId());
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority ->
+                        "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+
+        BuildingResponse building = buildingService.updateBuilding(
+                buildingId, request, account.getHotelId(), isSuperAdmin);
+
 
         return ResponseEntity.status(HttpStatus.OK).body(ApiResponse.<BuildingResponse>builder()
                 .code(HttpStatus.OK.value())

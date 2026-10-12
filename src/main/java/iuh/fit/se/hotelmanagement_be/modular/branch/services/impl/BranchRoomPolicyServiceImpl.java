@@ -12,8 +12,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -28,15 +29,39 @@ public class BranchRoomPolicyServiceImpl implements BranchRoomPolicyService {
     public List<BranchRoomPolicy> getPoliciesByHotel(Long hotelId) {
         return branchRoomPolicyRepository.findByHotelId(hotelId);
     }
+
     // ham lay ra ds loai phong o mot chi nhanh
-
     @Override
-    public BranchRoomPolicy updateRoomPolicy(String id, BranchRoomPolicyRequest request, Account currentAccount) {
-        // 1. Tìm chính sách phòng theo ID
-        BranchRoomPolicy policy = branchRoomPolicyRepository.findByIdAndHotelId(id, currentAccount.getHotelId())
-                .orElseThrow(() -> new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND));
+    @Transactional
+    public BranchRoomPolicy updateRoomPolicy(
+            String id,
+            BranchRoomPolicyRequest request,
+            Account currentAccount,
+            boolean isSuperAdmin) {
 
-        // 2. Cập nhật các thông tin từ request (ví dụ: giá cơ bản, phụ thu, diện tích, sức chứa...)
+        if (!isSuperAdmin
+                && (currentAccount == null || currentAccount.getHotelId() == null)) {
+            throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
+        }
+
+        BranchRoomPolicy policy = isSuperAdmin
+                ? branchRoomPolicyRepository.findById(id)
+                .orElseThrow(() ->
+                        new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND))
+                : branchRoomPolicyRepository
+                .findByIdAndHotelId(id, currentAccount.getHotelId())
+                .orElseThrow(() ->
+                        new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND));
+
+        // Lưu trạng thái cũ trước khi thay đổi policy
+        Double oldBasePrice = policy.getBasePrice();
+        Double oldExtraAdultFee = policy.getExtraAdultFee();
+        Double oldExtraChildFee = policy.getExtraChildFee();
+        Double oldArea = policy.getArea();
+        Integer oldStandardCapacity = policy.getStandardCapacity();
+        Integer oldMaxExtraGuests = policy.getMaxExtraGuests();
+
+// Chỉ cập nhật các trường được gửi lên
         if (request.getBasePrice() != null) {
             policy.setBasePrice(request.getBasePrice());
         }
@@ -55,20 +80,41 @@ public class BranchRoomPolicyServiceImpl implements BranchRoomPolicyService {
         if (request.getMaxExtraGuests() != null) {
             policy.setMaxExtraGuests(request.getMaxExtraGuests());
         }
-        // 3. Lưu xuống Database (chỉ gọi save 1 lần duy nhất)
-        BranchRoomPolicy updatedPolicy = branchRoomPolicyRepository.save(policy);
 
-        log.info("cap nhat thanh cong{}", updatedPolicy);
+        BranchRoomPolicy saved = branchRoomPolicyRepository.save(policy);
+        Long hotelId = saved.getHotel().getId();
 
-        // 4. BẮN SOCKET THÔNG BÁO REAL-TIME NGAY LẬP TỨC
-        if (policy.getHotel() != null) {
+        List<Map<String, Object>> changes = new ArrayList<>();
+        addChange(changes, "Giá cơ bản", oldBasePrice, saved.getBasePrice());
+        addChange(changes, "Phụ thu người lớn", oldExtraAdultFee, saved.getExtraAdultFee());
+        addChange(changes, "Phụ thu trẻ em", oldExtraChildFee, saved.getExtraChildFee());
+        addChange(changes, "Diện tích", oldArea, saved.getArea());
+        addChange(changes, "Sức chứa tiêu chuẩn", oldStandardCapacity, saved.getStandardCapacity());
+        addChange(changes, "Số khách phụ tối đa", oldMaxExtraGuests, saved.getMaxExtraGuests());
 
-            branchSocketEmitter.emitRoomPolicyUpdate(policy.getHotel().getId(), updatedPolicy);
+        Map<String, Object> eventData = new LinkedHashMap<>();
+        eventData.put("id", saved.getId());
+        eventData.put("roomType", saved.getRoomType());
+        eventData.put("changes", changes);
+
+        branchSocketEmitter.emitRoomPolicyUpdate(hotelId, eventData, isSuperAdmin);
+        return saved;
+    }
+    private void addChange(
+            List<Map<String, Object>> changes,
+            String label,
+            Object before,
+            Object after
+    ) {
+        if (Objects.equals(before, after)) {
+            return;
         }
 
-        // 5. Trả về kết quả sau khi đã cập nhật
-        return updatedPolicy;
+        Map<String, Object> change = new LinkedHashMap<>();
+        change.put("label", label);
+        change.put("before", before);
+        change.put("after", after);
+        changes.add(change);
     }
-
 
 }

@@ -11,9 +11,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface RoomService {
-    RoomCreateResponse updateRoom(String roomId, RoomUpdateRequest dto, List<MultipartFile> imageFiles);
+    RoomCreateResponse updateRoom(String roomId, RoomUpdateRequest dto, List<MultipartFile> imageFiles,boolean isSuperAdmin);
     RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles);
     List<RoomResponse> getRoomsByFloorId(String floorId);
     List<RoomResponse> getRoomsByHotelId(Long hotelId);
     RoomTypeDetailResponse getRoomTypeDetailByHotelAndType(Long hotelId, RoomType roomType);
+    RoomResponse getRoomById(String roomId, Long hotelId, boolean isSuperAdmin);
 }

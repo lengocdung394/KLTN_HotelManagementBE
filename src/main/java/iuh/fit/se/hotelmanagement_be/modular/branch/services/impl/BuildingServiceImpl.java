@@ -19,7 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,13 +30,17 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class BuildingServiceImpl implements BuildingService {
+
     BuildingRepository buildingRepository;
     HotelRepository hotelRepository;
     BuildingFloorSocketEmitter buildingFloorSocketEmitter;
 
     @Override
     @Transactional
-    public BuildingResponse createBuilding(BuildingCreateRequest request, Long hotelId) {
+    public BuildingResponse createBuilding(
+            BuildingCreateRequest request,
+            Long hotelId
+    ) {
         if (hotelId == null) {
             throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
         }
@@ -41,71 +48,104 @@ public class BuildingServiceImpl implements BuildingService {
         String name = request == null || request.getName() == null
                 ? ""
                 : request.getName().trim().replaceAll("\\s+", " ");
+
         if (name.isBlank()) {
             throw new AppException(ErrorCode.BUILDING_NAME_REQUIRED);
         }
+
         if (buildingRepository.findByHotelIdAndNameIgnoreCase(hotelId, name).isPresent()) {
             throw new AppException(ErrorCode.BUILDING_ALREADY_EXISTS);
         }
+
         if (buildingRepository.existsById(Building.generateId(hotelId, name))) {
             throw new AppException(ErrorCode.BUILDING_ID_ALREADY_EXISTS);
         }
 
         Hotel hotel = hotelRepository.findById(hotelId)
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        Building building = buildingRepository.save(Building.builder()
-                .name(name)
-                .hotel(hotel)
-                .build());
 
-        BuildingResponse buildingResponse = BuildingResponse.builder()
+        Building building = buildingRepository.save(
+                Building.builder()
+                        .name(name)
+                        .hotel(hotel)
+                        .build()
+        );
+
+        BuildingResponse response = BuildingResponse.builder()
                 .id(building.getId())
                 .name(building.getName())
                 .build();
 
-        buildingFloorSocketEmitter.emitBuildingChanged(hotelId, "CREATE", buildingResponse);
-        return buildingResponse;
+        emitAfterCommit(() ->
+                buildingFloorSocketEmitter.emitBuildingChanged(
+                        hotelId,
+                        "CREATE",
+                        response
+                )
+        );
+
+        return response;
     }
 
     @Override
     public List<BuildingResponse> getBuildingsByHotelId(Long hotelId) {
-
         Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
         if (currentHotelId != null) {
             hotelId = currentHotelId;
         }
 
         return buildingRepository.findByHotelId(hotelId).stream()
-                .map(
-                        b -> BuildingResponse.builder()
-                                .name(b.getName())
-                                .id(b.getId())
-                                .build())
+                .map(building -> BuildingResponse.builder()
+                        .name(building.getName())
+                        .id(building.getId())
+                        .build())
                 .collect(Collectors.toList());
     }
 
     @Override
-    public BuildingResponse updateBuilding(String buildingId, BuildingCreateRequest request, Long hotelId) {
-        if (hotelId == null) {
+    @Transactional
+    public BuildingResponse updateBuilding(
+            String buildingId,
+            BuildingCreateRequest request,
+            Long hotelId,
+            boolean isSuperAdmin
+    ) {
+        log.info("[updateBuilding] entered: buildingId={}, hotelId={}, isSuperAdmin={}",
+                buildingId, hotelId, isSuperAdmin);
+        if (!isSuperAdmin && hotelId == null) {
             throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
         }
+
         String name = request == null || request.getName() == null
                 ? ""
                 : request.getName().trim().replaceAll("\\s+", " ");
+
         if (name.isBlank()) {
             throw new AppException(ErrorCode.BUILDING_NAME_REQUIRED);
         }
 
-        Building building = buildingRepository.findByIdAndHotelId(buildingId, hotelId)
+        Building building = isSuperAdmin
+                ? buildingRepository.findById(buildingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BUILDING_NOT_FOUND))
+                : buildingRepository.findByIdAndHotelId(buildingId, hotelId)
                 .orElseThrow(() -> new AppException(ErrorCode.BUILDING_NOT_FOUND));
+
+        Long buildingHotelId = building.getHotel().getId();
+        String oldName = building.getName();
+        log.info("tene toa nha cu{}",oldName);
         String currentBuildingId = building.getId();
-        if (buildingRepository.findByHotelIdAndNameIgnoreCase(hotelId, name)
+
+        boolean duplicateName = buildingRepository
+                .findByHotelIdAndNameIgnoreCase(buildingHotelId, name)
                 .filter(existing -> !existing.getId().equals(currentBuildingId))
-                .isPresent()) {
+                .isPresent();
+
+        if (duplicateName) {
             throw new AppException(ErrorCode.BUILDING_ALREADY_EXISTS);
         }
 
-        boolean changed = !building.getName().equals(name);
+        boolean changed = !Objects.equals(oldName, name);
+
         if (changed) {
             building.setName(name);
             building = buildingRepository.save(building);
@@ -115,9 +155,29 @@ public class BuildingServiceImpl implements BuildingService {
                 .id(building.getId())
                 .name(building.getName())
                 .build();
+
         if (changed) {
-            emitAfterCommit(() -> buildingFloorSocketEmitter.emitBuildingChanged(hotelId, "UPDATED", response));
+            Map<String, Object> change = Map.of(
+                    "label", "Tên tòa nhà",
+                    "before", oldName,
+                    "after", building.getName()
+            );
+
+            Map<String, Object> eventData = new LinkedHashMap<>();
+            eventData.put("id", building.getId());
+            eventData.put("name", building.getName());
+            eventData.put("changes", List.of(change));
+
+            emitAfterCommit(() ->
+                    buildingFloorSocketEmitter.emitBuildingChanged(
+                            buildingHotelId,
+                            "UPDATED",
+                            eventData,
+                            isSuperAdmin
+                    )
+            );
         }
+
         return response;
     }
 
@@ -126,11 +186,14 @@ public class BuildingServiceImpl implements BuildingService {
             log.warn("Transaction synchronization is not active; building socket event was not emitted");
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                emit.run();
-            }
-        });
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        emit.run();
+                    }
+                }
+        );
     }
 }

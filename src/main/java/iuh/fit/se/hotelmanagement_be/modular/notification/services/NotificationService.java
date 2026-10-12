@@ -20,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -38,7 +39,8 @@ public class NotificationService {
     private final NotificationReadReceiptRepository receiptRepository;
     private final SocketIOServer socketIOServer;
 
-    @Transactional
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Notification createAndPublish(
             Long hotelId,
             NotificationType type,
@@ -46,6 +48,25 @@ public class NotificationService {
             String description,
             String referenceType,
             String referenceId) {
+
+
+        return createAndPublish(
+                hotelId, type, title, description, referenceType, referenceId,
+                true, true
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Notification createAndPublish(
+            Long hotelId,
+            NotificationType type,
+            String title,
+            String description,
+            String referenceType,
+            String referenceId,
+            boolean publishToHotel,
+            boolean publishToSuperAdmin) {
+
         Notification notification = new Notification();
         notification.setHotelId(hotelId);
         notification.setType(type);
@@ -53,31 +74,43 @@ public class NotificationService {
         notification.setDescription(description);
         notification.setReferenceType(referenceType);
         notification.setReferenceId(referenceId);
+
+
+        notification.setVisibleToHotel(publishToHotel);
+        notification.setVisibleToSuperAdmin(publishToSuperAdmin);
+
+
         Notification saved = notificationRepository.save(notification);
         NotificationSocketPayload payload = toSocketPayload(saved);
 
         Runnable emit = () -> {
             try {
-                if (hotelId != null) {
+                if (publishToHotel && hotelId != null) {
                     socketIOServer.getRoomOperations("hotel_" + hotelId)
                             .sendEvent("notification_created", payload);
                 }
-                socketIOServer.getRoomOperations(SUPER_ADMIN_ROOM)
-                        .sendEvent("notification_created", payload);
+
+                if (publishToSuperAdmin) {
+                    socketIOServer.getRoomOperations(SUPER_ADMIN_ROOM)
+                            .sendEvent("notification_created", payload);
+                }
             } catch (RuntimeException exception) {
                 log.error("Could not emit persisted notification {}", saved.getId(), exception);
             }
         };
+
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    emit.run();
-                }
-            });
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            emit.run();
+                        }
+                    });
         } else {
             emit.run();
         }
+
         return saved;
     }
 

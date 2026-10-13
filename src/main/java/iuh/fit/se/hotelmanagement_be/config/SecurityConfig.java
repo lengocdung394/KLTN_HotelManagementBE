@@ -49,6 +49,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/rooms/public/**").permitAll()
+                        .requestMatchers("/api/internal/chatbot/**").permitAll()
                         // TODO: cho phan hoan thien upload file
                         .requestMatchers("/servicesImport/**").permitAll()
                         .requestMatchers("/roomsExcel/**").permitAll()

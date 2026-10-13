@@ -340,6 +340,11 @@ public class BookingServiceImpl implements BookingService {
         return detailRequests.stream().map(detailReq -> {
             Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
+            // VÁ LỖ HỔNG DOUBLE-BOOKING: KIỂM TRA OVERLAP NGÀY
+            if (bookingDetailRepository.existsOverlappingActiveBooking(room.getId(), detailReq.getCheckInTime(), detailReq.getCheckOutTime(), "")) {
+                throw new RuntimeException("Phòng " + room.getRoomNumber() + " đã có người đặt trong khoảng thời gian này!");
+            }
+
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
             BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
 

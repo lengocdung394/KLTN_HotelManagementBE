@@ -186,7 +186,27 @@ public enum ErrorCode {
     INSUFFICIENT_PAYMENT(9011, "Số tiền khách đưa không đủ để thanh toán hóa đơn", HttpStatus.BAD_REQUEST),
     PAYMENT_EXCEEDS_REMAINING(9012, "[9012] Số tiền thanh toán vượt quá số tiền còn nợ của hóa đơn", HttpStatus.BAD_REQUEST),
     WEBHOOK_VERIFICATION_FAILED(9020, "Xác thực chữ ký bảo mật Webhook PayOS thất bại!", HttpStatus.BAD_REQUEST),
-    PAYMENT_CODE_GENERATION_FAILED(9021, "Tạo mã thanh toán PayOS thất bại!", HttpStatus.BAD_REQUEST);
+    PAYMENT_CODE_GENERATION_FAILED(9021, "Tạo mã thanh toán PayOS thất bại!", HttpStatus.BAD_REQUEST),
+
+
+   // BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
+   // POLICY_NOT_FOUND(4042, "Không tìm thấy chính sách phòng với ID tương ứng", HttpStatus.NOT_FOUND),
+   // BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
+    CANCELLATION_NOT_FOUND(2010, "Không tìm thấy yêu cầu hủy booking", HttpStatus.NOT_FOUND),
+    CANCELLATION_INVALID_STATUS(2011, "Trạng thái yêu cầu không cho phép thao tác này", HttpStatus.BAD_REQUEST),
+    CANCELLATION_BANK_DETAILS_REQUIRED(2012, "Cần cung cấp thông tin tài khoản ngân hàng để nhận tiền hoàn", HttpStatus.BAD_REQUEST),
+    CANCELLATION_INVALID_BANK_ACCOUNT(2013, "Số tài khoản ngân hàng không hợp lệ", HttpStatus.BAD_REQUEST),
+    CANCELLATION_REVIEW_NOTE_REQUIRED(2014, "Cần ghi lý do khi từ chối hoàn tiền", HttpStatus.BAD_REQUEST),
+    CANCELLATION_REFUND_EXCEEDS_PAID(2015, "Số tiền hoàn vượt quá số tiền khách đã thanh toán", HttpStatus.BAD_REQUEST),
+    PAYMENT_LINK_CREATION_FAILED(2016, "Không thể tạo liên kết thanh toán online; vui lòng thử lại", HttpStatus.BAD_GATEWAY);
+
+//    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+//    DUPLICATE_SEASONAL_RATE(1040, "Đã tồn tại đợt giá mùa vụ cho loại phòng này trong khoảng thời gian đã chọn", HttpStatus.BAD_REQUEST),
+//    ROOM_NUMBER_ALREADY_EXISTS(1034, "So phong nay da ton tai", HttpStatus.BAD_REQUEST),
+//    INVALID_IMAGE_FORMAT(1006, "Định dạng ảnh không hợp lệ (Chỉ hỗ trợ file ảnh định dạng JPG, JPEG, PNG, WEBP)", HttpStatus.BAD_REQUEST),
+//    IMAGE_SIZE_TOO_LARGE(1007, "Dung lượng ảnh vượt quá giới hạn cho phép (Tối đa 5MB cho mỗi file)", HttpStatus.BAD_REQUEST),
+//    // --- THÊM LỖI NÀY VÀO ---
+//    UNAUTHORIZED_BRANCH_ACCESS(1003, "Bạn không có quyền tạo hoặc thao tác khuyến mãi trên chi nhánh khác", HttpStatus.FORBIDDEN);
     private final int code;
     private final String message;
     private final HttpStatusCode statusCode;

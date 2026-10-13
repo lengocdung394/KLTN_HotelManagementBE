@@ -19,8 +19,9 @@ public enum NotificationType {
     SERVICE_UPDATED,
     SERVICE_IMPORT_COMPLETED,
     SERVICE_IMPORT_FAILED,
-    SYSTEM
-    // them khuyen mai he thong, cap nhat khuyen mai he thong
+    SYSTEM,
+    BOOKING_REFUND_COMPLETED,
+    BOOKING_REFUND_REQUESTED
     // kiem tra update thong tin tai khoan bao mat
 
 }

@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateCheckOutBookingNotificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
@@ -9,8 +10,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Locale;
 import java.util.Map;
 
 @Component
@@ -74,6 +78,40 @@ public class BookingSocketEmitter {
                 "BOOKING",
                 bookingId);
     }
+
+    // đã giải quyết xong luồng hoàn tiền do hủy booking
+    public void emitRefundCompleted(Long hotelId, String bookingId, BigDecimal refundAmount) {
+        if (hotelId == null) return;
+        String formattedAmount = NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN"))
+                .format(refundAmount);
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.BOOKING_REFUND_COMPLETED,
+                "Đã hoàn tiền",
+                "Đã xác nhận hoàn " + formattedAmount + "đ cho booking #" + bookingId + ".",
+                "BOOKING_CANCELLATION",
+                bookingId);
+    }
+
+    // thong bao huy booking
+    public void emitRefundRequested(
+            Long hotelId,
+            String bookingId,
+            BigDecimal refundAmount,
+            BookingCancellationStatus status) {
+        if (hotelId == null) return;
+        String formattedAmount = NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN"))
+                .format(refundAmount);
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.BOOKING_REFUND_REQUESTED,
+                "Yêu cầu hoàn tiền mới",
+                "Booking #" + bookingId + " có yêu cầu hoàn " + formattedAmount
+                        + "đ (trạng thái: " + status + "). Dự kiến xử lý trong vòng 1–3 ngày.",
+                "BOOKING_CANCELLATION",
+                bookingId);
+    }
+
 
     /**
      * 3. Gửi thông báo về cho chính Khách hàng (trạng thái đơn, thanh toán...)

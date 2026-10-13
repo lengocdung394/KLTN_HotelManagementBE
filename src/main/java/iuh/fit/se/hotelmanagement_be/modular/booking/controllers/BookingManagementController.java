@@ -2,16 +2,22 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.controllers;
 
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
+import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.BookingCancellationService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -22,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
 public class BookingManagementController {
     BookingManagementService bookingManagementService;
+    BookingCancellationService  bookingCancellationService;
 
     /**
      * API chỉnh sửa đơn đặt phòng (Hỗ trợ đồng thời: Hủy phòng, thêm phòng, đổi phòng, đổi ngày, hủy dịch vụ).
@@ -47,6 +54,22 @@ public class BookingManagementController {
                         .result(result)
                         .build()
         );
+    }
+
+    @PostMapping("/{bookingId}/cancel")
+    @PreAuthorize("hasAuthority('UPDATE_BOOKING') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<BookingCancellationResponse>> cancelBooking(
+            @PathVariable String bookingId,
+            @Valid @RequestBody(required = false) BookingCancellationRequest request,
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        BookingCancellationResponse result = bookingCancellationService.requestCancellationByStaff(
+                bookingId, request, account);
+        return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
+                .code(1000)
+                .message("Booking đã được nhân viên hủy; yêu cầu hoàn tiền sẽ chờ thông tin ngân hàng nếu cần.")
+                .result(result)
+                .build());
     }
 
 }

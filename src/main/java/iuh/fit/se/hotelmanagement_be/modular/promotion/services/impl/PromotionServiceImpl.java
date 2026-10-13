@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.services.impl;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
@@ -276,6 +277,46 @@ public class PromotionServiceImpl implements PromotionService {
 
         promotion.setDeleted(true);
         promotionRepository.save(promotion);
+    }
+
+    @Transactional
+    @Override
+    public void redeemBookingPromotionAtCheckout(Booking booking) {
+//        if (booking.getPromotionUsedAt() != null) {
+//            return; // Checkout gọi lại thì không tăng usedCount lần nữa.
+//        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        CustomerPromotion customerPromotion = booking.getCustomerPromotion();
+
+        if (customerPromotion != null) {
+            if (customerPromotion.isUsed()) {
+                return;
+            }
+
+            customerPromotion.setUsed(true);
+            customerPromotion.setUsedAt(now);
+            customerPromotion.setBooking(booking);
+            customerPromotionRepository.save(customerPromotion);
+
+            Promotion promotion = customerPromotion.getPromotion();
+            promotion.setUsedCount(
+                    (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) + 1
+            );
+            promotionRepository.save(promotion);
+        } else if (booking.getPromotion() != null) {
+            Promotion promotion = booking.getPromotion();
+            promotion.setUsedCount(
+                    (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) + 1
+            );
+            promotionRepository.save(promotion);
+        } else {
+            return; // Booking không có promotion.
+        }
+
+//        booking.setPromotionUsedAt(now);
+//        bookingRepository.save(booking);
     }
 
     // ==================== HELPERS ====================

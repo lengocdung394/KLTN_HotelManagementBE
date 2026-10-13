@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.services;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
@@ -36,4 +37,5 @@ public interface PromotionService {
     PromotionResponse changeStatus(String id, ChangeStatusRequest request);
 
     void deletePromotion(String id);
+    void redeemBookingPromotionAtCheckout(Booking booking);
 }

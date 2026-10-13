@@ -36,5 +36,9 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
                   and b.createdAt < :threshold
             """)
     List<Booking> findExpiredPendingBookings(@Param("threshold") LocalDateTime threshold, @Param("status") BookingStatus status);
+    // ham tim kiem booking de phuc vu huy booking
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select booking from Booking booking where booking.id = :bookingId")
+    Optional<Booking> findByIdForUpdate(@Param("bookingId") String bookingId);
 
 }

@@ -536,8 +536,9 @@ public class BookingServiceImpl implements BookingService {
             Promotion promotion = customerPromotion.getPromotion();
             validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
 
-            customerPromotion.setUsed(true);
-            customerPromotion.setUsedAt(now);
+//            customerPromotion.setUsed(true);
+//            customerPromotion.setUsedAt(now);
+
             customerPromotion.setBooking(booking);
 
             return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);

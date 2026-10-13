@@ -45,6 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
 
+
     // Tự viết Constructor tường minh để khởi tạo đầy đủ các bean và thông tin cấu hình PayOS
     public PaymentServiceImpl(
             OrderRepository orderRepository,
@@ -424,4 +425,50 @@ public class PaymentServiceImpl implements PaymentService {
                 "message", "Đang chờ khách chuyển khoản"
         );
     }
+
+    @Override
+    @Transactional
+    public void cancelOutstandingPaymentLinks(String bookingId) {
+        Optional<Order> orderOpt = orderRepository.findByBookingIdForUpdate(bookingId);
+        if (orderOpt.isEmpty()) {
+            return;
+        }
+        Order order = orderOpt.get();
+        if (order.getPaymentOrderCodes() == null || order.getPaymentOrderCodes().isEmpty()) {
+            return;
+        }
+
+        for (Long orderCode : order.getPaymentOrderCodes()) {
+            PaymentLink link = payOS.paymentRequests().get(orderCode);
+            if (link == null) {
+                continue;
+            }
+            PaymentLinkStatus status = link.getStatus();
+            if (status == PaymentLinkStatus.PAID || status == PaymentLinkStatus.UNDERPAID) {
+                String paymentLinkId = link.getId();
+                boolean alreadyRecorded = order.getPaymentTransactions() != null
+                        && order.getPaymentTransactions().stream().anyMatch(transaction ->
+                        transaction.getNote() != null
+                                && transaction.getNote().equals("PayOS Webhook Ref: " + paymentLinkId));
+                long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0
+                        ? link.getAmountPaid()
+                        : status == PaymentLinkStatus.PAID ? link.getAmount() : 0;
+                if (!alreadyRecorded && amountPaid > 0) {
+                    order.addPaymentSuccess(
+                            BigDecimal.valueOf(amountPaid),
+                            PaymentType.BANK,
+                            paymentLinkId);
+                    order.setPaymentStatus(order.getRemainingAmount().signum() == 0
+                            ? PaymentStatus.PAID
+                            : PaymentStatus.PARTIAL);
+                }
+            }
+            if (status == PaymentLinkStatus.PENDING || status == PaymentLinkStatus.UNDERPAID
+                    || status == PaymentLinkStatus.PROCESSING) {
+                payOS.paymentRequests().cancel(orderCode, "Booking cancellation requested");
+            }
+        }
+        orderRepository.save(order);
+    }
+
 }

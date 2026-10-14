@@ -65,6 +65,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setFullName(request.getFullName());
         customer.setPhone(request.getPhone());
         customer.setCccd(request.getCccd());
+        customer.setEmail(request.getEmail() == null || request.getEmail().isBlank() ? null : request.getEmail().trim());
         customer.setRegistered(false);
         customer.setAccount(null);
 
@@ -82,6 +83,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .fullName(customer.getFullName())
                 .cccd(customer.getCccd())
                 .phone(customer.getPhone())
+                .email(customer.getEmail())
                 .build();
     }
 
@@ -92,7 +94,9 @@ public class CustomerServiceImpl implements CustomerService {
         return CustomerFindByIdResponse.builder()
                 .name(customer.getFullName())
                 .cccd(customer.getCccd())
-                .phone(customer.getPhone()).build();
+                .phone(customer.getPhone())
+                .email(customer.getEmail())
+                .build();
     }
 
     @Override
@@ -323,4 +327,3 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
     }
 }
-

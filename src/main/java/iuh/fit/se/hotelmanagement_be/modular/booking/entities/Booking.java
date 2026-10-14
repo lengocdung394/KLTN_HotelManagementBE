@@ -56,10 +56,10 @@ public class Booking {
 
     // 3. Tiền giảm & thời điểm áp dụng (khớp với sơ đồ Class của bạn)
     @Column(name = "apply_amount", precision = 15, scale = 2)
-    BigDecimal applyAmount; // Số tiền được giảm (VD: 100.000 VNĐ)
+    BigDecimal applyAmount;     // Số tiền được giảm (VD: 100.000 VNĐ)
 
     @Column(name = "apply_at")
-    LocalDateTime applyAt;  // Thời điểm nhân viên bấm áp dụng mã
+    LocalDateTime applyAt;     // Thời điểm nhân viên bấm áp dụng mã
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")

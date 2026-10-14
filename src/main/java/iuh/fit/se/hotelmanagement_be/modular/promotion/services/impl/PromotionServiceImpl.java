@@ -3,20 +3,23 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.services.impl;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
-import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.PromotionQuoteRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
@@ -48,10 +51,10 @@ public class PromotionServiceImpl implements PromotionService {
 
     PromotionRepository promotionRepository;
     HotelRepository hotelRepository;
-    CustomerPromotionRepository customerPromotionRepository;
+    BookingService bookingService;
     CloudinaryService cloudinaryService;
     PromotionSocketEmitter promotionSocketEmitter;
-
+    NotificationService notificationService;
     // State machine: trạng thái hiện tại → các trạng thái được phép chuyển
     static final Map<PromotionStatus, Set<PromotionStatus>> ALLOWED_TRANSITIONS = Map.of(
             PromotionStatus.DRAFT, Set.of(PromotionStatus.ACTIVE, PromotionStatus.INACTIVE),
@@ -76,27 +79,20 @@ public class PromotionServiceImpl implements PromotionService {
         var authorities = authentication.getAuthorities();
         boolean isAdmin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isManager = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
+        boolean isSuperAdmin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_SUPER_ADMIN"));
 
-        if (!isAdmin && !isManager) {
+        if (!isAdmin && !isManager && !isSuperAdmin) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        // 2. Nếu là MANAGER, kiểm tra xem có đúng chi nhánh của mình không
-        if (isManager) {
-            // Vì Account implement UserDetails nên principal chính là đối tượng Account của bạn
+        if (!isSuperAdmin) {
             Account currentAccount = (Account) authentication.getPrincipal();
-
-            Long managerHotelId = currentAccount.getHotelId(); // Lấy hotelId từ Account
-            Long requestedHotelId = hotelId;     // hotelId từ request tạo promotion
-
-            // So sánh: Nếu manager không thuộc chi nhánh nào, hoặc chi nhánh gửi lên không khớp -> Chặn
-            if (managerHotelId == null || !managerHotelId.equals(requestedHotelId)) {
+            if (currentAccount.getHotelId() == null || !currentAccount.getHotelId().equals(hotelId)) {
                 throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
             }
+        } else if (hotelId != null && !hotelRepository.existsById(hotelId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
         }
-
-        // kiem tra cho phai la admin chi nhanh do hoac la quan li chi nhanh do
-
 
         validateDates(request.getStartDate(), request.getEndDate());
 
@@ -122,7 +118,8 @@ public class PromotionServiceImpl implements PromotionService {
             }
         }
 
-        Hotel hotel = hotelRepository.findById(hotelId).orElse(null);
+        Hotel hotel = hotelId == null ? null : hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS));
         // 4. Khởi tạo đối tượng Promotion
         Promotion promotion = Promotion.builder()
                 .name(request.getName().trim())
@@ -153,8 +150,31 @@ public class PromotionServiceImpl implements PromotionService {
         promotion = promotionRepository.save(promotion);
 
         PromotionResponse response = toResponse(promotion);
-        // luong socket
-        promotionSocketEmitter.emitPromotionCreate(hotelId, promotion);
+        String notificationTitle = hotelId == null
+                ? "Khuyến mãi toàn hệ thống mới"
+                : "Khuyến mãi mới";
+        String notificationDescription = "Chương trình \"" + promotion.getName()
+                + "\" với mã " + promotion.getCode() + " vừa được tạo.";
+        if (hotelId == null) {
+            List<Long> hotelIds = hotelRepository.findAll().stream().map(Hotel::getId).toList();
+            notificationService.createAndPublishSystemWide(
+                    NotificationType.PROMOTION_CREATED,
+                    notificationTitle,
+                    notificationDescription,
+                    "PROMOTION",
+                    promotion.getId(),
+                    hotelIds);
+            promotionSocketEmitter.emitSystemPromotionCreate(hotelIds, response);
+        } else {
+            notificationService.createAndPublish(
+                    hotelId,
+                    NotificationType.PROMOTION_CREATED,
+                    notificationTitle,
+                    notificationDescription,
+                    "PROMOTION",
+                    promotion.getId());
+            promotionSocketEmitter.emitPromotionCreate(hotelId, response);
+        }
 
         return response;
     }
@@ -184,16 +204,44 @@ public class PromotionServiceImpl implements PromotionService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    @Override
+    public PromotionQuoteResponse quotePromotion(String id, PromotionQuoteRequest request) {
+        Promotion promotion = findOrThrow(id);
+        LocalDateTime now = LocalDateTime.now();
+        var roomTotal = request.roomTotal();
+        var serviceTotal = request.serviceTotal();
+        var subtotal = roomTotal.add(serviceTotal);
+
+        // The quote uses the same eligibility checks and discount calculation as booking creation.
+        bookingService.validatePromotionRules(promotion, subtotal, now, roomTotal, serviceTotal);
+
+        var breakdown = bookingService.calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
+        var estimatedDiscount = breakdown.getDiscountRoomAmount()
+                .add(breakdown.getDiscountServiceAmount())
+                .add(breakdown.getDiscountAmountTotal());
+        var payableAmount = subtotal.subtract(estimatedDiscount).max(java.math.BigDecimal.ZERO);
+
+        return new PromotionQuoteResponse(true, estimatedDiscount, payableAmount, null);
+    }
+
     // can can chinh lai cho truong hop ma hotelId == null - tuc la TH ma admin sua khuyen mai
     @Override
     @Transactional
     public PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile, Long hotelId) {
         log.info("Cập nhật khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
+        assertCanManagePromotion(promotion);
 
-        if (promotion.getStatus() == PromotionStatus.ACTIVE && promotion.getUsedCount() > 0) {
+        if (promotion.getStatus() == PromotionStatus.ACTIVE
+                && (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) > 0) {
             throw new IllegalStateException(
                     "Không thể sửa khuyến mãi đang ACTIVE đã có " + promotion.getUsedCount() + " lượt dùng. Hãy đổi sang INACTIVE trước.");
+        }
+
+        if (request.getUsageLimit() != null
+                && (request.getUsageLimit() < (promotion.getClaimedCount() == null ? 0 : promotion.getClaimedCount())
+                || request.getUsageLimit() < (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()))) {
+            throw new IllegalArgumentException("Số lượng phát hành không được thấp hơn số voucher đã lưu hoặc đã dùng");
         }
 
         validateDates(request.getStartDate(), request.getEndDate());
@@ -233,10 +281,7 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setUsageLimit(request.getUsageLimit());
 
         PromotionResponse response = toResponse(promotionRepository.save(promotion));
-
-        // su kien socket
-        promotionSocketEmitter.emitPromotionUpdate(hotelId);
-        // can nhac cho su kien bang soc ket cho toan bo chi nhanh
+        publishPromotionUpdate(promotion, response, null);
 
         return response;
     }
@@ -247,6 +292,7 @@ public class PromotionServiceImpl implements PromotionService {
     public PromotionResponse changeStatus(String id, ChangeStatusRequest request) {
         log.info("Đổi trạng thái khuyến mãi ID: {} → {}", id, request.getStatus());
         Promotion promotion = findOrThrow(id);
+        assertCanManagePromotion(promotion);
 
         PromotionStatus current = promotion.getStatus();
         PromotionStatus next = request.getStatus();
@@ -260,7 +306,9 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         promotion.setStatus(next);
-        return toResponse(promotionRepository.save(promotion));
+        PromotionResponse response = toResponse(promotionRepository.save(promotion));
+        publishPromotionUpdate(promotion, response, "Trạng thái: " + current + " → " + next + ".");
+        return response;
     }
 
 
@@ -270,6 +318,7 @@ public class PromotionServiceImpl implements PromotionService {
     public void deletePromotion(String id) {
         log.info("Xóa mềm khuyến mãi ID: {}", id);
         Promotion promotion = findOrThrow(id);
+        assertCanManagePromotion(promotion);
 
         if (promotion.getStatus() == PromotionStatus.ACTIVE) {
             throw new IllegalStateException("Không thể xóa khuyến mãi đang ACTIVE. Hãy đổi sang INACTIVE trước.");
@@ -279,47 +328,62 @@ public class PromotionServiceImpl implements PromotionService {
         promotionRepository.save(promotion);
     }
 
-    @Transactional
-    @Override
-    public void redeemBookingPromotionAtCheckout(Booking booking) {
-//        if (booking.getPromotionUsedAt() != null) {
-//            return; // Checkout gọi lại thì không tăng usedCount lần nữa.
-//        }
-
-        LocalDateTime now = LocalDateTime.now();
-
-        CustomerPromotion customerPromotion = booking.getCustomerPromotion();
-
-        if (customerPromotion != null) {
-            if (customerPromotion.isUsed()) {
-                return;
-            }
-
-            customerPromotion.setUsed(true);
-            customerPromotion.setUsedAt(now);
-            customerPromotion.setBooking(booking);
-            customerPromotionRepository.save(customerPromotion);
-
-            Promotion promotion = customerPromotion.getPromotion();
-            promotion.setUsedCount(
-                    (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) + 1
-            );
-            promotionRepository.save(promotion);
-        } else if (booking.getPromotion() != null) {
-            Promotion promotion = booking.getPromotion();
-            promotion.setUsedCount(
-                    (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) + 1
-            );
-            promotionRepository.save(promotion);
-        } else {
-            return; // Booking không có promotion.
+    // ==================== HELPERS ====================
+    private void assertCanManagePromotion(Promotion promotion) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (isSuperAdmin) {
+            return;
         }
 
-//        booking.setPromotionUsedAt(now);
-//        bookingRepository.save(booking);
+        Object principal = authentication.getPrincipal();
+        Long promotionHotelId = promotion.getHotel() == null ? null : promotion.getHotel().getId();
+        if (!(principal instanceof Account account)
+                || account.getHotelId() == null
+                || !account.getHotelId().equals(promotionHotelId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+        }
     }
 
-    // ==================== HELPERS ====================
+    private void publishPromotionUpdate(
+            Promotion promotion,
+            PromotionResponse response,
+            String additionalDetails) {
+        Long promotionHotelId = promotion.getHotel() == null ? null : promotion.getHotel().getId();
+        String title = promotionHotelId == null
+                ? "Khuyến mãi toàn hệ thống đã cập nhật"
+                : "Khuyến mãi chi nhánh đã cập nhật";
+        String description = "Chương trình \"" + promotion.getName() + "\" với mã "
+                + promotion.getCode() + " vừa được cập nhật."
+                + (additionalDetails == null ? "" : " " + additionalDetails);
+
+        if (promotionHotelId == null) {
+            List<Long> hotelIds = hotelRepository.findAll().stream().map(Hotel::getId).toList();
+            notificationService.createAndPublishSystemWide(
+                    NotificationType.PROMOTION_UPDATED,
+                    title,
+                    description,
+                    "PROMOTION",
+                    promotion.getId(),
+                    hotelIds);
+            promotionSocketEmitter.emitSystemPromotionUpdate(hotelIds, response);
+            return;
+        }
+
+        notificationService.createAndPublishInCurrentTransaction(
+                promotionHotelId,
+                NotificationType.PROMOTION_UPDATED,
+                title,
+                description,
+                "PROMOTION",
+                promotion.getId());
+        promotionSocketEmitter.emitPromotionUpdate(promotionHotelId, response);
+    }
+
     private Promotion findOrThrow(String id) {
         return promotionRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khuyến mãi với ID: " + id));
@@ -367,11 +431,15 @@ public class PromotionServiceImpl implements PromotionService {
         boolean available = p.getStatus() == PromotionStatus.ACTIVE
                 && !p.getEndDate().isBefore(now)
                 && !p.getStartDate().isAfter(now)
-                && (p.getUsageLimit() == null || p.getUsedCount() < p.getUsageLimit());
+                && (p.getUsageLimit() == null
+                || ((p.getUsedCount() == null ? 0 : p.getUsedCount()) < p.getUsageLimit()
+                && (p.getClaimedCount() == null ? 0 : p.getClaimedCount()) < p.getUsageLimit()));
 
         return PromotionResponse.builder()
                 .id(p.getId())
                 .code(p.getCode())
+                .hotelId(p.getHotel() != null ? p.getHotel().getId() : null)
+                .hotelName(p.getHotel() != null ? p.getHotel().getName() : "Toàn hệ thống")
                 .name(p.getName())
                 .description(p.getDescription())
                 .type(p.getType())
@@ -385,6 +453,7 @@ public class PromotionServiceImpl implements PromotionService {
                 .startDate(p.getStartDate())
                 .endDate(p.getEndDate())
                 .usageLimit(p.getUsageLimit())
+                .claimedCount(p.getClaimedCount())
                 .usedCount(p.getUsedCount())
                 .status(p.getStatus())
                 .available(available)

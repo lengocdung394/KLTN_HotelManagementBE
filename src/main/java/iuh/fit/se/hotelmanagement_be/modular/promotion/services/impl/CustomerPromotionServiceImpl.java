@@ -61,6 +61,9 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                             .type(p.getType().name())
                             .discountValue(p.getDiscountValue())
                             .maxDiscountAmount(p.getMaxDiscountAmount())
+
+                            .isUsed(cp.isUsed())
+                            .usedAt(cp.getUsedAt())
                             .minBookingValue(p.getMinBookingValue())
                             .startDate(p.getStartDate())
                             .endDate(p.getEndDate())
@@ -113,14 +116,16 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
             );
         }
         // so luong khuyen mai da duoc khach hang luu ve may
-        Integer claimedCount = promotion.getClaimedCount();
+        int claimedCount = promotion.getClaimedCount() != null ? promotion.getClaimedCount() : 0;
+
+        int usedCount = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
 
         if (promotion.getUsageLimit() != null
-                && claimedCount >= promotion.getUsageLimit()) {
+                && Math.max(claimedCount, usedCount) >= promotion.getUsageLimit()) {
             throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_EXCEEDED);
         }
 
-        promotion.setClaimedCount(claimedCount + 1);
+        promotion.setClaimedCount(claimedCount + 1); // so luot tang len mot
 
         CustomerPromotion customerPromotion = CustomerPromotion.builder()
                 .customer(customer)

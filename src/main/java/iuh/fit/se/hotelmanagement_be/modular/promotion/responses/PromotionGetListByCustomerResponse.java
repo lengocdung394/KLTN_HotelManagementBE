@@ -19,6 +19,8 @@ public class PromotionGetListByCustomerResponse {
     String type;                 // Loại giảm giá (ROOM_PERCENTAGE, SERVICE_PERCENTAGE,...)
     BigDecimal discountValue;        // Giá trị giảm (% hoặc số tiền)
     BigDecimal maxDiscountAmount;    // Số tiền giảm tối đa
+    boolean isUsed;                   // Voucher của khách hàng đã được dùng chưa
+    LocalDateTime usedAt;             // Thời điểm voucher cá nhân được dùng
     BigDecimal minBookingValue;      // Giá trị đơn hàng tối thiểu để áp dụng
     LocalDateTime startDate;     // Ngày bắt đầu
     LocalDateTime endDate;       // Ngày hết hạn

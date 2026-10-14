@@ -39,6 +39,7 @@ public class BookingResponse {
     BigDecimal discountRoomAmount;     // Số tiền được giảm cho phòng
     BigDecimal discountServiceAmount;  // Số tiền được giảm cho dịch vụ
     BigDecimal discountAmountTotal;    // Số tiền giảm trừ thẳng vào tổng hóa đơn chung
+    BigDecimal estimatedDiscountAmount;
 
     // --- Bổ sung thêm các trường tiền nong từ Order ---
     BigDecimal roomTotal;       // Tổng tiền phòng

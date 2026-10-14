@@ -66,6 +66,7 @@ public enum ErrorCode {
     WALK_IN_CUSTOMER_NEEDS_PASSWORD(3002, "[3002] Khách vãng lai cần thiết lập mật khẩu", HttpStatus.OK),
     CUSTOMER_ALREADY_REGISTERED(3003, "[3003] Khách hàng đã được đăng ký từ trước", HttpStatus.BAD_REQUEST),
     CUSTOMER_NOT_FOUND(3004, "[3004] Không tìm thấy thông tin khách hàng", HttpStatus.NOT_FOUND),
+    CUSTOMER_EMAIL_REQUIRED(3005, "Vui lòng nhập email khách hàng để nhận xác nhận đặt phòng", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================
@@ -168,6 +169,7 @@ public enum ErrorCode {
     PROMOTION_MIN_ORDER_NOT_MET(8033, "[8033] Giá trị hóa đơn chưa đạt mức tối thiểu để áp dụng khuyến mãi", HttpStatus.BAD_REQUEST),
     PROMOTION_INACTIVE(8034, "[8034] Chương trình khuyến mãi hiện đang không hoạt động", HttpStatus.BAD_REQUEST),
     MULTIPLE_PROMOTIONS_NOT_ALLOWED(8035, "[8035] Chỉ được phép áp dụng một mã khuyến mãi hoặc giảm giá cho mỗi đơn đặt phòng", HttpStatus.BAD_REQUEST),
+    PROMOTION_ALREADY_USED_BY_USER(8036, "[8036] Khách hàng đã sử dụng chương trình khuyến mãi này trước đó", HttpStatus.BAD_REQUEST),
 
     PROMOTION_MIN_ROOM_NOT_MET(8040, "Tiền phòng chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
     PROMOTION_MIN_SERVICE_NOT_MET(8041, "Tiền dịch vụ chưa đạt mức tối thiểu để áp dụng mã này.", HttpStatus.BAD_REQUEST),
@@ -189,9 +191,9 @@ public enum ErrorCode {
     PAYMENT_CODE_GENERATION_FAILED(9021, "Tạo mã thanh toán PayOS thất bại!", HttpStatus.BAD_REQUEST),
 
 
-   // BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
-   // POLICY_NOT_FOUND(4042, "Không tìm thấy chính sách phòng với ID tương ứng", HttpStatus.NOT_FOUND),
-   // BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
+    // BOOKING_DETAIL_NOT_FOUND(2002, "[2002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
+    // POLICY_NOT_FOUND(4042, "Không tìm thấy chính sách phòng với ID tương ứng", HttpStatus.NOT_FOUND),
+    // BOOKING_ALREADY_CANCELLED(2004, "[2004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
     CANCELLATION_NOT_FOUND(2010, "Không tìm thấy yêu cầu hủy booking", HttpStatus.NOT_FOUND),
     CANCELLATION_INVALID_STATUS(2011, "Trạng thái yêu cầu không cho phép thao tác này", HttpStatus.BAD_REQUEST),
     CANCELLATION_BANK_DETAILS_REQUIRED(2012, "Cần cung cấp thông tin tài khoản ngân hàng để nhận tiền hoàn", HttpStatus.BAD_REQUEST),
@@ -200,7 +202,7 @@ public enum ErrorCode {
     CANCELLATION_REFUND_EXCEEDS_PAID(2015, "Số tiền hoàn vượt quá số tiền khách đã thanh toán", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(2016, "Không thể tạo liên kết thanh toán online; vui lòng thử lại", HttpStatus.BAD_GATEWAY);
 
-//    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    //    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
 //    DUPLICATE_SEASONAL_RATE(1040, "Đã tồn tại đợt giá mùa vụ cho loại phòng này trong khoảng thời gian đã chọn", HttpStatus.BAD_REQUEST),
 //    ROOM_NUMBER_ALREADY_EXISTS(1034, "So phong nay da ton tai", HttpStatus.BAD_REQUEST),
 //    INVALID_IMAGE_FORMAT(1006, "Định dạng ảnh không hợp lệ (Chỉ hỗ trợ file ảnh định dạng JPG, JPEG, PNG, WEBP)", HttpStatus.BAD_REQUEST),

@@ -18,7 +18,8 @@ public interface CheckInOutRepository extends JpaRepository<BookingDetail, Strin
             "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +
             "WHERE (h.id = :hotelId OR bd.booking.hotel.id = :hotelId) " +
             "AND CAST(bd.checkinTime AS localdate ) = :date " +
-            "AND bd.status = :status")
+            "AND bd.status = :status " +
+            "AND bd.booking.bookingStatus = :bookingStatus")
     List<BookingDetail> findArrivalsByHotelAndDateAndStatus(
             @Param("hotelId") Long hotelId,
             @Param("date") LocalDate date,

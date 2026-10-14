@@ -42,4 +42,13 @@ public interface AccountRepository extends JpaRepository<Account, String> {
             "WHERE a.id = :id")
     Optional<Account> findByIdWithProfiles(@Param("id") String id);
 
+    @Query("SELECT DISTINCT a.id FROM Account a JOIN a.employee e JOIN a.roles r " +
+            "WHERE e.hotel.id = :hotelId AND r.code IN :roleCodes")
+    List<String> findAccountIdsByHotelIdAndRoleCodeIn(
+            @Param("hotelId") Long hotelId,
+            @Param("roleCodes") List<String> roleCodes);
+
+    @Query("SELECT DISTINCT a.id FROM Account a JOIN a.roles r WHERE r.code = 'ROLE_SUPER_ADMIN'")
+    List<String> findSuperAdminAccountIds();
+
 }

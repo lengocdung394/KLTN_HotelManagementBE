@@ -25,6 +25,9 @@ public class Notification {
     @Column(name = "hotel_id")
     Long hotelId;
 
+    @Column(name = "recipient_account_id", length = 100)
+    String recipientAccountId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     NotificationType type;

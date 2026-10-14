@@ -23,13 +23,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AppException.class)
     public ResponseEntity<iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse<?>> handleAppException(AppException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        log.error("AppException occurred: [{}] {}", errorCode.getCode(), errorCode.getMessage());
+        log.error("AppException occurred: [{}] {}", errorCode.getCode(), exception.getMessage());
 
         return ResponseEntity
                 .status(errorCode.getStatusCode())
                 .body(iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse.builder()
                         .code(errorCode.getCode())
-                        .message(errorCode.getMessage())
+                        .message(exception.getMessage())
                         .build());
     }
 

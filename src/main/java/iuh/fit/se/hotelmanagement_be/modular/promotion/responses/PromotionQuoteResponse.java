@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 public record PromotionQuoteResponse(
         boolean eligible,
-        BigDecimal discountAmount,
+        BigDecimal estimatedDiscountAmount,
         BigDecimal payableAmount,
         String reason
 ) {}

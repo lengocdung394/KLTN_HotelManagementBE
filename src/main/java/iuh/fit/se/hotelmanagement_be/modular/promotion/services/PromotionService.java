@@ -1,12 +1,13 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.services;
 
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.PromotionQuoteRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,10 +33,11 @@ public interface PromotionService {
 
     List<PromotionResponse> getActivePromotions();
 
+    PromotionQuoteResponse quotePromotion(String id, PromotionQuoteRequest request);
+
     PromotionResponse updatePromotion(String id, UpdatePromotionRequest request, MultipartFile imageFile, Long hotelId);
 
     PromotionResponse changeStatus(String id, ChangeStatusRequest request);
 
     void deletePromotion(String id);
-    void redeemBookingPromotionAtCheckout(Booking booking);
 }

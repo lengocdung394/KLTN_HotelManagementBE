@@ -4,6 +4,10 @@ import com.corundumstudio.socketio.SocketIOServer;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateCheckOutBookingNotificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +18,7 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -46,11 +51,26 @@ public class BookingSocketEmitter {
     ) {
         if (hotelId == null || booking == null) return;
 
+        Customer customer = booking.getCustomer();
+        String customerName = customer != null && customer.getFullName() != null
+                ? customer.getFullName()
+                : "Chưa cập nhật";
+        String customerPhone = customer != null && customer.getPhone() != null
+                ? customer.getPhone()
+                : "Chưa cập nhật";
+        BigDecimal totalAmount = booking.getOrder() != null && booking.getOrder().getTotalAmount() != null
+                ? booking.getOrder().getTotalAmount()
+                : BigDecimal.ZERO;
+        String formattedAmount = formatAmount(totalAmount);
+
         notificationService.createAndPublish(
                 hotelId,
                 NotificationType.BOOKING_CREATED,
                 "Booking mới",
-                "Booking #" + booking.getId() + " vừa được tạo.",
+                "Mã booking: #" + booking.getId()
+                        + " | Khách hàng: " + customerName
+                        + " | SĐT: " + customerPhone
+                        + " | Tổng tiền booking: " + formattedAmount + "đ.",
                 "BOOKING",
                 booking.getId()
         );
@@ -65,6 +85,126 @@ public class BookingSocketEmitter {
                 );
 
         log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+    }
+
+    public void emitPaymentReceived(Order order, BigDecimal amount, PaymentType paymentType) {
+        if (order == null || order.getBooking() == null) return;
+
+        Booking booking = order.getBooking();
+        Long hotelId = booking.getHotel() != null ? booking.getHotel().getId() : null;
+        if (hotelId == null) return;
+
+        Customer customer = booking.getCustomer();
+        String customerName = customer != null && customer.getFullName() != null
+                ? customer.getFullName()
+                : "Chưa cập nhật";
+        String customerPhone = customer != null && customer.getPhone() != null
+                ? customer.getPhone()
+                : "Chưa cập nhật";
+        String formattedAmount = formatAmount(amount != null ? amount : BigDecimal.ZERO);
+        String paymentMethod = switch (paymentType != null ? paymentType : PaymentType.CASH) {
+            case CASH -> "Tiền mặt";
+            case BANK -> "Chuyển khoản";
+            case EWALLET -> "Ví điện tử";
+        };
+
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.PAYMENT_RECEIVED,
+                "Đã nhận thanh toán booking",
+                "Mã booking: #" + booking.getId()
+                        + " | Khách hàng: " + customerName
+                        + " | SĐT: " + customerPhone
+                        + " | Số tiền thanh toán: " + formattedAmount + "đ"
+                        + " | Phương thức: " + paymentMethod + ".",
+                "BOOKING",
+                booking.getId()
+        );
+    }
+
+    public void emitBookingUpdated(
+            Long hotelId,
+            Booking booking,
+            BookingModificationRequest request,
+            BigDecimal oldTotalAmount,
+            BigDecimal newTotalAmount) {
+        if (hotelId == null || booking == null) return;
+
+        Customer customer = booking.getCustomer();
+        String customerName = customer != null && customer.getFullName() != null
+                ? customer.getFullName()
+                : "Chưa cập nhật";
+        String customerPhone = customer != null && customer.getPhone() != null
+                ? customer.getPhone()
+                : "Chưa cập nhật";
+        String amountChange = newTotalAmount.subtract(oldTotalAmount).signum() > 0 ? "+" : "";
+        String description = "Mã booking: #" + booking.getId()
+                + " | Khách hàng: " + customerName
+                + " | SĐT: " + customerPhone
+                + " | Nội dung cập nhật: " + describeBookingChanges(request)
+                + " | Tổng tiền: " + formatAmount(oldTotalAmount) + "đ → " + formatAmount(newTotalAmount) + "đ"
+                + " | Chênh lệch: " + amountChange + formatAmount(newTotalAmount.subtract(oldTotalAmount)) + "đ.";
+
+        notificationService.createAndPublish(
+                hotelId,
+                NotificationType.BOOKING_UPDATED,
+                "Booking đã được chỉnh sửa",
+                description,
+                "BOOKING",
+                booking.getId()
+        );
+
+        Map<String, Object> bookingData = Map.of(
+                "action", "UPDATED",
+                "bookingId", booking.getId(),
+                "customerName", customerName,
+                "customerPhone", customerPhone,
+                "totalAmount", newTotalAmount.doubleValue(),
+                "description", description
+        );
+        socketIOServer.getRoomOperations("hotel_" + hotelId)
+                .sendEvent("new_booking_notification", bookingData);
+        socketIOServer.getRoomOperations("super_admin_accounts")
+                .sendEvent("new_booking_notification", Map.of("hotelId", hotelId, "data", bookingData));
+        emitRoomMatrixUpdate(hotelId);
+    }
+
+    private String describeBookingChanges(BookingModificationRequest request) {
+        List<String> changes = new java.util.ArrayList<>();
+        if (request.getBookingDetailIdsToCancel() != null && !request.getBookingDetailIdsToCancel().isEmpty()) {
+            changes.add("hủy " + request.getBookingDetailIdsToCancel().size() + " phòng");
+        }
+        if (request.getRoomsToAdd() != null && !request.getRoomsToAdd().isEmpty()) {
+            changes.add("thêm " + request.getRoomsToAdd().size() + " phòng");
+        }
+        if (request.getRoomsToChange() != null && !request.getRoomsToChange().isEmpty()) {
+            changes.add("điều chỉnh " + request.getRoomsToChange().size() + " phòng/khung ngày/số khách");
+        }
+        if (request.getServicesToAddForExistingRooms() != null && !request.getServicesToAddForExistingRooms().isEmpty()) {
+            int count = request.getServicesToAddForExistingRooms().stream()
+                    .mapToInt(item -> item.getServices() == null ? 0 : item.getServices().size())
+                    .sum();
+            changes.add("thêm " + count + " dịch vụ");
+        }
+        if (request.getServiceQuantityUpdates() != null && !request.getServiceQuantityUpdates().isEmpty()) {
+            changes.add("cập nhật số lượng dịch vụ cho " + request.getServiceQuantityUpdates().size() + " phòng");
+        }
+        if (request.getServicesToCancel() != null && !request.getServicesToCancel().isEmpty()) {
+            int count = request.getServicesToCancel().stream()
+                    .mapToInt(item -> item.getServiceDetailIds() == null ? 0 : item.getServiceDetailIds().size())
+                    .sum();
+            changes.add("hủy " + count + " dịch vụ");
+        }
+        if (Boolean.TRUE.equals(request.getRemovePromotion())) {
+            changes.add("gỡ khuyến mãi");
+        } else if (request.getPromotionRequest() != null || request.getCustomerPromotionRequest() != null) {
+            changes.add("cập nhật khuyến mãi");
+        }
+        return changes.isEmpty() ? "cập nhật thông tin booking" : String.join(", ", changes);
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN")).format(amount);
     }
 
     // chua co function cho huy booking
@@ -116,12 +256,30 @@ public class BookingSocketEmitter {
     /**
      * 3. Gửi thông báo về cho chính Khách hàng (trạng thái đơn, thanh toán...)
      */
-    public void emitCustomerBookingStatus(String userId, Object bookingData) {
-        if (userId != null) {
-            String roomName = "user_" + userId;
+    public void emitCustomerBookingStatus(
+            Customer customer,
+            Booking booking,
+            NotificationType notificationType,
+            String title,
+            String description
+    ) {
+        if (customer != null && booking != null) {
+            String roomName = "user_" + customer.getId();
             socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("customer_booking_updated", bookingData);
+                    .sendEvent("customer_booking_updated", booking);
             log.info("👤 [Booking Socket] Đã gửi trạng thái tới user room: {}", roomName);
+
+            if (customer.getAccount() != null && customer.getAccount().getId() != null) {
+                Long hotelId = booking.getHotel() == null ? null : booking.getHotel().getId();
+                notificationService.createAndPublishToCustomer(
+                        customer.getAccount().getId(),
+                        hotelId,
+                        notificationType,
+                        title,
+                        description,
+                        "BOOKING",
+                        booking.getId());
+            }
         }
     }
     //

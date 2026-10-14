@@ -10,5 +10,7 @@ import java.util.Optional;
 public interface NotificationReadReceiptRepository extends JpaRepository<NotificationReadReceipt, Long> {
     Optional<NotificationReadReceipt> findByNotification_IdAndAccountId(Long notificationId, String accountId);
 
-    List<NotificationReadReceipt> findByAccountIdAndNotification_IdIn(String accountId, Collection<Long> notificationIds);
+    List<NotificationReadReceipt> findByAccountIdInAndNotification_IdIn(
+            Collection<String> accountIds,
+            Collection<Long> notificationIds);
 }

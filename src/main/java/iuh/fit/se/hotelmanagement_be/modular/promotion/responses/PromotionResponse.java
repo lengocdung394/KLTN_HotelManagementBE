@@ -22,6 +22,8 @@ public class PromotionResponse {
 
     String id;
     String code;
+    Long hotelId;
+    String hotelName;
     String name;
     String description;
     PromotionScope type;
@@ -43,6 +45,8 @@ public class PromotionResponse {
     LocalDateTime endDate;   // ngay ket yhuc
 
     Integer usageLimit;
+
+    Integer claimedCount;
 
     Integer usedCount;
 

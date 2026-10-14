@@ -1,7 +1,12 @@
 package iuh.fit.se.hotelmanagement_be.modular.service.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import iuh.fit.se.hotelmanagement_be.modular.service.entities.Service;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.requests.CreateServiceRequest;
@@ -14,6 +19,8 @@ import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.LinkedHashMap;
@@ -31,6 +38,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
     HotelRepository hotelRepository;
     CloudinaryService cloudinaryService; // 💡 Inject thêm CloudinaryService
     HotelServiceSocketEmitter hotelServiceSocketEmitter;
+    NotificationService notificationService;
 
     private ServiceResponse toResponse(Service service) {
         return ServiceResponse.builder()
@@ -111,43 +119,57 @@ public class HotelServiceServiceImpl implements HotelServiceService {
                 .hotel(hotel)
                 .build();
 
-        Long savedHotelId = savedService.getHotel() != null
-                ? savedService.getHotel().getId()
-                : null;
-
-        hotelServiceSocketEmitter.emitServiceCreated(
-                savedHotelId,
-                savedService.getId(),
-                savedService.getName()
-        );
-
-        return toResponse(serviceRepository.save(savedService));
+        savedService = serviceRepository.save(savedService);
+        ServiceResponse response = toResponse(savedService);
+        Long savedHotelId = hotel == null ? null : hotel.getId();
+        String scopeDescription = savedHotelId == null
+                ? "Áp dụng toàn hệ thống."
+                : "Áp dụng cho chi nhánh " + hotel.getName() + ".";
+        String description = serviceDescription(response) + " " + scopeDescription;
+        if (savedHotelId == null) {
+            List<Long> targetHotelIds = hotelRepository.findAll().stream().map(Hotel::getId).toList();
+            notificationService.createAndPublishSystemWide(
+                    NotificationType.SERVICE_CREATED,
+                    "Dịch vụ toàn hệ thống mới",
+                    description,
+                    "SERVICE",
+                    response.getId(),
+                    targetHotelIds);
+            hotelServiceSocketEmitter.emitServiceCreated(response, targetHotelIds);
+        } else {
+            notificationService.createAndPublishInCurrentTransaction(
+                    savedHotelId,
+                    NotificationType.SERVICE_CREATED,
+                    "Dịch vụ mới được thêm",
+                    description,
+                    "SERVICE",
+                    response.getId());
+            hotelServiceSocketEmitter.emitServiceCreated(response, List.of(savedHotelId));
+        }
+        return response;
     }
 
     @Override
     @Transactional
     public ServiceResponse updateService(String id, UpdateServiceRequest request, MultipartFile imageFile, Long hotelId) { // 💡 Thêm tham số MultipartFile imageFile
         Service service = findOrThrow(id);
+        assertCanManageService(service);
 
         if (serviceRepository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
             throw new RuntimeException("Tên dịch vụ '" + request.getName() + "' đã được sử dụng bởi dịch vụ khác!");
         }
         String oldName = service.getName();
+        String oldDescription = service.getDescription();
         Double oldPrice = service.getPrice();
         String oldUnit = service.getUnit();
         String oldCategory = service.getCategory();
         Boolean oldActive = service.getActive();
-
-        Hotel hotel = null;
-        if (hotelId != null) {
-            hotel = hotelRepository.findById(hotelId)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
-        }
+        String oldImageUrl = service.getImageUrl();
 
         // 💡 Xử lý cập nhật ảnh mới nếu có truyền lên
         if (imageFile != null && !imageFile.isEmpty()) {
             String imageUrl;
-            Hotel targetHotel = hotel != null ? hotel : service.getHotel();
+            Hotel targetHotel = service.getHotel();
 
             if (targetHotel != null && targetHotel.getName() != null) {
                 List<String> uploadedUrls = cloudinaryService.uploadBranchImages(List.of(imageFile), targetHotel.getName(), ImageCategory.SERVICES);
@@ -166,24 +188,20 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         if (request.getActive() != null) {
             service.setActive(request.getActive());
         }
-        service.setHotel(hotel);
         Service savedService = serviceRepository.save(service);
         ServiceResponse response = toResponse(savedService);
 
 
         Map<String, String> changes = new LinkedHashMap<>();
         addChange(changes, "Tên dịch vụ", oldName, savedService.getName());
+        addChange(changes, "Mô tả", oldDescription, savedService.getDescription());
         addChange(changes, "Giá", oldPrice, savedService.getPrice());
         addChange(changes, "Đơn vị", oldUnit, savedService.getUnit());
         addChange(changes, "Danh mục", oldCategory, savedService.getCategory());
         addChange(changes, "Trạng thái", oldActive, savedService.getActive());
+        addChange(changes, "Hình ảnh", oldImageUrl, savedService.getImageUrl());
 
-        hotelServiceSocketEmitter.emitServiceUpdated(
-                savedService.getHotel().getId(),
-                savedService.getId(),
-                savedService.getName(),
-                changes
-        );
+        publishServiceUpdate(savedService, response, changes);
         return response;
     }
 
@@ -191,17 +209,82 @@ public class HotelServiceServiceImpl implements HotelServiceService {
     @Transactional
     public void deleteService(String id) {
         Service service = findOrThrow(id);
+        assertCanManageService(service);
+        Boolean oldActive = service.getActive();
         service.setActive(false);
-        serviceRepository.save(service);
+        Service savedService = serviceRepository.save(service);
+        Map<String, String> changes = new LinkedHashMap<>();
+        addChange(changes, "Trạng thái", oldActive, savedService.getActive());
+        publishServiceUpdate(savedService, toResponse(savedService), changes);
     }
 
     @Override
     @Transactional
     public ServiceResponse toggleServiceStatus(String id) {
         Service service = findOrThrow(id);
+        assertCanManageService(service);
         boolean current = Boolean.TRUE.equals(service.getActive());
         service.setActive(!current);
-        return toResponse(serviceRepository.save(service));
+        Service savedService = serviceRepository.save(service);
+        Map<String, String> changes = new LinkedHashMap<>();
+        addChange(changes, "Trạng thái", current, savedService.getActive());
+        ServiceResponse response = toResponse(savedService);
+        publishServiceUpdate(savedService, response, changes);
+        return response;
+    }
+
+    private void assertCanManageService(Service service) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        if (isSuperAdmin) return;
+
+        Object principal = authentication.getPrincipal();
+        Long serviceHotelId = service.getHotel() == null ? null : service.getHotel().getId();
+        if (!(principal instanceof Account account)
+                || account.getHotelId() == null
+                || !account.getHotelId().equals(serviceHotelId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+        }
+    }
+
+    private void publishServiceUpdate(Service service, ServiceResponse response, Map<String, String> changes) {
+        Long serviceHotelId = service.getHotel() == null ? null : service.getHotel().getId();
+        String changeDetails = changes.entrySet().stream()
+                .map(entry -> entry.getKey() + ": " + entry.getValue())
+                .collect(Collectors.joining("; "));
+        String description = "Dịch vụ " + serviceDescription(response) + " vừa được chỉnh sửa."
+                + (changeDetails.isBlank() ? "" : " Thay đổi: " + changeDetails + ".");
+        if (serviceHotelId == null) {
+            List<Long> targetHotelIds = hotelRepository.findAll().stream().map(Hotel::getId).toList();
+            notificationService.createAndPublishSystemWide(
+                    NotificationType.SERVICE_UPDATED,
+                    "Dịch vụ toàn hệ thống đã cập nhật",
+                    description,
+                    "SERVICE",
+                    response.getId(),
+                    targetHotelIds);
+            hotelServiceSocketEmitter.emitServiceUpdated(response, changes, targetHotelIds);
+        } else {
+            notificationService.createAndPublishInCurrentTransaction(
+                    serviceHotelId,
+                    NotificationType.SERVICE_UPDATED,
+                    "Dịch vụ chi nhánh đã cập nhật",
+                    description,
+                    "SERVICE",
+                    response.getId());
+            hotelServiceSocketEmitter.emitServiceUpdated(response, changes, List.of(serviceHotelId));
+        }
+    }
+
+    private String serviceDescription(ServiceResponse response) {
+        return "\"" + response.getName() + "\" (mã " + response.getId() + "), giá "
+                + response.getPrice() + "đ/" + response.getUnit()
+                + ", danh mục " + response.getCategory()
+                + ", trạng thái " + (Boolean.TRUE.equals(response.getActive()) ? "đang hoạt động" : "tạm ngưng") + ".";
     }
 
     private void addChange(

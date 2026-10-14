@@ -12,6 +12,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDeta
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
@@ -694,7 +695,13 @@ public class BookingCancellationService {
             bookingSocketEmitter.emitBookingCancelled(hotelId, booking.getId(), reason);
         }
         if (booking.getCustomer() != null) {
-            bookingSocketEmitter.emitCustomerBookingStatus(booking.getCustomer().getId(), booking);
+            bookingSocketEmitter.emitCustomerBookingStatus(
+                    booking.getCustomer(),
+                    booking,
+                    NotificationType.BOOKING_CANCELLED,
+                    "Booking đã bị hủy",
+                    "Booking #" + booking.getId() + " đã bị hủy"
+                            + (reason == null || reason.isBlank() ? "." : ": " + reason));
         }
     }
 

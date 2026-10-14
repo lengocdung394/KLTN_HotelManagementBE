@@ -46,5 +46,6 @@ public class UpdatePromotionRequest {
 
     PromotionStatus status;
     @Min(value = 1)
+    @Min(1)
     Integer usageLimit;
 }

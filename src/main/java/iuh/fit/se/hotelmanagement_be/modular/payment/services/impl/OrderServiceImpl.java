@@ -2,9 +2,11 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
@@ -37,6 +39,8 @@ public class OrderServiceImpl implements OrderService {
     OrderRepository orderRepository;
     PaymentTransactionRepository paymentTransactionRepository;
     BookingRepository bookingRepository;
+    EmailService emailService;
+    BookingSocketEmitter bookingSocketEmitter;
 
     @Override
     public OrderResponse getOrderById(String orderId) {
@@ -121,10 +125,56 @@ public class OrderServiceImpl implements OrderService {
         }
 
         orderRepository.save(order);
+        if (cashFlow == CashFlowType.RECEIPT) {
+            bookingSocketEmitter.emitPaymentReceived(order, paymentAmount, request.getPaymentType());
+            sendPaymentEmailAfterCommit(order, savedTx, paymentAmount);
+        }
         log.info("Thanh toán thành công cho Order ID {}: Số tiền = {}, Còn lại = {}, Trạng thái = {}",
                 order.getId(), paymentAmount, order.getRemainingAmount(), order.getOrderStatus());
 
         return toPaymentTransactionResponse(savedTx);
+    }
+
+    private void sendPaymentEmailAfterCommit(Order order, PaymentTransaction transaction, BigDecimal amount) {
+        Booking booking = order.getBooking();
+        if (booking == null || booking.getCustomer() == null) {
+            log.warn("Bỏ qua email thanh toán cho order {} vì không tìm thấy khách hàng", order.getId());
+            return;
+        }
+        String email = emailService.getCustomerEmail(booking.getCustomer());
+        if (email == null) {
+            log.info("Bỏ qua email thanh toán cho booking {} vì khách hàng chưa có email", booking.getId());
+            return;
+        }
+
+        String customerName = booking.getCustomer().getFullName();
+        String bookingId = booking.getId();
+        String orderId = order.getId();
+        String hotelName = booking.getHotel() != null ? booking.getHotel().getName() : "Khách sạn";
+        BigDecimal paidAmount = order.getPaidAmount();
+        BigDecimal remainingAmount = order.getRemainingAmount();
+        String paymentType = transaction.getPaymentType() != null
+                ? transaction.getPaymentType().name()
+                : "N/A";
+        String paymentReference = transaction.getId() != null
+                ? transaction.getId().toString()
+                : transaction.getNote();
+        LocalDateTime paidAt = transaction.getCreatedAt();
+
+        emailService.sendAfterCommit("payment for booking " + bookingId, () ->
+                emailService.sendPaymentReceivedEmail(
+                        email,
+                        customerName,
+                        bookingId,
+                        orderId,
+                        hotelName,
+                        amount,
+                        paidAmount,
+                        remainingAmount,
+                        paymentType,
+                        paymentReference,
+                        paidAt
+                ));
     }
 
     @Override

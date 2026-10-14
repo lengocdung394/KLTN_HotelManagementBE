@@ -33,5 +33,8 @@ public class BookingModificationRequest {
     PromotionRequest promotionRequest;
     CustomerPromotionRequest customerPromotionRequest;
 
+    // [ĐÃ CHỈNH SỬA] Cho phép gỡ khuyến mãi đang áp dụng khi sửa booking.
+    Boolean removePromotion;
+
 
 }

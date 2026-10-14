@@ -39,14 +39,14 @@ public class CustomerPromotion {
 
     @Builder.Default
     @Column(name = "is_used")
-    boolean isUsed = false;
+    boolean isUsed = false; // Includes a voucher reserved by an active booking.
 
 
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt; // Thời gian khách lưu/được tặng mã
 
     @Column(name = "used_at")
-    LocalDateTime usedAt; // Thời gian khách dùng mã khi đặt phòng
+    LocalDateTime usedAt; // Thời điểm voucher được áp dụng vào booking.
     @EqualsAndHashCode.Exclude
     @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)

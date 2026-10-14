@@ -88,4 +88,11 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
     Optional<Promotion> findByIdAndDeletedFalseForUpdate(
             @Param("id") String id
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p from Promotion p
+            where p.id = :id
+            """)
+    Optional<Promotion> findByIdForUpdate(@Param("id") String id);
 }

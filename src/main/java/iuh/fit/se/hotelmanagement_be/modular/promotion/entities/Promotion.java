@@ -48,7 +48,7 @@ public class Promotion {
 
     @Builder.Default
     @Column(name = "claimed_count", nullable = false)
-    Integer claimedCount = 0;
+    Integer claimedCount = 0; // so luong khach luu voucher
 
     @Enumerated(EnumType.STRING)
     @Column(name = "discount_type", nullable = false, length = 30)

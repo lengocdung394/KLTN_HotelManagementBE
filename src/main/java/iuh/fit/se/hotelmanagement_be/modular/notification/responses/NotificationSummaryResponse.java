@@ -5,11 +5,12 @@ import java.util.Map;
 
 public record NotificationSummaryResponse(
         long totalCount,
+        long readCount,
         long unreadCount,
         Map<String, Long> totalByType,
         Map<String, Long> unreadByType,
         List<BranchNotificationCount> branches
 ) {
-    public record BranchNotificationCount(Long hotelId, long totalCount, long unreadCount) {
+    public record BranchNotificationCount(Long hotelId, long totalCount, long readCount, long unreadCount) {
     }
 }

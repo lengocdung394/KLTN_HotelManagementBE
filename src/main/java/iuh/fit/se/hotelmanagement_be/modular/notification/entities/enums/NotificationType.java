@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums;
 
 public enum NotificationType {
     BOOKING_CREATED,
+    BOOKING_UPDATED,
     BOOKING_CANCELLED,
     ROOM_CREATED,
     ROOM_UPDATED,
@@ -20,6 +21,7 @@ public enum NotificationType {
     SERVICE_IMPORT_COMPLETED,
     SERVICE_IMPORT_FAILED,
     SYSTEM,
+    PAYMENT_RECEIVED,
     BOOKING_REFUND_COMPLETED,
     BOOKING_REFUND_REQUESTED
     // kiem tra update thong tin tai khoan bao mat

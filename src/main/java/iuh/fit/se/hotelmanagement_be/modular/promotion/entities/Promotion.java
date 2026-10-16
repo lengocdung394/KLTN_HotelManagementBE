@@ -105,7 +105,7 @@ public class Promotion {
 
     @Builder.Default
     @Column(name = "is_exclusive")
-    boolean isExclusive = false;
+    Boolean isExclusive = false;
 
 
     @ToString.Exclude

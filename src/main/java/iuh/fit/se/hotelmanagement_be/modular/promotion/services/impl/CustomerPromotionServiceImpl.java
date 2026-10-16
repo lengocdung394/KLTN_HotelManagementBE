@@ -67,7 +67,7 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                             .minBookingValue(p.getMinBookingValue())
                             .startDate(p.getStartDate())
                             .endDate(p.getEndDate())
-                            .exclusive(p.isExclusive())
+                            .exclusive(p.getIsExclusive() != null ? p.getIsExclusive() : false)
                             .build();
                 })
                 .filter(response -> response != null) // Lọc bỏ các phần tử null nếu có cảnh báo trên

@@ -108,6 +108,9 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
+//        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
+//        Hotel hotel = hotelRepository.findById(request.getHotelId())
+//                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
@@ -128,6 +131,7 @@ public class BookingServiceImpl implements BookingService {
 
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME ===
         Long hotelId = hotel.getId();
+        String customerId = customer.getId();
 
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
@@ -305,6 +309,9 @@ public class BookingServiceImpl implements BookingService {
                             customerId)
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
+            if (!customerPromo.getCustomer().getId().equals(customerId)) {
+                throw new AppException(ErrorCode.UNAUTHORIZED_PROMOTION);
+            }
             booking.setCustomerPromotion(customerPromo);
             discountResult = applyPromotion(customerId, customerPromo.getUniqueCode(), currentSubTotal, roomTotal, serviceTotal, booking);
         }
@@ -497,6 +504,7 @@ public class BookingServiceImpl implements BookingService {
             if (nights <= 0) nights = 1;
 
             // 3. Vòng lặp quét từng ngày (Daily Rate) để cộng dồn tiền phòng
+            double totalRoomAmountForStay = 0.0;
             double accumulatedBasePrice = 0.0; // Dùng để tính giá gốc trung bình mỗi đêm
             List<BookingNightlyPrice> nightlyPrices = new ArrayList<>();
             LocalDate currentDate = checkInDate;
@@ -653,6 +661,8 @@ public class BookingServiceImpl implements BookingService {
             Promotion promotion = customerPromotion.getPromotion();
             validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
 
+            customerPromotion.setUsed(true);
+            customerPromotion.setUsedAt(now);
             customerPromotion.setBooking(booking);
 
             return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
@@ -661,7 +671,9 @@ public class BookingServiceImpl implements BookingService {
         // 2. Khuyến mãi chung của hệ thống / chi nhánh
         Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode)
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+
         validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
+        promotion.setUsedCount(promotion.getUsedCount() + 1);
 
         return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
     }

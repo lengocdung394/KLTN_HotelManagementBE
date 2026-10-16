@@ -44,13 +44,18 @@ public class RoomSeasonalRateController {
     @GetMapping("/hotel/by-date")
     public ResponseEntity<Page<RoomSeasonalRate>> getSeasonalRatesByDate(
             Authentication authentication,
+            @RequestParam(required = false) Long hotelId,
             @RequestParam(required = false) RoomType roomType,
             @RequestParam(required = false)
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, // <-- Truyền ngày ở đây nè!
-            @Parameter(hidden = true) Pageable pageable // <-- Thêm dòng này để định nghĩa sẵn nếu client không truyền
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Parameter(hidden = true) Pageable pageable
     ) {
-        Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+        if (hotelId == null && authentication != null && authentication.getPrincipal() instanceof Account account) {
+            hotelId = account.getHotelId();
+        }
+        if (hotelId == null) {
+            throw new RuntimeException("Không tìm thấy thông tin chi nhánh!");
+        }
         Page<RoomSeasonalRate> result = roomSeasonalRateService.getRatesByDate(hotelId, roomType, date, pageable);
         return ResponseEntity.ok(result);
     }
@@ -62,12 +67,15 @@ public class RoomSeasonalRateController {
             @RequestBody List<@Valid RoomSeasonalRateCreateRequest> requests,
             Authentication authentication // Lấy thông tin admin đang đăng nhập từ Security Context
     ) {
-        Account currentAdmin = (Account) authentication.getPrincipal();
+        Account currentAdmin = null;
+        if (authentication != null && authentication.getPrincipal() instanceof Account acc) {
+            currentAdmin = acc;
+        }
         List<RoomSeasonalRateResponse> response = roomSeasonalRateService.createSeasonalRate(requests, currentAdmin);
 
         return ResponseEntity.ok(
                 ApiResponse.<List<RoomSeasonalRateResponse>>builder()
-                        .code(1000) // Hoặc code thành công tùy cấu trúc dự án của ông
+                        .code(1000)
                         .message("Tạo đợt giá mùa vụ thành công và đã cập nhật realtime!")
                         .result(response)
                         .build()
@@ -79,7 +87,10 @@ public class RoomSeasonalRateController {
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> updateSeasonalRate(
             @RequestBody List<@Valid RoomSeasonalRateUpdateRequest> requests,
             Authentication authentication) {
-        Account currentAdmin = (Account) authentication.getPrincipal();
+        Account currentAdmin = null;
+        if (authentication != null && authentication.getPrincipal() instanceof Account acc) {
+            currentAdmin = acc;
+        }
         List<RoomSeasonalRateResponse> responses = roomSeasonalRateService.saveOrUpdateBatchSeasonalRates(requests, currentAdmin);
         return ResponseEntity.ok(
                 ApiResponse.<List<RoomSeasonalRateResponse>>builder()
@@ -94,11 +105,16 @@ public class RoomSeasonalRateController {
     @PreAuthorize("hasAuthority('VIEW_ROOMS')")
     @GetMapping("/hotel/{hotelId}/monthly")
     public ResponseEntity<ApiResponse<List<RoomSeasonalRateResponse>>> getRatesByMonth(
+            @PathVariable(required = false) Long hotelId,
             Authentication authentication,
             @RequestParam int month,
             @RequestParam int year) {
-        Account account = (Account) authentication.getPrincipal();
-        Long  hotelId = account.getHotelId();
+        if (hotelId == null && authentication != null && authentication.getPrincipal() instanceof Account account) {
+            hotelId = account.getHotelId();
+        }
+        if (hotelId == null) {
+            throw new RuntimeException("Không tìm thấy thông tin chi nhánh!");
+        }
 
         List<RoomSeasonalRateResponse> responses = roomSeasonalRateService.getRatesByMonth(hotelId, month, year);
 

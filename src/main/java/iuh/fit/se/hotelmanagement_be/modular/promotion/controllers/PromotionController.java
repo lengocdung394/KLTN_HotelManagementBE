@@ -10,8 +10,10 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.PromotionQuoteRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
@@ -52,15 +54,18 @@ public class PromotionController {
             )
             @RequestPart("promotionInfo") @Valid CreatePromotionRequest request,
             @RequestPart(value = "image", required = false) MultipartFile imageFile,
+            @RequestParam(required = false) Long hotelId,
             Authentication authentication
     ) {
         Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+        boolean isSuperAdmin = account.getRoles().stream()
+                .anyMatch(role -> "ROLE_SUPER_ADMIN".equals(role.getCode()));
+        Long targetHotelId = isSuperAdmin ? hotelId : account.getHotelId();
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<PromotionResponse>builder()
                         .code(1000)
-                        .result(promotionService.createPromotion(request, imageFile, hotelId))
+                        .result(promotionService.createPromotion(request, imageFile, targetHotelId))
                         .message("Tạo khuyến mãi thành công")
                         .build());
     }
@@ -74,6 +79,18 @@ public class PromotionController {
                 .code(1000)
                 .result(promotionService.getPromotionById(id))
                 .message("Lấy thông tin thành công")
+                .build());
+    }
+
+    @PostMapping("/{id}/quote")
+    @Operation(summary = "Ước tính số tiền được giảm khi áp dụng khuyến mãi")
+    public ResponseEntity<ApiResponse<PromotionQuoteResponse>> quote(
+            @PathVariable String id,
+            @Valid @RequestBody PromotionQuoteRequest request) {
+        return ResponseEntity.ok(ApiResponse.<PromotionQuoteResponse>builder()
+                .code(1000)
+                .result(promotionService.quotePromotion(id, request))
+                .message("Ước tính khuyến mãi thành công")
                 .build());
     }
 

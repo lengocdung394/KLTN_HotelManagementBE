@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.requests;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -20,6 +21,9 @@ public class BookingCreateRequest {
     @NotNull(message = "Mã khách hàng không được để trống")
     String customerId;
 
+    @Email(message = "Email khách hàng không hợp lệ")
+    String customerEmail;
+
     // Mã khách sạn
     Long hotelId;
 
@@ -32,6 +36,7 @@ public class BookingCreateRequest {
     // Giá phòng thời điểm đó
     String customerPromotionId; // Voucher của khách (nếu có)
 
+    LocalDateTime applyAt;
     String promotionId;         // Mã giảm giá chung (nếu có)
 
     @NotEmpty(message = "Danh sách chi tiết phòng đặt không được để trống")

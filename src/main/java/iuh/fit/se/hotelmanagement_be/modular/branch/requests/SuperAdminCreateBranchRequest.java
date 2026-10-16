@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.requests;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.AdminAccountRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ManagerAccountRequest;
 import jakarta.validation.Valid;
@@ -7,6 +8,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+
+import java.util.List;
 
 @Data
 @Builder
@@ -35,4 +38,6 @@ public class SuperAdminCreateBranchRequest {
 
     @Valid
     ManagerAccountRequest managerAccount;
+    @JsonAlias("roomPolicy")
+    List<BranchRoomPolicyRequest> roomPolicies;
 }

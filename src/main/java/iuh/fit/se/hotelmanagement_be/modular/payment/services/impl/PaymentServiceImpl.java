@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
@@ -44,6 +48,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final PayOS payOS;
     private final PaymentRepository paymentRepository;
     private final BookingRepository bookingRepository;
+    private final EmailService emailService;
+    private final BookingSocketEmitter bookingSocketEmitter;
+
 
     // Tự viết Constructor tường minh để khởi tạo đầy đủ các bean và thông tin cấu hình PayOS
     public PaymentServiceImpl(
@@ -53,13 +60,17 @@ public class PaymentServiceImpl implements PaymentService {
             @Value("${API_KEY}") String apiKey,
             @Value("${CHECKSUM_KEY}") String checksumKey,
             PaymentRepository paymentRepository,
-            BookingRepository bookingRepository
+            BookingRepository bookingRepository,
+            EmailService emailService,
+            BookingSocketEmitter bookingSocketEmitter
     ) {
         this.orderRepository = orderRepository;
         this.objectMapper = objectMapper;
         this.paymentRepository = paymentRepository;
         this.payOS = new PayOS(clientId, apiKey, checksumKey);
         this.bookingRepository = bookingRepository;
+        this.emailService = emailService;
+        this.bookingSocketEmitter = bookingSocketEmitter;
     }
 
     @Override
@@ -70,6 +81,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
         }
         Order order = oderOpt.get();
+        synchronizeBookingSurcharges(order);
 
         long amountToPay;
         if (request.getAmount() != null && request.getAmount() > 0) {
@@ -228,6 +240,12 @@ public class PaymentServiceImpl implements PaymentService {
         long amountPaidOnGateway = dataNode.get("amount").asLong();
         String counterAccountName = dataNode.has("counterAccountName") && !dataNode.get("counterAccountName").isNull()
                 ? dataNode.get("counterAccountName").asText() : null;
+        String counterAccountNumber = dataNode.has("counterAccountNumber") && !dataNode.get("counterAccountNumber").isNull()
+                ? dataNode.get("counterAccountNumber").asText() : null;
+        String counterAccountBankId = dataNode.has("counterAccountBankId") && !dataNode.get("counterAccountBankId").isNull()
+                ? dataNode.get("counterAccountBankId").asText() : null;
+        String counterAccountBankName = dataNode.has("counterAccountBankName") && !dataNode.get("counterAccountBankName").isNull()
+                ? dataNode.get("counterAccountBankName").asText() : null;
         String paymentLinkId = dataNode.has("paymentLinkId") ? dataNode.get("paymentLinkId").asText() : "";
 
         PaymentType xacDinhPaymentType = PaymentType.BANK;
@@ -235,10 +253,21 @@ public class PaymentServiceImpl implements PaymentService {
             xacDinhPaymentType = PaymentType.EWALLET;
         }
 
+        String paymentReference = "PayOS Webhook Ref: " + paymentLinkId;
+        if (hasPaymentReference(order, paymentReference)) {
+            log.info("[Webhook] Bỏ qua webhook đã được ghi nhận cho order.id={}, paymentLinkId={}",
+                    order.getId(), paymentLinkId);
+            return WebhookResponse.builder().error(0).message("Giao dịch đã được xử lý trước đó").build();
+        }
+
         order.addPaymentSuccess(
                 BigDecimal.valueOf(amountPaidOnGateway),
                 xacDinhPaymentType,
-                paymentLinkId
+                paymentLinkId,
+                counterAccountName,
+                counterAccountNumber,
+                counterAccountBankId,
+                counterAccountBankName
         );
 
         log.info("[Webhook] Sau addPaymentSuccess: paidAmount={}, orderStatus={}, số lượng paymentTransactions={}",
@@ -247,6 +276,14 @@ public class PaymentServiceImpl implements PaymentService {
 
         orderRepository.save(order);
         log.info("[Webhook] Đã gọi orderRepository.save(order.id={})", order.getId());
+        bookingSocketEmitter.emitPaymentReceived(order, BigDecimal.valueOf(amountPaidOnGateway), xacDinhPaymentType);
+        sendPaymentEmailAfterCommit(
+                order,
+                BigDecimal.valueOf(amountPaidOnGateway),
+                xacDinhPaymentType,
+                paymentLinkId,
+                LocalDateTime.now()
+        );
 
         return WebhookResponse.builder().error(0).message("Cập nhật đơn hàng thành công via Webhook").build();
     }
@@ -260,6 +297,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() ->
                         new AppException(ErrorCode.ORDER_NOT_FOUND)
                 );
+
+        synchronizeBookingSurcharges(order);
 
         if (order.getOrderStatus() == OrderStatusType.CANCELLED) {
             throw new AppException(
@@ -347,6 +386,14 @@ public class PaymentServiceImpl implements PaymentService {
         order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
 
         orderRepository.save(order);
+        bookingSocketEmitter.emitPaymentReceived(order, remainingAmount, PaymentType.CASH);
+        sendPaymentEmailAfterCommit(
+                order,
+                remainingAmount,
+                PaymentType.CASH,
+                receiptTransaction.getId() != null ? receiptTransaction.getId().toString() : null,
+                receiptTransaction.getTransactionDate()
+        );
 
         return PaymentTransactionResponse.builder()
                 .transactionId(receiptTransaction.getId())
@@ -361,6 +408,56 @@ public class PaymentServiceImpl implements PaymentService {
                 )
                 .message("Thanh toán tiền mặt thành công")
                 .build();
+    }
+
+    private void synchronizeBookingSurcharges(Order order) {
+        Booking booking = order.getBooking();
+        if (booking == null || booking.getBookingDetails() == null || booking.getBookingDetails().isEmpty()) {
+            return;
+        }
+
+        BigDecimal detailSurcharges = booking.getBookingDetails().stream()
+                .filter(detail -> detail.getStatus() != BookingStatusType.CANCELLED)
+                .map(this::surchargesOf)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal recordedSurcharges = order.getSurchargeTotalAmount() != null
+                ? order.getSurchargeTotalAmount()
+                : BigDecimal.ZERO;
+        BigDecimal surchargeTotal = detailSurcharges.max(recordedSurcharges);
+
+        BigDecimal roomTotal = order.getRoomTotalAmount() != null ? order.getRoomTotalAmount() : BigDecimal.ZERO;
+        BigDecimal serviceTotal = order.getServiceTotalAmount() != null ? order.getServiceTotalAmount() : BigDecimal.ZERO;
+        BigDecimal roomDiscount = order.getDiscountRoomAmount() != null ? order.getDiscountRoomAmount() : BigDecimal.ZERO;
+        BigDecimal serviceDiscount = order.getDiscountServiceAmount() != null ? order.getDiscountServiceAmount() : BigDecimal.ZERO;
+        BigDecimal totalDiscount = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
+        BigDecimal calculatedTotal = roomTotal.add(serviceTotal).add(surchargeTotal)
+                .subtract(roomDiscount).subtract(serviceDiscount).subtract(totalDiscount)
+                .max(BigDecimal.ZERO);
+        BigDecimal currentTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        BigDecimal correctedTotal = currentTotal.max(calculatedTotal);
+
+        BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
+        BigDecimal remainingAmount = correctedTotal.subtract(paidAmount).max(BigDecimal.ZERO);
+
+        order.setSurchargeTotalAmount(surchargeTotal);
+        order.setTotalAmount(correctedTotal);
+        order.setRemainingAmount(remainingAmount);
+
+        if (remainingAmount.compareTo(BigDecimal.ZERO) > 0
+                && (order.getOrderStatus() == OrderStatusType.PAID
+                || order.getOrderStatus() == OrderStatusType.CLOSED)) {
+            order.setOrderStatus(OrderStatusType.OPEN);
+            order.setCloseDate(null);
+        }
+
+        orderRepository.save(order);
+    }
+
+    private BigDecimal surchargesOf(BookingDetail detail) {
+        BigDecimal early = detail.getEarlyCheckInFee() != null ? detail.getEarlyCheckInFee() : BigDecimal.ZERO;
+        BigDecimal late = detail.getLateCheckOutFee() != null ? detail.getLateCheckOutFee() : BigDecimal.ZERO;
+        BigDecimal other = detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO;
+        return early.add(late).add(other);
     }
 
     @Override
@@ -392,7 +489,18 @@ public class PaymentServiceImpl implements PaymentService {
                         log.info("[CheckPayOS] orderId={}, orderCode={}, status={}", order.getId(), orderCode, link.getStatus());
                         if (link.getStatus() == PaymentLinkStatus.PAID) {
                             long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0 ? link.getAmountPaid() : link.getAmount();
-                            order.addPaymentSuccess(BigDecimal.valueOf(amountPaid), PaymentType.BANK, link.getId());
+                            String paymentReference = "PayOS Webhook Ref: " + link.getId();
+                            if (!hasPaymentReference(order, paymentReference)) {
+                                order.addPaymentSuccess(BigDecimal.valueOf(amountPaid), PaymentType.BANK, link.getId());
+                                bookingSocketEmitter.emitPaymentReceived(order, BigDecimal.valueOf(amountPaid), PaymentType.BANK);
+                                sendPaymentEmailAfterCommit(
+                                        order,
+                                        BigDecimal.valueOf(amountPaid),
+                                        PaymentType.BANK,
+                                        link.getId(),
+                                        LocalDateTime.now()
+                                );
+                            }
                             order.setOrderStatus(OrderStatusType.CLOSED);
                             order.setCloseDate(LocalDateTime.now());
 
@@ -410,6 +518,7 @@ public class PaymentServiceImpl implements PaymentService {
                                     "message", "Xác nhận thanh toán thành công từ ngân hàng qua PayOS"
                             );
                         }
+
                     }
                 } catch (Exception e) {
                     log.warn("[CheckPayOS] Tra cứu orderCode={} trên PayOS gặp lỗi: {}", orderCode, e.getMessage());
@@ -424,4 +533,97 @@ public class PaymentServiceImpl implements PaymentService {
                 "message", "Đang chờ khách chuyển khoản"
         );
     }
+
+    private boolean hasPaymentReference(Order order, String paymentReference) {
+        return order.getPaymentTransactions() != null
+                && order.getPaymentTransactions().stream()
+                .anyMatch(transaction -> paymentReference.equals(transaction.getNote()));
+    }
+
+    private void sendPaymentEmailAfterCommit(
+            Order order,
+            BigDecimal amount,
+            PaymentType paymentType,
+            String paymentReference,
+            LocalDateTime paidAt) {
+        Booking booking = order.getBooking();
+        if (booking == null || booking.getCustomer() == null) {
+            log.warn("Bỏ qua email thanh toán cho order {} vì không tìm thấy khách hàng", order.getId());
+            return;
+        }
+        String email = emailService.getCustomerEmail(booking.getCustomer());
+        if (email == null) {
+            log.info("Bỏ qua email thanh toán cho booking {} vì khách hàng chưa có email", booking.getId());
+            return;
+        }
+
+        String customerName = booking.getCustomer().getFullName();
+        String bookingId = booking.getId();
+        String orderId = order.getId();
+        String hotelName = booking.getHotel() != null ? booking.getHotel().getName() : "Khách sạn";
+        BigDecimal paidAmount = order.getPaidAmount();
+        BigDecimal remainingAmount = order.getRemainingAmount();
+        String paymentTypeName = paymentType != null ? paymentType.name() : "N/A";
+
+        emailService.sendAfterCommit("payment for booking " + bookingId, () ->
+                emailService.sendPaymentReceivedEmail(
+                        email,
+                        customerName,
+                        bookingId,
+                        orderId,
+                        hotelName,
+                        amount,
+                        paidAmount,
+                        remainingAmount,
+                        paymentTypeName,
+                        paymentReference,
+                        paidAt
+                ));
+    }
+
+    @Override
+    @Transactional
+    public void cancelOutstandingPaymentLinks(String bookingId) {
+        Optional<Order> orderOpt = orderRepository.findByBookingIdForUpdate(bookingId);
+        if (orderOpt.isEmpty()) {
+            return;
+        }
+        Order order = orderOpt.get();
+        if (order.getPaymentOrderCodes() == null || order.getPaymentOrderCodes().isEmpty()) {
+            return;
+        }
+
+        for (Long orderCode : order.getPaymentOrderCodes()) {
+            PaymentLink link = payOS.paymentRequests().get(orderCode);
+            if (link == null) {
+                continue;
+            }
+            PaymentLinkStatus status = link.getStatus();
+            if (status == PaymentLinkStatus.PAID || status == PaymentLinkStatus.UNDERPAID) {
+                String paymentLinkId = link.getId();
+                boolean alreadyRecorded = order.getPaymentTransactions() != null
+                        && order.getPaymentTransactions().stream().anyMatch(transaction ->
+                        transaction.getNote() != null
+                                && transaction.getNote().equals("PayOS Webhook Ref: " + paymentLinkId));
+                long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0
+                        ? link.getAmountPaid()
+                        : status == PaymentLinkStatus.PAID ? link.getAmount() : 0;
+                if (!alreadyRecorded && amountPaid > 0) {
+                    order.addPaymentSuccess(
+                            BigDecimal.valueOf(amountPaid),
+                            PaymentType.BANK,
+                            paymentLinkId);
+                    order.setPaymentStatus(order.getRemainingAmount().signum() == 0
+                            ? PaymentStatus.PAID
+                            : PaymentStatus.PARTIAL);
+                }
+            }
+            if (status == PaymentLinkStatus.PENDING || status == PaymentLinkStatus.UNDERPAID
+                    || status == PaymentLinkStatus.PROCESSING) {
+                payOS.paymentRequests().cancel(orderCode, "Booking cancellation requested");
+            }
+        }
+        orderRepository.save(order);
+    }
+
 }

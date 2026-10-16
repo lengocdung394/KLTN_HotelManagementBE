@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
@@ -16,9 +16,11 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -70,8 +72,10 @@ public class RoomController {
     @GetMapping("/hotel")
     @Operation(summary = "Lấy danh sách phòng thuộc khách sạn của tài khoản đang đăng nhập")
     @PreAuthorize("hasAuthority('VIEW_ROOMS')")
-    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel() {
-        Long hotelId = SecurityUtils.getCurrentUserHotelId();
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getRoomsByCurrentHotel(Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+
+        Long hotelId = account.getHotelId();
 
         List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
 
@@ -106,17 +110,54 @@ public class RoomController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('UPDATE_ROOM')")
-    @PutMapping(value = "/updateRoomById/{roomId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    // quan li & supper admin
+    @PreAuthorize("hasAuthority('UPDATE_ROOM') or hasAuthority('ROLE_SUPER_ADMIN')")
+    @PutMapping(
+            value = "/updateRoomById/{roomId}",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     public ResponseEntity<ApiResponse<RoomCreateResponse>> updateRoom(
             @PathVariable String roomId,
             @RequestPart("room") @Valid RoomUpdateRequest request,
-            @RequestPart(value = "images", required = false) List<MultipartFile> imageFiles
-    ) {
-        RoomCreateResponse response = roomService.updateRoom(roomId, request, imageFiles);
+            @RequestPart(value = "images", required = false) List<MultipartFile> imageFiles,
+            Authentication authentication) {
+
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority ->
+                        "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+
+        RoomCreateResponse response =
+                roomService.updateRoom(roomId, request, imageFiles, isSuperAdmin);
+
         return ResponseEntity.ok(ApiResponse.<RoomCreateResponse>builder()
                 .code(200)
                 .result(response)
+                .build());
+    }
+
+    @GetMapping("/{roomId}")
+    @PreAuthorize("hasAuthority('UPDATE_ROOM') or hasAuthority('ROLE_SUPER_ADMIN')")
+    @Operation(summary = "Lấy chi tiết phòng theo ID")
+    public ResponseEntity<ApiResponse<RoomResponse>> getRoomById(
+            @PathVariable String roomId,
+            Authentication authentication) {
+
+        Account account = (Account) authentication.getPrincipal();
+
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority ->
+                        "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+
+        RoomResponse room = roomService.getRoomById(
+                roomId,
+                account.getHotelId(),
+                isSuperAdmin
+        );
+
+        return ResponseEntity.ok(ApiResponse.<RoomResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy chi tiết phòng thành công.")
+                .result(room)
                 .build());
     }
 }

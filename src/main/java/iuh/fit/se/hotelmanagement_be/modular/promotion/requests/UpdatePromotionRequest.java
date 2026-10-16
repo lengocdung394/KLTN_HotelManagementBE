@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.requests;
 
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import io.swagger.v3.oas.annotations.media.Schema;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import jakarta.validation.constraints.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -43,6 +44,8 @@ public class UpdatePromotionRequest {
     @NotNull(message = "Ngày kết thúc không được để trống")
     LocalDateTime endDate;
 
+    PromotionStatus status;
     @Min(value = 1)
+    @Min(1)
     Integer usageLimit;
 }

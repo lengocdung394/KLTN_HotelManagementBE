@@ -15,6 +15,7 @@ public class BookingDetailForCheckInOutResponse {
 
     String cccd;
     String nameCustomer;
+    String phone;
     String bookingId;
     String bookingDetailId;
     String roomId;
@@ -23,6 +24,7 @@ public class BookingDetailForCheckInOutResponse {
     String roomTypeName;
     LocalDateTime checkInTime;
     LocalDateTime checkOutTime;
+    LocalDateTime actualCheckInTime;
     int numAdults;
     int numChildren;
     int numInfants;
@@ -33,8 +35,12 @@ public class BookingDetailForCheckInOutResponse {
     Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
     Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
+    Double earlyCheckInFee;             // Phụ phí check-in sớm dự kiến
+    Double estimatedEarlyCheckInFee;    // Ước tính phụ phí nếu check-in ngay
     String paymentStatus;               // Trạng thái thanh toán (OPEN, CLOSED...)
+    String bookingDetailStatus;
 
+    Double paidAmount;                  // Số tiền đã thanh toán của booking
     Double remainingAmount; // so tien chua duoc thanh toan
     Boolean roomPaid;                   // Đã thanh toán tiền phòng chưa
     List<BookingServiceResponseForHotel>  bookingServiceResponseForHotel;

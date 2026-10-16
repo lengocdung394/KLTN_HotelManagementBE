@@ -10,9 +10,9 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminProvince
 import java.util.List;
 
 public interface SuperAdminService {
-    List<SuperAdminBranchDetailResponse.RoomPolicyItem> saveBranchRoomPolicies(
-            Long hotelId,
-            List<BranchRoomPolicyRequest> requests);
+//    List<SuperAdminBranchDetailResponse.RoomPolicyItem> saveBranchRoomPolicies(
+//            Long hotelId,
+//            List<BranchRoomPolicyRequest> requests);
     List<SuperAdminProvinceResponse> getProvinces();
 
     List<SuperAdminBranchSummaryResponse> getBranches();

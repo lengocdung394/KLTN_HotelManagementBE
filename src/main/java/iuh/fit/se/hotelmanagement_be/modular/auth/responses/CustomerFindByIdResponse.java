@@ -11,5 +11,6 @@ import lombok.experimental.FieldDefaults;
 public class CustomerFindByIdResponse {
     String name;
     String phone;
+    String email;
     String cccd;
 }

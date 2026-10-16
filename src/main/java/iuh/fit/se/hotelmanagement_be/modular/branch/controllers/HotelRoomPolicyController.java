@@ -110,6 +110,17 @@ public class HotelRoomPolicyController {
         return ResponseEntity.ok(checkInOutService.getTodayCheckOutList(hotelId, date, status, bookingStatus));
     }
 
+    @GetMapping("/early-checkins")
+    @Operation(summary = "Lấy danh sách phòng đã check-in sớm theo ngày thực tế")
+    public ResponseEntity<List<BookingDetailForCheckInOutResponse>> getEarlyCheckIns(
+            @RequestParam(required = false) LocalDate date,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        Long hotelId = account.getHotelId();
+        return ResponseEntity.ok(checkInOutService.getEarlyCheckInsByDate(hotelId, date));
+    }
+
 
 
 

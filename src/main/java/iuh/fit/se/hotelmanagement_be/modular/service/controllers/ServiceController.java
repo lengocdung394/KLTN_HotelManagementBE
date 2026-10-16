@@ -68,11 +68,14 @@ public class ServiceController {
     public ResponseEntity<ApiResponse<ServiceResponse>> createService(
             @RequestPart("service") @Valid CreateServiceRequest request, // Đổi tên part cho tường minh giống Room
             @RequestPart(value = "imageFile", required = false) MultipartFile imageFile, // Nhận 1 file đơn
+            @RequestParam(required = false) Long hotelId,
             Authentication authentication) {
         Account account = (Account) authentication.getPrincipal();
-        Long hotelId = account.getHotelId();
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        Long targetHotelId = isSuperAdmin ? hotelId : account.getHotelId();
 
-        ServiceResponse result = hotelServiceService.createService(request, imageFile, hotelId);
+        ServiceResponse result = hotelServiceService.createService(request, imageFile, targetHotelId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.<ServiceResponse>builder()
                 .code(201)
                 .message("Tạo dịch vụ thành công")

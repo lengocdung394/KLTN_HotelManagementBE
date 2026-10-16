@@ -9,6 +9,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoomBedResponse {
+    Long bedTypeId;
     String bedTypeName;      // Tên loại giường (VD: Queen Bed, Single Bed)
     String description;      // Mô tả giường
     Integer quantity;        // Số lượng giường loại này trong phòng

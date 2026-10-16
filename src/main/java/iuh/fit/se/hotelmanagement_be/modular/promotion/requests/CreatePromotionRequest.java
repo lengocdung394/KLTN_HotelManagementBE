@@ -56,6 +56,7 @@ public class CreatePromotionRequest {
     LocalDateTime endDate;
 
 
+    @Min(1)
     Integer usageLimit;
 
 

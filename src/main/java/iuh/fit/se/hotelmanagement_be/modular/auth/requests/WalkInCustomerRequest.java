@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.requests;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Email;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -18,4 +19,7 @@ public class WalkInCustomerRequest {
 
     @NotBlank(message = "CCCD không được để trống")
     String cccd;
+
+    @Email(message = "Email khách hàng không hợp lệ")
+    String email;
 }

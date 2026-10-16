@@ -34,4 +34,5 @@ public class BookingDetailResponse {
     Double roomSubTotal;                // Tổng tiền phòng (đã nhân số đêm + phụ thu)
     Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
+    java.util.List<BookingNightlyPriceResponse> nightlyPrices;
 }

@@ -6,7 +6,10 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @EqualsAndHashCode(callSuper = false)
 @Data
@@ -33,15 +36,31 @@ public class Floor {
     @ManyToOne(fetch = FetchType.LAZY)
     Building building;
 
-    /**
-     * 💡 Tự động sinh mã tầng theo chuẩn: [buildingId]_F[floorNumber]
-     * Ví dụ: Tòa nhà có ID "H1_TOA_A" và tầng số 2 -> ID tự sinh: "H1_TOA_A_F2"
-     */
+    public static String generateId(String buildingId, int floorNumber) {
+        if (buildingId == null) {
+            return null;
+        }
+
+        String suffix = "_F" + floorNumber;
+        String id = buildingId + suffix;
+        if (id.length() <= 60) {
+            return id;
+        }
+
+        String hash = UUID.nameUUIDFromBytes(buildingId.getBytes(StandardCharsets.UTF_8))
+                .toString()
+                .replace("-", "")
+                .substring(0, 16)
+                .toUpperCase(Locale.ROOT);
+        int buildingPrefixLength = 60 - suffix.length() - hash.length() - 1;
+        String buildingPrefix = buildingId.substring(0, buildingPrefixLength).replaceAll("_+$", "");
+        return buildingPrefix + "_" + hash + suffix;
+    }
+
     @PrePersist
-    @PreUpdate
     public void generateFloorId() {
         if (this.building != null && this.building.getId() != null) {
-            this.id = this.building.getId() + "_F" + this.floorNumber;
+            this.id = generateId(this.building.getId(), this.floorNumber);
         }
     }
 }

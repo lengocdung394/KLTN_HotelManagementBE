@@ -2,7 +2,9 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -30,4 +32,13 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o WHERE o.booking.id = :bookingId")
+    Optional<Order> findByBookingIdForUpdate(@Param("bookingId") String bookingId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT o FROM Order o JOIN o.paymentOrderCodes c WHERE c = :paymentOrderCode")
+    Optional<Order> findByPaymentOrderCodeForUpdate(@Param("paymentOrderCode") Long paymentOrderCode);
+
 }

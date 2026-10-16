@@ -6,13 +6,15 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
-import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.CustomerSocketEmitter;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
@@ -32,6 +34,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionDiscountTy
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageService;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -73,7 +76,9 @@ public class BookingServiceImpl implements BookingService {
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
     BookingSocketEmitter bookingSocketEmitter;
-    private final CustomerSocketEmitter customerSocketEmitter;
+    PromotionUsageService promotionUsageService;
+    EmailService emailService;
+
 
     /**
      * LUỒNG CHÍNH 1: Khách hàng đặt online
@@ -82,8 +87,10 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingResponse createCustomerBooking(BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
+        ensureCustomerEmail(customer, request);
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
-
+        // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+        boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Tìm khách sạn an toàn và gán vào booking trước
         Hotel hotel = hotelRepository.findById(request.getHotelId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
@@ -101,30 +108,56 @@ public class BookingServiceImpl implements BookingService {
             }
         }
 
-//        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
-//        Hotel hotel = hotelRepository.findById(request.getHotelId())
-//                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
         // 3. Tính toán và tạo Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
+        // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+        booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
         // 4. Lưu vào Database
         Booking savedBooking = bookingRepository.save(booking);
 
+        // logic cua khuyen mai
+        promotionUsageService.replaceBookingPromotion(
+                savedBooking,
+                savedBooking.getCustomerPromotion() == null ? savedBooking.getPromotion() : savedBooking.getCustomerPromotion().getPromotion(),
+                savedBooking.getCustomerPromotion()
+        );
+
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME ===
         Long hotelId = hotel.getId();
-        String customerId = customer.getId();
 
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-        bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
 
+        Map<String, Object> bookingData = new LinkedHashMap<>();
+        bookingData.put("bookingId", savedBooking.getId());
+        bookingData.put("customerName", customer.getFullName());
+        bookingData.put("customerPhone", customer.getPhone());
+        bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+
+        bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+
+        bookingSocketEmitter.emitNewBookingNotification(
+                hotelId,
+                savedBooking,
+                bookingData
+        );
         // Báo về cho khách hàng trạng thái đơn hàng
-        bookingSocketEmitter.emitCustomerBookingStatus(customerId, savedBooking);
+        bookingSocketEmitter.emitCustomerBookingStatus(
+                customer,
+                savedBooking,
+                NotificationType.BOOKING_CREATED,
+                "Đặt phòng thành công",
+                "Mã booking: #" + savedBooking.getId()
+                        + " | Khách hàng: " + customer.getFullName()
+                        + " | SĐT: " + customer.getPhone()
+                        + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
         // ==========================================
 
+        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         return toBookingResponse(savedBooking);
     }
 
@@ -135,9 +168,11 @@ public class BookingServiceImpl implements BookingService {
     @Override
     public BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request) {
         Customer customer = validateAndGetCustomer(request.getCustomerId());
+        ensureCustomerEmail(customer, request);
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
-
+        // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+        boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Xử lý danh sách chi tiết đặt phòng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
@@ -155,12 +190,19 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
+        // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+        booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
         // 3. Tính toán và tạo Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
         // 4. Lưu vào Database
         Booking savedBooking = bookingRepository.save(booking);
+        promotionUsageService.replaceBookingPromotion(
+                savedBooking,
+                savedBooking.getCustomerPromotion() == null ? savedBooking.getPromotion() : savedBooking.getCustomerPromotion().getPromotion(),
+                savedBooking.getCustomerPromotion()
+        );
 
         // Sửa lại cú pháp log chuẩn SLF4J
         log.info("Nhan vien Tao booking: {}", order);
@@ -168,11 +210,62 @@ public class BookingServiceImpl implements BookingService {
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
         if (hotelId != null) {
             bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-            bookingSocketEmitter.emitNewBookingNotification(hotelId, savedBooking);
+            Map<String, Object> bookingData = new LinkedHashMap<>();
+            bookingData.put("bookingId", savedBooking.getId());
+            bookingData.put("customerName", customer.getFullName());
+            bookingData.put("customerPhone", customer.getPhone());
+            bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+
+            bookingSocketEmitter.emitNewBookingNotification(
+                    hotelId,
+                    savedBooking,
+                    bookingData
+            );
         }
+
+        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ====================================================
 
         return toBookingResponse(savedBooking);
+    }
+
+    private void sendBookingCreatedEmailAfterCommit(Booking booking, Customer customer, Hotel hotel) {
+        String email = emailService.getCustomerEmail(customer);
+
+        String bookingDetails = booking.getBookingDetails().stream()
+                .map(detail -> "Phòng " + (detail.getRoom() != null ? detail.getRoom().getId() : "N/A")
+                        + " | " + detail.getCheckinTime() + " - " + detail.getCheckoutTime())
+                .collect(Collectors.joining("\n"));
+        String customerName = customer.getFullName();
+        String bookingId = booking.getId();
+        String hotelName = hotel.getName();
+        BigDecimal totalAmount = booking.getOrder() != null
+                ? booking.getOrder().getTotalAmount()
+                : BigDecimal.ZERO;
+
+        emailService.sendAfterCommit("booking " + bookingId, () ->
+                emailService.sendBookingCreatedEmail(
+                        email,
+                        customerName,
+                        bookingId,
+                        hotelName,
+                        bookingDetails,
+                        totalAmount
+                ));
+    }
+
+    private void ensureCustomerEmail(Customer customer, BookingCreateRequest request) {
+        if (emailService.getCustomerEmail(customer) != null) {
+            return;
+        }
+
+        String email = request.getCustomerEmail();
+        if (email == null || email.isBlank()) {
+            throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
+        }
+
+        customer.setEmail(email.trim());
+        customerRepository.save(customer);
     }
 
     private Order calculateAndBuildOrder(String customerId, BookingCreateRequest request, List<BookingDetail> details, Booking booking) {
@@ -207,15 +300,20 @@ public class BookingServiceImpl implements BookingService {
             discountResult = applyPromotion(customerId, p.getCode(), currentSubTotal, roomTotal, serviceTotal, booking);
 
         } else if (request.getCustomerPromotionId() != null) {
-            CustomerPromotion customerPromo = customerPromotionRepository.findById(request.getCustomerPromotionId())
+            CustomerPromotion customerPromo = customerPromotionRepository.findByIdAndCustomerIdForUpdate(
+                            request.getCustomerPromotionId(),
+                            customerId)
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
-            if (!customerPromo.getCustomer().getId().equals(customerId)) {
-                throw new AppException(ErrorCode.UNAUTHORIZED_PROMOTION);
-            }
             booking.setCustomerPromotion(customerPromo);
             discountResult = applyPromotion(customerId, customerPromo.getUniqueCode(), currentSubTotal, roomTotal, serviceTotal, booking);
         }
+
+        booking.setApplyAmount(
+                discountResult.getDiscountRoomAmount()
+                        .add(discountResult.getDiscountServiceAmount())
+                        .add(discountResult.getDiscountAmountTotal())
+        );
 
         // 3. Truyền thêm surchargeTotal vào hàm tạo Order
         return createAndLinkOrder(roomTotal, serviceTotal, discountResult, surchargeTotal);
@@ -235,6 +333,7 @@ public class BookingServiceImpl implements BookingService {
                 .customer(customer)
                 .bookingChannel(channel)
                 .bookingStatus(status)
+
                 .build();
     }
 
@@ -267,7 +366,19 @@ public class BookingServiceImpl implements BookingService {
                             .earlyCheckInFee(detail.getEarlyCheckInFee())
                             .lateCheckOutFee(detail.getLateCheckOutFee())
                             // Map thẳng các khoản chi tiết vào Response
-                            .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice()).build()).toList();
+                            .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
+                            .nightlyPrices(detail.getNightlyPrices() == null ? List.of() : detail.getNightlyPrices().stream().map(price -> BookingNightlyPriceResponse.builder()
+                                    .stayDate(price.getStayDate())
+                                    .roomBasePrice(price.getRoomBasePrice())
+                                    .extraAdultFee(price.getExtraAdultFee())
+                                    .extraChildFee(price.getExtraChildFee())
+                                    .extraAdultUnitPrice(price.getExtraAdultUnitPrice())
+                                    .extraChildUnitPrice(price.getExtraChildUnitPrice())
+                                    .standardCapacity(price.getStandardCapacity())
+                                    .maxExtraGuests(price.getMaxExtraGuests())
+                                    .nightTotal(price.getNightTotal())
+                                    .build()).toList())
+                            .build()).toList();
         }
         Order order = booking.getOrder();
         return BookingResponse
@@ -291,6 +402,13 @@ public class BookingServiceImpl implements BookingService {
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null)
                 .discountServiceAmount(order != null ? order.getDiscountServiceAmount() : null)
                 .discountRoomAmount(order != null ? order.getDiscountRoomAmount() : null)
+                .estimatedDiscountAmount(booking.getApplyAmount() != null
+                        ? booking.getApplyAmount()
+                        : order != null
+                        ? (order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO)
+                                .add(order.getDiscountRoomAmount() != null ? order.getDiscountRoomAmount() : BigDecimal.ZERO)
+                                .add(order.getDiscountServiceAmount() != null ? order.getDiscountServiceAmount() : BigDecimal.ZERO)
+                        : BigDecimal.ZERO)
                 .bookingDetails(detailResponses).build();
     }
 
@@ -336,6 +454,7 @@ public class BookingServiceImpl implements BookingService {
         if (detailRequests == null || detailRequests.isEmpty()) {
             throw new AppException(ErrorCode.BOOKING_DETAILS_REQUIRED);
         }
+        // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
 
         return detailRequests.stream().map(detailReq -> {
             Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
@@ -362,19 +481,31 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
             }
 
+            Room roomCheck = roomRepository.findByIdWithLock(room.getId())
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+            long overlappingCount = bookingDetailRepository.countOverlappingBookings(
+                    roomCheck.getId(),
+                    detailReq.getCheckInTime(),
+                    detailReq.getCheckOutTime()
+            );
+
+            if (overlappingCount > 0) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
+            }
             long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
             if (nights <= 0) nights = 1;
 
             // 3. Vòng lặp quét từng ngày (Daily Rate) để cộng dồn tiền phòng
-            double totalRoomAmountForStay = 0.0;
             double accumulatedBasePrice = 0.0; // Dùng để tính giá gốc trung bình mỗi đêm
+            List<BookingNightlyPrice> nightlyPrices = new ArrayList<>();
             LocalDate currentDate = checkInDate;
 
             while (currentDate.isBefore(checkOutDate)) {
                 Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
 
                 double dailyRoomPrice;
-                double amenitiesPrice = room.getTotalAmenitiesPrice();
+                double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
                 if (seasonalRateOpt.isPresent()) {
                     dailyRoomPrice = seasonalRateOpt.get().getPrice() + amenitiesPrice;
                 } else {
@@ -384,14 +515,29 @@ public class BookingServiceImpl implements BookingService {
 
                 accumulatedBasePrice += dailyRoomPrice;
                 // Tiền phòng ngày đó + phụ thu đêm đó
-                totalRoomAmountForStay += (dailyRoomPrice + totalExtraFeePerNight);
+                BookingNightlyPrice nightlyPrice = new BookingNightlyPrice();
+                nightlyPrice.setStayDate(currentDate);
+                nightlyPrice.setRoomBasePrice(BigDecimal.valueOf(dailyRoomPrice));
+                nightlyPrice.setExtraAdultFee(BigDecimal.valueOf(extraAdultFeePerNight));
+                nightlyPrice.setExtraChildFee(BigDecimal.valueOf(extraChildFeePerNight));
+                nightlyPrice.setExtraAdultUnitPrice(BigDecimal.valueOf(policy.getExtraAdultFee()));
+                nightlyPrice.setExtraChildUnitPrice(BigDecimal.valueOf(policy.getExtraChildFee()));
+                nightlyPrice.setStandardCapacity(policy.getStandardCapacity());
+                nightlyPrice.setMaxExtraGuests(policy.getMaxExtraGuests());
+                nightlyPrice.setNightTotal(BigDecimal.valueOf(dailyRoomPrice)
+                        .add(BigDecimal.valueOf(totalExtraFeePerNight))
+                        .setScale(2, java.math.RoundingMode.HALF_UP));
+                nightlyPrices.add(nightlyPrice);
 
                 currentDate = currentDate.plusDays(1);
             }
 
             // Tính giá phòng gốc trung bình 1 đêm
             double baseRoomPricePerNight = accumulatedBasePrice / nights;
-            double roomSubTotal = totalRoomAmountForStay; // Tổng tiền phòng + phụ thu toàn kỳ
+            double roomSubTotal = nightlyPrices.stream()
+                    .map(BookingNightlyPrice::getNightTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .doubleValue();
 
             // 4. Xử lý dịch vụ đi kèm và tính tổng tiền dịch vụ
             List<BookingServiceDetail> serviceDetails = processAndAttachServices(null, detailReq.getServiceRequests());
@@ -405,6 +551,7 @@ public class BookingServiceImpl implements BookingService {
             // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
             BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
 
+            nightlyPrices.forEach(bookingDetail::addNightlyPrice);
             if (!serviceDetails.isEmpty()) {
                 serviceDetails.forEach(sd -> sd.setBookingDetail(bookingDetail));
                 bookingDetail.setBookingServiceDetails(serviceDetails);
@@ -497,12 +644,15 @@ public class BookingServiceImpl implements BookingService {
             if (customerPromotion.isUsed()) {
                 throw new AppException(ErrorCode.PROMOTION_ALREADY_USED);
             }
+            if (customerPromotion.getBooking() != null
+                    && (booking.getId() == null
+                    || !customerPromotion.getBooking().getId().equals(booking.getId()))) {
+                throw new AppException(ErrorCode.PROMOTION_ALREADY_USED);
+            }
 
             Promotion promotion = customerPromotion.getPromotion();
             validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
 
-            customerPromotion.setUsed(true);
-            customerPromotion.setUsedAt(now);
             customerPromotion.setBooking(booking);
 
             return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
@@ -511,9 +661,7 @@ public class BookingServiceImpl implements BookingService {
         // 2. Khuyến mãi chung của hệ thống / chi nhánh
         Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode)
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
-
         validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
-        promotion.setUsedCount(promotion.getUsedCount() + 1);
 
         return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
     }
@@ -528,11 +676,30 @@ public class BookingServiceImpl implements BookingService {
             throw new AppException(ErrorCode.PROMOTION_EXPIRED);
         }
 
-        if (promotion.getUsageLimit() != null && promotion.getUsedCount() >= promotion.getUsageLimit()) {
+        if (promotion.getUsageLimit() != null
+                && (promotion.getUsedCount() == null ? 0 : promotion.getUsedCount()) >= promotion.getUsageLimit()) {
             throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
         }
 
         // Kiểm tra ngưỡng tổng đơn tối thiểu
+        if (promotion.getMinBookingValue() != null && currentTotalAmount.compareTo(promotion.getMinBookingValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
+        }
+
+        // Kiểm tra ngưỡng tiền phòng tối thiểu (MỚI)
+        if (promotion.getMinRoomValue() != null && roomTotal.compareTo(promotion.getMinRoomValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_ROOM_NOT_MET);
+        }
+
+        // Kiểm tra ngưỡng tiền dịch vụ tối thiểu (MỚI)
+        if (promotion.getMinServiceValue() != null && serviceTotal.compareTo(promotion.getMinServiceValue()) < 0) {
+            throw new AppException(ErrorCode.PROMOTION_MIN_SERVICE_NOT_MET);
+        }
+    }
+
+
+    public void validatePromotionRulesPromotionOld(Promotion promotion, BigDecimal currentTotalAmount, LocalDateTime now, BigDecimal roomTotal, BigDecimal serviceTotal) {
+        // A promotion already reserved by this booking keeps working after expiry or quota exhaustion.
         if (promotion.getMinBookingValue() != null && currentTotalAmount.compareTo(promotion.getMinBookingValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
         }
@@ -636,6 +803,17 @@ public class BookingServiceImpl implements BookingService {
                     .roomSubTotal(detail.getRoomSubTotal()) // tong tien phong
                     .serviceSubTotal(detail.getServiceSubTotal()) // tong tien dich vu
                     .totalPrice(detail.getTotalPrice()) // tong tien (dich vu + tien phong)
+                    .nightlyPrices(detail.getNightlyPrices() == null ? List.of() : detail.getNightlyPrices().stream().map(price -> BookingNightlyPriceResponse.builder()
+                            .stayDate(price.getStayDate())
+                            .roomBasePrice(price.getRoomBasePrice())
+                            .extraAdultFee(price.getExtraAdultFee())
+                            .extraChildFee(price.getExtraChildFee())
+                            .extraAdultUnitPrice(price.getExtraAdultUnitPrice())
+                            .extraChildUnitPrice(price.getExtraChildUnitPrice())
+                            .standardCapacity(price.getStandardCapacity())
+                            .maxExtraGuests(price.getMaxExtraGuests())
+                            .nightTotal(price.getNightTotal())
+                            .build()).toList())
                     .earlyCheckInFee(detail.getEarlyCheckInFee())
                     .lateCheckOutFee(detail.getLateCheckOutFee())
                     // Thoi gian checkin - checkout thuc te
@@ -645,6 +823,7 @@ public class BookingServiceImpl implements BookingService {
 
                     // map danh sach dich vu
                     .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder()
+                            .bookingServiceDetailId(serviceDetail.getId())
                             .serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null)
                             .name(serviceDetail.getName())
                             .quantity(serviceDetail.getQuantity())
@@ -666,9 +845,8 @@ public class BookingServiceImpl implements BookingService {
                 .promotionId(booking.getPromotion() != null ? booking.getPromotion().getId() : null)
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
                 .serviceTotal(order != null ? order.getServiceTotalAmount() : null)
-
                 .surchargeTotalAmount(order.getSurchargeTotalAmount()) // tong tien phu thu
-
+                .applyAt(booking.getApplyAt() != null ? booking.getApplyAt() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai
@@ -677,10 +855,18 @@ public class BookingServiceImpl implements BookingService {
                 .discountRoomAmount(order != null ? order.getDiscountRoomAmount() : null)     // Giảm giá phòng
                 .discountServiceAmount(order != null ? order.getDiscountServiceAmount() : null) // Giảm giá dịch vụ
                 .discountAmountTotal(order != null ? order.getDiscountAmountTotal() : null)
+                .estimatedDiscountAmount(booking.getApplyAmount() != null
+                        ? booking.getApplyAmount()
+                        : order != null
+                        ? (order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO)
+                                .add(order.getDiscountRoomAmount() != null ? order.getDiscountRoomAmount() : BigDecimal.ZERO)
+                                .add(order.getDiscountServiceAmount() != null ? order.getDiscountServiceAmount() : BigDecimal.ZERO)
+                        : BigDecimal.ZERO)
                 .bookingDetails(detailResponses).build();
     }
 
     @Override
+    @Transactional
     public List<BookingResponseForHotel> getBookingsByHotel(Long hotelId) {
         // Gọi repository lấy danh sách booking theo hotelId
         List<Booking> bookings = bookingRepository.findAllByHotelId(hotelId);
@@ -750,6 +936,7 @@ public class BookingServiceImpl implements BookingService {
                                 .checkinTime(effectiveCheckIn)   // Trả về giờ thực tế lên matrix
                                 .checkoutTime(effectiveCheckOut) // Trả về giờ thực tế lên matrix
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
+                                .roomStatus(detail.getStatus())
                                 .occupiedDates(dates)
                                 .build();
                     })

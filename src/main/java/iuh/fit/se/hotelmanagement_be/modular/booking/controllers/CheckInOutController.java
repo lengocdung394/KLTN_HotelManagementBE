@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.CheckoutRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -49,12 +50,12 @@ public class CheckInOutController {
     @Operation(summary = "Thực hiện thủ tục trả phòng đồng loạt (Bulk Check-out), tính phụ thu lố giờ, chốt tiền dịch vụ và đóng Order CLOSED")
     public ResponseEntity<BookingResponse> c(
             @PathVariable String bookingId,
-            @RequestBody List<String> bookingDetailIds,
+            @jakarta.validation.Valid @RequestBody CheckoutRequest request,
             Authentication authentication) {
         // Lấy ngầm hotelId từ Token
         Account account = (Account) authentication.getPrincipal();
         String employeeId = account.getEmployeeId();
-        BookingResponse response = checkInOutService.processBulkCheckOut(bookingId, bookingDetailIds, employeeId);
+        BookingResponse response = checkInOutService.processBulkCheckOut(bookingId, request, employeeId);
         return ResponseEntity.ok(response);
     }
 }

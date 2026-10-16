@@ -11,6 +11,6 @@ public interface BranchRoomPolicyService {
     List<BranchRoomPolicy> getPoliciesByHotel(Long hotelId);
 
     // update  chinh sach cua tung loai phong
-    BranchRoomPolicy updateRoomPolicy(String policyId, BranchRoomPolicyRequest request, Account currentAccount);
+    BranchRoomPolicy updateRoomPolicy(String policyId, BranchRoomPolicyRequest request, Account currentAccount, boolean isSuperAdmin);
 
 }

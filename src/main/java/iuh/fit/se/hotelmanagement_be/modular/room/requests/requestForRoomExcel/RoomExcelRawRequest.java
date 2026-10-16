@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.requests.requestForRoomExcel;
 
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomBedRequest;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -16,6 +17,7 @@ public class RoomExcelRawRequest {
     String floorId;
     String roomType;
     String roomStatus;
+    List<RoomBedRequest> beds;
     List<Long> amenityIds;
     List<String> imageUrls;
 

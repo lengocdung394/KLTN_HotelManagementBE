@@ -2,9 +2,11 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -76,4 +78,21 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
             ORDER BY p.createdAt DESC
             """)
     List<Promotion> findBranchAndSharedPromotions(@Param("hotelId") Long hotelId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+    select p from Promotion p
+    where p.id = :id
+      and p.deleted = false
+    """)
+    Optional<Promotion> findByIdAndDeletedFalseForUpdate(
+            @Param("id") String id
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select p from Promotion p
+            where p.id = :id
+            """)
+    Optional<Promotion> findByIdForUpdate(@Param("id") String id);
 }

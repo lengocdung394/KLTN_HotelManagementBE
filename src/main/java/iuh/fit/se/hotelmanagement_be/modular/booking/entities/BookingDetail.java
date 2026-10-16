@@ -10,6 +10,7 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = false)
@@ -35,6 +36,10 @@ public class BookingDetail {
 
     @OneToMany(mappedBy = "bookingDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingServiceDetail> bookingServiceDetails;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "bookingDetail", cascade = CascadeType.ALL, orphanRemoval = true)
+    List<BookingNightlyPrice> nightlyPrices = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
@@ -93,5 +98,11 @@ public class BookingDetail {
             int randomNum = (int) (Math.random() * 900000) + 100000;
             this.id = "BD" + dateStr + randomNum;
         }
+    }
+
+    public void addNightlyPrice(BookingNightlyPrice nightlyPrice) {
+        if (nightlyPrices == null) nightlyPrices = new ArrayList<>();
+        nightlyPrices.add(nightlyPrice);
+        nightlyPrice.setBookingDetail(this);
     }
 }

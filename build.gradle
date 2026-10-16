@@ -55,7 +55,8 @@ dependencies {
     implementation 'vn.payos:payos-java:2.0.1'
    // Thư viện Netty-SocketIO Server cho Java
     implementation 'com.corundumstudio.socketio:netty-socketio:2.0.9'
-
+     // 1. Thư viện Spring Data Redis (để dùng StringRedisTemplate tương tác với Redis)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.security:spring-security-oauth2-jose'
 

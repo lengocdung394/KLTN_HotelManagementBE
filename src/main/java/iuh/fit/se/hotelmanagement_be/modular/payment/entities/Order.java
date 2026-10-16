@@ -110,12 +110,27 @@ public class Order {
     }
 
     public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
+        addPaymentSuccess(amountPaid, paymentType, paymentLinkId, null, null, null, null);
+    }
+
+    public void addPaymentSuccess(
+            BigDecimal amountPaid,
+            PaymentType paymentType,
+            String paymentLinkId,
+            String counterAccountName,
+            String counterAccountNumber,
+            String counterAccountBankId,
+            String counterAccountBankName) {
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .amount(amountPaid)
                 .transactionDate(LocalDateTime.now())
                 .paymentType(paymentType)
                 .cashFlowType(CashFlowType.RECEIPT)
                 .note("PayOS Webhook Ref: " + paymentLinkId)
+                .counterAccountName(counterAccountName)
+                .counterAccountNumber(counterAccountNumber)
+                .counterAccountBankId(counterAccountBankId)
+                .counterAccountBankName(counterAccountBankName)
                 .order(this)
                 .build();
 

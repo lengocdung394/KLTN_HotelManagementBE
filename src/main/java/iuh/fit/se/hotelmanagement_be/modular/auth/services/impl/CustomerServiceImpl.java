@@ -41,6 +41,7 @@ public class CustomerServiceImpl implements CustomerService {
     RoleRepository roleRepository;
     PasswordEncoder passwordEncoder;
     CustomerSocketEmitter customerSocketEmitter;
+    AccountSocketEmitter accountSocketEmitter;
 
     @Override
     public CustomerResponse createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
@@ -64,12 +65,14 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setFullName(request.getFullName());
         customer.setPhone(request.getPhone());
         customer.setCccd(request.getCccd());
+        customer.setEmail(request.getEmail() == null || request.getEmail().isBlank() ? null : request.getEmail().trim());
         customer.setRegistered(false);
         customer.setAccount(null);
 
+
         Customer savedCustomer = customerRepository.save(customer);
 
-        customerSocketEmitter.emitCustomerCreated(hotelId, customer);
+        accountSocketEmitter.emitGuestCustomerCreated(savedCustomer.getId(), hotelId);
 
         return toCustomerResponse(savedCustomer);
     }
@@ -80,6 +83,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .fullName(customer.getFullName())
                 .cccd(customer.getCccd())
                 .phone(customer.getPhone())
+                .email(customer.getEmail())
                 .build();
     }
 
@@ -90,7 +94,9 @@ public class CustomerServiceImpl implements CustomerService {
         return CustomerFindByIdResponse.builder()
                 .name(customer.getFullName())
                 .cccd(customer.getCccd())
-                .phone(customer.getPhone()).build();
+                .phone(customer.getPhone())
+                .email(customer.getEmail())
+                .build();
     }
 
     @Override
@@ -237,6 +243,12 @@ public class CustomerServiceImpl implements CustomerService {
         Customer savedCustomer =
                 customerRepository.save(customer);
 
+        // ban socket khi ma tao tai khoan
+        accountSocketEmitter.emitAccountCreated(
+                savedCustomer.getAccount().getId(),
+                savedCustomer.getId(),
+                "CUSTOMER",
+                null);
         otpService.clearOtp(request.getEmail());
 
         return UserResponse.builder()
@@ -315,4 +327,3 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
     }
 }
-

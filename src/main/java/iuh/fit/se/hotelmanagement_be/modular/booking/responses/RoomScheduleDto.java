@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.responses;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -19,6 +20,7 @@ public class RoomScheduleDto {
     LocalDateTime checkinTime;
     LocalDateTime checkoutTime;
     BookingStatus bookingStatus; // PENDING, CONFIRMED, IN_HOUSE, ...
+    BookingStatusType roomStatus;
 
     // Danh sách từng ngày cụ thể bị chiếm dụng trong khoảng checkin -> checkout
     List<LocalDate> occupiedDates;

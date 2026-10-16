@@ -1,6 +1,5 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.entities;
 
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -18,21 +17,22 @@ import lombok.experimental.SuperBuilder;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(
-        name = "room_type_beds",
+        name = "room_beds",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"room_type", "bed_type_id"})
+                @UniqueConstraint(columnNames = {"room_id", "bed_type_id"}) // 1 phòng không bị lặp lại cùng 1 loại giường
         }
 )
-public class RoomTypeBed {
+public class RoomBed {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @NotNull(message = "Loại phòng không được để trống")
-    @Enumerated(EnumType.STRING)
-    @Column(name = "room_type", nullable = false)
-    RoomType roomType; // Map trực tiếp sang Enum RoomType giống như ở BranchRoomPolicy của bạn
+    // Thay vì trỏ vào RoomType, ta trỏ trực tiếp vào Room cụ thể
+    @NotNull(message = "Phòng không được để trống")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
+    Room room;
 
     @NotNull(message = "Loại giường không được để trống")
     @ManyToOne(fetch = FetchType.LAZY)
@@ -42,5 +42,5 @@ public class RoomTypeBed {
     @NotNull(message = "Số lượng giường không được để trống")
     @Min(value = 1, message = "Số lượng giường tối thiểu phải là 1")
     @Column(name = "quantity", nullable = false)
-    Integer quantity; // Ví dụ: 2 (cho phòng FAMILY có 2 giường Queen)
+    Integer quantity; // Ví dụ: Phòng 101 có 2 giường Single
 }

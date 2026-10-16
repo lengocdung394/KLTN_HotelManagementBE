@@ -61,6 +61,9 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                             .type(p.getType().name())
                             .discountValue(p.getDiscountValue())
                             .maxDiscountAmount(p.getMaxDiscountAmount())
+
+                            .isUsed(cp.isUsed())
+                            .usedAt(cp.getUsedAt())
                             .minBookingValue(p.getMinBookingValue())
                             .startDate(p.getStartDate())
                             .endDate(p.getEndDate())
@@ -71,59 +74,79 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                 .toList();
     }
 
+
     @Override
     @Transactional
     public CustomerPromotionResponse claimPromotion(ClaimPromotionRequest request) {
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
 
-        //1. Lay thong tin customer dang nhap
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof Account account)) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        // 2. Lay customerId tu UserDetails
-        Account account = (Account) authentication.getPrincipal();
         Customer customer = account.getCustomer();
         if (customer == null) {
             throw new AppException(ErrorCode.USER_NOT_FOUND);
         }
 
-        // 2. Tìm Promotion & Validate điều kiện
-        Promotion promotion = promotionRepository.findByIdAndDeletedFalse(request.getPromotionId())
+        // Khóa promotion đến khi transaction hoàn tất để tránh lưu vượt quota.
+        Promotion promotion = promotionRepository
+                .findByIdAndDeletedFalseForUpdate(request.getPromotionId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
-        if (promotion.getStatus() != PromotionStatus.ACTIVE) {
-            throw new AppException(ErrorCode.PROMOTION_EXPIRED);
-        }
-
         LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(promotion.getStartDate()) || now.isAfter(promotion.getEndDate())) {
+
+        if (promotion.getStatus() != PromotionStatus.ACTIVE
+                || now.isBefore(promotion.getStartDate())
+                || now.isAfter(promotion.getEndDate())) {
             throw new AppException(ErrorCode.PROMOTION_EXPIRED);
         }
 
-        if (promotion.getUsageLimit() != null && promotion.getUsedCount() >= promotion.getUsageLimit()) {
+        boolean alreadyClaimed = customerPromotionRepository
+                .existsByCustomerIdAndPromotionId(
+                        customer.getId(),
+                        promotion.getId()
+                );
+
+        if (alreadyClaimed) {
+            throw new IllegalArgumentException(
+                    "Bạn đã lưu mã khuyến mãi này trước đó rồi!"
+            );
+        }
+        // so luong khuyen mai da duoc khach hang luu ve may
+        int claimedCount = promotion.getClaimedCount() != null ? promotion.getClaimedCount() : 0;
+
+        int usedCount = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
+
+        if (promotion.getUsageLimit() != null
+                && Math.max(claimedCount, usedCount) >= promotion.getUsageLimit()) {
             throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_EXCEEDED);
         }
 
-        // 3. Kiểm tra xem khách hàng đã lưu mã này chưa
-        boolean alreadyClaimed = customerPromotionRepository.existsByCustomerIdAndPromotionId(
-                customer.getId(), promotion.getId());
-        if (alreadyClaimed) {
-            throw new IllegalArgumentException("Bạn đã lưu mã khuyến mãi này trước đó rồi!");
-        }
-        // Khong can phai get ma , vi da co cai @PrePersist
-        //4. Tao bang ghi CustomerPromotion
+        promotion.setClaimedCount(claimedCount + 1); // so luot tang len mot
+
         CustomerPromotion customerPromotion = CustomerPromotion.builder()
                 .customer(customer)
                 .promotion(promotion)
                 .isUsed(false)
-                .createdAt(now).build();
+                .createdAt(now)
+                .build();
+
+        promotionRepository.save(promotion);
         customerPromotionRepository.save(customerPromotion);
-        log.info("Khách hàng ID {} đã lưu thành công khuyến mãi ID {}", customer.getId(), promotion.getId());
+
+        log.info(
+                "Khách hàng ID {} đã lưu khuyến mãi ID {}. Đã lưu: {}/{}",
+                customer.getId(),
+                promotion.getId(),
+                promotion.getClaimedCount(),
+                promotion.getUsageLimit()
+        );
 
         return toCustomerPromotionResponse(customerPromotion);
     }
-
 
     private CustomerPromotionResponse toCustomerPromotionResponse(CustomerPromotion cp) {
         Promotion promotion = cp.getPromotion();

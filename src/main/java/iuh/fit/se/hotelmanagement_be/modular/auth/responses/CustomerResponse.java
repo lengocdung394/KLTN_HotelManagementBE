@@ -12,5 +12,6 @@ public class CustomerResponse {
     String id;
     String fullName;
     String phone;
+    String email;
     String cccd;
 }

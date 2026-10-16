@@ -17,5 +17,6 @@ public class BedTypeGetAllResponse {
     Long id;
     String name; // Ví dụ: "Single Bed", "Queen Bed", "King Bed", "Extra Bed (Giường phụ)"
     String description; // Sửa lỗi chính tả từ discription thành description nhé bạn
-
+    Integer capacity;
+    Boolean isExtraBed;
 }

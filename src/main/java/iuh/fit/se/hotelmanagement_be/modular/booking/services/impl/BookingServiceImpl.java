@@ -823,6 +823,7 @@ public class BookingServiceImpl implements BookingService {
 
                     // map danh sach dich vu
                     .bookingServiceResponsForHotels(detail.getBookingServiceDetails() != null ? detail.getBookingServiceDetails().stream().map(serviceDetail -> BookingServiceResponseForHotel.builder()
+                            .bookingServiceDetailId(serviceDetail.getId())
                             .serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null)
                             .name(serviceDetail.getName())
                             .quantity(serviceDetail.getQuantity())
@@ -935,6 +936,7 @@ public class BookingServiceImpl implements BookingService {
                                 .checkinTime(effectiveCheckIn)   // Trả về giờ thực tế lên matrix
                                 .checkoutTime(effectiveCheckOut) // Trả về giờ thực tế lên matrix
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
+                                .roomStatus(detail.getStatus())
                                 .occupiedDates(dates)
                                 .build();
                     })

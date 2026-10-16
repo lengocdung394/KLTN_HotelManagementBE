@@ -110,10 +110,8 @@ public class BranchSocketEmitter {
         }
 
         try {
-            if (publishToHotel) {
-                socketIOServer.getRoomOperations("hotel_" + hotelId)
-                        .sendEvent("room_policy_updated", payload);
-            }
+            socketIOServer.getRoomOperations("hotel_" + hotelId)
+                    .sendEvent("room_policy_updated", payload);
 
             if (publishToSuperAdmin) {
                 socketIOServer.getRoomOperations("super_admin_accounts")

@@ -200,6 +200,10 @@ public enum ErrorCode {
     CANCELLATION_INVALID_BANK_ACCOUNT(2013, "Số tài khoản ngân hàng không hợp lệ", HttpStatus.BAD_REQUEST),
     CANCELLATION_REVIEW_NOTE_REQUIRED(2014, "Cần ghi lý do khi từ chối hoàn tiền", HttpStatus.BAD_REQUEST),
     CANCELLATION_REFUND_EXCEEDS_PAID(2015, "Số tiền hoàn vượt quá số tiền khách đã thanh toán", HttpStatus.BAD_REQUEST),
+    CANCELLATION_REVIEW_CONFIRMATION_REQUIRED(2017, "Cần xác nhận số tiền và tài khoản nhận hoàn trước khi duyệt", HttpStatus.BAD_REQUEST),
+    CHECKOUT_REFUND_METHOD_REQUIRED(2018, "Chọn cách hoàn khoản thu dư trước khi hoàn tất check-out", HttpStatus.BAD_REQUEST),
+    CHECKOUT_REFUND_INVALID_METHOD(2019, "Khoản thu dư chỉ được hoàn bằng tiền mặt hoặc chuyển khoản ngân hàng", HttpStatus.BAD_REQUEST),
+    CHECKOUT_REFUND_INVALID_STATUS(2020, "Trạng thái yêu cầu hoàn dư check-out không cho phép thao tác này", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(2016, "Không thể tạo liên kết thanh toán online; vui lòng thử lại", HttpStatus.BAD_GATEWAY);
 
     //    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),

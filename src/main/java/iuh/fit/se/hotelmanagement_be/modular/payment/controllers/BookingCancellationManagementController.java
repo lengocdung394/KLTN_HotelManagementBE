@@ -48,7 +48,7 @@ public class BookingCancellationManagementController {
         Account account = (Account) authentication.getPrincipal();
         return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
                 .code(1000)
-                .message("Đã duyệt hoàn tiền. Quản lý có thể chuyển khoản đến tài khoản khách.")
+                .message("Đã duyệt hoàn tiền sau khi xác nhận số tiền và tài khoản nhận.")
                 .result(bookingCancellationService.approveRefund(cancellationId, request, account))
                 .build());
     }
@@ -89,7 +89,7 @@ public class BookingCancellationManagementController {
         Account account = (Account) authentication.getPrincipal();
         return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
                 .code(1000)
-                .message("Đã lưu thông tin tài khoản nhận hoàn; yêu cầu đang chờ quản lý duyệt.")
+                .message("Đã lưu/cập nhật tài khoản nhận hoàn.")
                 .result(bookingCancellationService.submitRefundBankDetailsByStaff(cancellationId, request, account))
                 .build());
     }

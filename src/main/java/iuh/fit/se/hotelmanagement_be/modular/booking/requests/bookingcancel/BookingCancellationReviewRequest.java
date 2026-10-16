@@ -12,4 +12,6 @@ import lombok.experimental.FieldDefaults;
 public class BookingCancellationReviewRequest {
     @Size(max = 500)
     String note;
+    Boolean refundAmountVerified;
+    Boolean refundAccountConfirmed;
 }

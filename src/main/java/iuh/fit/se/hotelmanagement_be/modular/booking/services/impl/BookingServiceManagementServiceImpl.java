@@ -361,16 +361,19 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         // 1. Xử lý hủy phòng hàng loạt - huy luon dich vu
         roomPriceChange = roomPriceChange.add(processCancellations(booking, request.getBookingDetailIdsToCancel(), operatorName));
 
-        // 2. Xử lý thêm phòng mới (kèm dịch vụ) hàng loạt
+        // 2. Xử lý hủy dịch vụ lẻ
+        servicePriceChange = servicePriceChange.add(processServiceCancellations(booking, request.getServicesToCancel()));
+
+        // 3. Xử lý thêm phòng mới (kèm dịch vụ) hàng loạt
         roomPriceChange = roomPriceChange.add(processRoomAdditions(booking, request.getRoomsToAdd()));
 
-        // 3. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
+        // 4. Xử lý cập nhật ngày checkin/checkout hàng loạt co the la doi phong kem theo so luong nguoi
         roomPriceChange = roomPriceChange.add(processRoomUpdates(booking, request.getRoomsToChange()));
 
-        // 4. Xử lý thêm dịch vụ phát sinh cho phòng cũ
+        // 5. Xử lý thêm dịch vụ phát sinh cho phòng cũ
         servicePriceChange = servicePriceChange.add(processServicesForExistingRooms(booking, request.getServicesToAddForExistingRooms()));
 
-        // 5. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng -- TH huy luon nhieu dich vu cho phong do
+        // 6. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng
         servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
 
         // ==========================================
@@ -626,7 +629,48 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         return totalServicePriceAdded;
     }
 
-    // Ham giam so luong dich vu giam so luong dich vu
+    private BigDecimal processServiceCancellations(Booking booking, List<ServiceCancellationRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal servicePriceChange = BigDecimal.ZERO;
+        for (ServiceCancellationRequest request : requests) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(detail -> detail.getId().equals(request.getBookingDetailId()))
+                    .findFirst()
+                    .orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+
+            if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
+                continue;
+            }
+            if (request.getServiceDetailIds() == null || request.getServiceDetailIds().isEmpty()) {
+                continue;
+            }
+
+            for (String serviceDetailId : request.getServiceDetailIds()) {
+                BookingServiceDetail serviceDetail = targetDetail.getBookingServiceDetails().stream()
+                        .filter(item -> item.getId().equals(serviceDetailId))
+                        .findFirst()
+                        .orElseThrow(() -> new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND));
+
+                if (Boolean.TRUE.equals(serviceDetail.getCancelled())) {
+                    continue;
+                }
+
+                serviceDetail.setCancelled(true);
+                serviceDetail.setCancelledAt(LocalDateTime.now());
+
+                double price = serviceDetail.getPrice() != null ? serviceDetail.getPrice() : 0.0;
+                int quantity = serviceDetail.getQuantity();
+                servicePriceChange = servicePriceChange.subtract(BigDecimal.valueOf(price * quantity));
+            }
+        }
+
+        return servicePriceChange;
+    }
+
+    // Ham giam so luong dich vu
     @Override
     public BigDecimal processServiceQuantityUpdates(Booking booking, List<UpdateServiceQuantityRequest> quantityUpdates) {
         if (quantityUpdates == null || quantityUpdates.isEmpty()) {

@@ -236,7 +236,8 @@ public class BookingCancellationService {
             Account account) {
         BookingCancellation cancellation = getCancellationForUpdate(cancellationId);
         ensureBranchAccess(cancellation.getBooking(), account);
-        if (cancellation.getStatus() != BookingCancellationStatus.REFUND_BANK_DETAILS_REQUIRED) {
+        boolean awaitingBankDetails = cancellation.getStatus() == BookingCancellationStatus.REFUND_BANK_DETAILS_REQUIRED;
+        if (!awaitingBankDetails && cancellation.getStatus() != BookingCancellationStatus.REFUND_REVIEW_PENDING) {
             throw new AppException(ErrorCode.CANCELLATION_INVALID_STATUS);
         }
         RefundBankDetails bankDetails = new RefundBankDetails(
@@ -249,7 +250,9 @@ public class BookingCancellationService {
         cancellation.setBankCode(bankDetails.bankCode());
         cancellation.setBankAccountName(bankDetails.bankAccountName());
         cancellation.setBankAccountNumber(bankDetails.bankAccountNumber());
-        cancellation.setStatus(BookingCancellationStatus.REFUND_REVIEW_PENDING);
+        if (awaitingBankDetails) {
+            cancellation.setStatus(BookingCancellationStatus.REFUND_REVIEW_PENDING);
+        }
 
 
         String refundEmail = trimToNull(request == null ? null : request.getRefundEmail());
@@ -257,7 +260,7 @@ public class BookingCancellationService {
             cancellation.setRefundEmail(refundEmail);
         }
         BookingCancellation saved = cancellationRepository.save(cancellation);
-        if (refundEmail != null) {
+        if (awaitingBankDetails && refundEmail != null) {
             scheduleCancellationEmail(cancellation.getBooking(), saved, refundEmail);
         }
         return toResponse(saved);
@@ -399,6 +402,22 @@ public class BookingCancellationService {
         BookingCancellation cancellation = getCancellationForUpdate(cancellationId);
         ensureBranchAccess(cancellation.getBooking(), account);
         requirePendingReview(cancellation);
+        if (request == null || !Boolean.TRUE.equals(request.getRefundAmountVerified())
+                || !Boolean.TRUE.equals(request.getRefundAccountConfirmed())) {
+            throw new AppException(ErrorCode.CANCELLATION_REVIEW_CONFIRMATION_REQUIRED);
+        }
+        validateBankDetails(new RefundBankDetails(
+                cancellation.getBankName(),
+                cancellation.getBankCode(),
+                cancellation.getBankAccountName(),
+                cancellation.getBankAccountNumber()));
+        Order order = cancellation.getBooking().getOrder();
+        if (order == null) {
+            throw new AppException(ErrorCode.ORDER_NOT_FOUND);
+        }
+        if (cancellation.getRefundAmount().compareTo(zeroIfNull(order.getPaidAmount())) > 0) {
+            throw new AppException(ErrorCode.CANCELLATION_REFUND_EXCEEDS_PAID);
+        }
         cancellation.setStatus(BookingCancellationStatus.REFUND_APPROVED);
         cancellation.setReviewedBy(account);
         cancellation.setReviewedAt(LocalDateTime.now());
@@ -715,12 +734,14 @@ public class BookingCancellationService {
                 .customerPhone(booking.getCustomer() == null ? null : booking.getCustomer().getPhone())
                 .status(cancellation.getStatus())
                 .reason(cancellation.getReason())
+                .paidAmount(booking.getOrder() == null ? BigDecimal.ZERO : zeroIfNull(booking.getOrder().getPaidAmount()))
                 .refundAmount(cancellation.getRefundAmount())
                 .roomRefundAmount(cancellation.getRoomRefundAmount())
                 .serviceRefundAmount(cancellation.getServiceRefundAmount())
                 .roomPenaltyAmount(cancellation.getRoomPenaltyAmount())
                 .hoursBeforeCheckIn(cancellation.getHoursBeforeCheckIn())
                 .refundPolicy(cancellation.getRefundPolicy())
+                .refundEmail(cancellation.getRefundEmail())
                 .bankName(cancellation.getBankName())
                 .bankCode(cancellation.getBankCode())
                 .bankAccountName(cancellation.getBankAccountName())

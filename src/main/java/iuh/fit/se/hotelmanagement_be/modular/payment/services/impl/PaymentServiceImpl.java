@@ -240,6 +240,12 @@ public class PaymentServiceImpl implements PaymentService {
         long amountPaidOnGateway = dataNode.get("amount").asLong();
         String counterAccountName = dataNode.has("counterAccountName") && !dataNode.get("counterAccountName").isNull()
                 ? dataNode.get("counterAccountName").asText() : null;
+        String counterAccountNumber = dataNode.has("counterAccountNumber") && !dataNode.get("counterAccountNumber").isNull()
+                ? dataNode.get("counterAccountNumber").asText() : null;
+        String counterAccountBankId = dataNode.has("counterAccountBankId") && !dataNode.get("counterAccountBankId").isNull()
+                ? dataNode.get("counterAccountBankId").asText() : null;
+        String counterAccountBankName = dataNode.has("counterAccountBankName") && !dataNode.get("counterAccountBankName").isNull()
+                ? dataNode.get("counterAccountBankName").asText() : null;
         String paymentLinkId = dataNode.has("paymentLinkId") ? dataNode.get("paymentLinkId").asText() : "";
 
         PaymentType xacDinhPaymentType = PaymentType.BANK;
@@ -257,7 +263,11 @@ public class PaymentServiceImpl implements PaymentService {
         order.addPaymentSuccess(
                 BigDecimal.valueOf(amountPaidOnGateway),
                 xacDinhPaymentType,
-                paymentLinkId
+                paymentLinkId,
+                counterAccountName,
+                counterAccountNumber,
+                counterAccountBankId,
+                counterAccountBankName
         );
 
         log.info("[Webhook] Sau addPaymentSuccess: paidAmount={}, orderStatus={}, số lượng paymentTransactions={}",

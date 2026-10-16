@@ -26,6 +26,17 @@ public interface CheckInOutRepository extends JpaRepository<BookingDetail, Strin
             @Param("bookingStatus") BookingStatus bookingStatus,
             @Param("status") BookingStatusType status);
 
+    @Query("SELECT bd FROM BookingDetail bd " +
+            "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +
+            "WHERE (h.id = :hotelId OR bd.booking.hotel.id = :hotelId) " +
+            "AND CAST(bd.actualCheckInTime AS localdate) = :date " +
+            "AND bd.actualCheckInTime < bd.checkinTime " +
+            "AND bd.status IN (iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_IN, " +
+            "iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT)")
+    List<BookingDetail> findEarlyCheckInsByHotelAndDate(
+            @Param("hotelId") Long hotelId,
+            @Param("date") LocalDate date);
+
     // Lọc danh sách Check-out hôm nay theo từng Khách sạn cụ thể (chấp nhận cả CONFIRMED và IN_HOUSE)
     @Query("SELECT bd FROM BookingDetail bd " +
             "JOIN bd.room r JOIN r.floor f JOIN f.building b JOIN b.hotel h " +

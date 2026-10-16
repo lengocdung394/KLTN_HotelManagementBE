@@ -13,6 +13,8 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 
@@ -97,7 +99,16 @@ public class BranchRoomPolicyServiceImpl implements BranchRoomPolicyService {
         eventData.put("roomType", saved.getRoomType());
         eventData.put("changes", changes);
 
-        branchSocketEmitter.emitRoomPolicyUpdate(hotelId, eventData, isSuperAdmin);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    branchSocketEmitter.emitRoomPolicyUpdate(hotelId, eventData, isSuperAdmin);
+                }
+            });
+        } else {
+            branchSocketEmitter.emitRoomPolicyUpdate(hotelId, eventData, isSuperAdmin);
+        }
         return saved;
     }
     private void addChange(

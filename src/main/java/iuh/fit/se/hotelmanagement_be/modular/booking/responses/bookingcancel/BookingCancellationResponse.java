@@ -19,6 +19,7 @@ public class BookingCancellationResponse {
     private String customerPhone;
     private BookingCancellationStatus status;
     private String reason;
+    private BigDecimal paidAmount;
     private BigDecimal refundAmount;
     private BigDecimal roomRefundAmount;
     private BigDecimal serviceRefundAmount;

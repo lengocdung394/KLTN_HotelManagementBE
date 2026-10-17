@@ -7,6 +7,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.CheckoutRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckInOutSummaryResponse;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -14,6 +15,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CheckInOutService {
+    CheckInOutSummaryResponse getSummary(Long hotelId, LocalDate date);
+
     // lây danh sach check in checkout
     List<BookingDetailForCheckInOutResponse> getTodayCheckInList(Long hotelId, LocalDate date, BookingStatusType status, BookingStatus bookingStatus);
 

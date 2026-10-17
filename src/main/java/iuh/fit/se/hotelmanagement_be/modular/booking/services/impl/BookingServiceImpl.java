@@ -851,6 +851,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingId(booking.getId())
                 .customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null)
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
+                .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 // map phan khuyen mai

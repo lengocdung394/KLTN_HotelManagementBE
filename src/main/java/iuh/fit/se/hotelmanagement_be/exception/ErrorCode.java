@@ -204,6 +204,7 @@ public enum ErrorCode {
     CHECKOUT_REFUND_METHOD_REQUIRED(2018, "Chọn cách hoàn khoản thu dư trước khi hoàn tất check-out", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_METHOD(2019, "Khoản thu dư chỉ được hoàn bằng tiền mặt hoặc chuyển khoản ngân hàng", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_STATUS(2020, "Trạng thái yêu cầu hoàn dư check-out không cho phép thao tác này", HttpStatus.BAD_REQUEST),
+    CHECKOUT_PAYMENT_REQUIRED(2021, "Khách cần thanh toán hết số tiền còn nợ trước khi check-out", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(2016, "Không thể tạo liên kết thanh toán online; vui lòng thử lại", HttpStatus.BAD_GATEWAY);
 
     //    PAID_SERVICE_CANNOT_BE_MODIFIED(4002, "[4002] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),

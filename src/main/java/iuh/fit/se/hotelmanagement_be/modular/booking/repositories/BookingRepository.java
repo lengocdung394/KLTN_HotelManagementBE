@@ -11,12 +11,39 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
+    @Query("""
+            SELECT COUNT(b) FROM Booking b
+            WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
+              AND b.applyAt >= :start
+              AND b.applyAt < :end
+              AND (b.promotion IS NOT NULL OR b.customerPromotion IS NOT NULL)
+            """)
+    long countPromotionUsagesForPeriod(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(b.applyAmount), 0) FROM Booking b
+            WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
+              AND b.applyAt >= :start
+              AND b.applyAt < :end
+              AND (b.promotion IS NOT NULL OR b.customerPromotion IS NOT NULL)
+            """)
+    BigDecimal sumPromotionSavingsForPeriod(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
     // Lọc danh sách booking theo khách sạn (hotelId) thông qua chuỗi quan hệ phòng -> tầng -> tòa nhà -> khách sạn
     @Query("""
                 SELECT DISTINCT b FROM Booking b

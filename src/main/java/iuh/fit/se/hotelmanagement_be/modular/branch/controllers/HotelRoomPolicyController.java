@@ -10,6 +10,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckInOutSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.RoomMatrixResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
@@ -91,6 +92,16 @@ public class HotelRoomPolicyController {
         Long hotelId = account.getHotelId();
 
         return ResponseEntity.ok(checkInOutService.getTodayCheckInList(hotelId, date, status, bookingStatus));
+    }
+
+    @GetMapping("/check-in-out-summary")
+    @Operation(summary = "Lấy thống kê check-in/check-out theo ngày cho khách sạn của nhân viên")
+    public ResponseEntity<CheckInOutSummaryResponse> getCheckInOutSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        return ResponseEntity.ok(checkInOutService.getSummary(account.getHotelId(), date));
     }
 
 

@@ -14,6 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.CheckInOutRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckInOutSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
@@ -64,6 +65,19 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
     PaymentRepository paymentRepository;
+
+    @Override
+    public CheckInOutSummaryResponse getSummary(Long hotelId, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now();
+        LocalDateTime dayStart = targetDate.atStartOfDay();
+        LocalDateTime dayEnd = targetDate.plusDays(1).atStartOfDay();
+        return new CheckInOutSummaryResponse(
+                checkInOutRepository.countWaitingCheckIns(hotelId, targetDate),
+                checkInOutRepository.countInHouseOnDate(hotelId, dayStart, dayEnd),
+                checkInOutRepository.countWaitingCheckOuts(hotelId, targetDate),
+                checkInOutRepository.countCompletedCheckOuts(hotelId, targetDate)
+        );
+    }
 
     // 💡 LUỒNG XỬ LÝ LINH HOẠT CHO DANH SÁCH CHECK-IN
     @Override
@@ -352,6 +366,10 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         // Cập nhật lại toàn bộ tài chính của Order (bao gồm cả phí trễ hạn nếu có)
         if (order != null) {
             recalculateOrderFinancials(order, booking);
+            if (order.getRemainingAmount() != null
+                    && order.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
+                throw new AppException(ErrorCode.CHECKOUT_PAYMENT_REQUIRED);
+            }
         }
 
         boolean allCheckedOut = booking.getBookingDetails().stream()
@@ -549,5 +567,10 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         order.setTotalAmount(newTotalAmount);
         order.setRemainingAmount(remainingAmount);
         order.setOrderStatus(OrderStatusType.OPEN);
+        order.setPaymentStatus(remainingAmount.signum() == 0
+                ? PaymentStatus.PAID
+                : paidAmount.signum() > 0
+                ? PaymentStatus.PARTIAL
+                : PaymentStatus.UNPAID);
     }
 }

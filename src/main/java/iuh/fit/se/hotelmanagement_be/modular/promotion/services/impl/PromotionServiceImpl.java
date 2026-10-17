@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
@@ -21,6 +22,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromoti
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
@@ -37,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +53,7 @@ import java.util.stream.Collectors;
 public class PromotionServiceImpl implements PromotionService {
 
     PromotionRepository promotionRepository;
+    BookingRepository bookingRepository;
     HotelRepository hotelRepository;
     BookingService bookingService;
     CloudinaryService cloudinaryService;
@@ -202,6 +206,21 @@ public class PromotionServiceImpl implements PromotionService {
         return promotionRepository
                 .findAllByStatusAndDeletedFalseOrderByCreatedAtDesc(PromotionStatus.ACTIVE)
                 .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    public PromotionSummaryResponse getPromotionSummary(Long hotelId, YearMonth month) {
+        LocalDateTime now = LocalDateTime.now();
+        YearMonth targetMonth = month == null ? YearMonth.from(now) : month;
+        LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
+        LocalDateTime nextMonthStart = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+
+        return new PromotionSummaryResponse(
+                promotionRepository.countCurrentlyActiveForSummary(hotelId, PromotionStatus.ACTIVE, now),
+                bookingRepository.countPromotionUsagesForPeriod(hotelId, monthStart, nextMonthStart),
+                bookingRepository.sumPromotionSavingsForPeriod(hotelId, monthStart, nextMonthStart),
+                promotionRepository.countExpiringSoonForSummary(hotelId, PromotionStatus.ACTIVE, now, now.plusDays(7))
+        );
     }
 
     @Override

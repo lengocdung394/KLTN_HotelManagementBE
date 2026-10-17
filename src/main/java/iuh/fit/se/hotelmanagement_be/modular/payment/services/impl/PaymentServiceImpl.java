@@ -383,7 +383,10 @@ public class PaymentServiceImpl implements PaymentService {
         // thanh toán bằng tiền mặt cập nhật là thanh toán đủ lần ầu tiên
         order.setPaymentStatus(PaymentStatus.PAID);
         // cap nhat trang thai confirm
-        order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
+        if (order.getBooking() != null
+                && order.getBooking().getBookingStatus() == BookingStatus.PENDING) {
+            order.getBooking().setBookingStatus(BookingStatus.CONFIRMED);
+        }
 
         orderRepository.save(order);
         bookingSocketEmitter.emitPaymentReceived(order, remainingAmount, PaymentType.CASH);
@@ -442,6 +445,11 @@ public class PaymentServiceImpl implements PaymentService {
         order.setSurchargeTotalAmount(surchargeTotal);
         order.setTotalAmount(correctedTotal);
         order.setRemainingAmount(remainingAmount);
+        order.setPaymentStatus(remainingAmount.signum() == 0
+                ? PaymentStatus.PAID
+                : paidAmount.signum() > 0
+                ? PaymentStatus.PARTIAL
+                : PaymentStatus.UNPAID);
 
         if (remainingAmount.compareTo(BigDecimal.ZERO) > 0
                 && (order.getOrderStatus() == OrderStatusType.PAID
@@ -505,7 +513,7 @@ public class PaymentServiceImpl implements PaymentService {
                             order.setCloseDate(LocalDateTime.now());
 
                             Booking booking = order.getBooking();
-                            if (booking != null) {
+                            if (booking != null && booking.getBookingStatus() == BookingStatus.PENDING) {
                                 booking.setBookingStatus(BookingStatus.CONFIRMED);
                                 bookingRepository.save(booking);
                             }

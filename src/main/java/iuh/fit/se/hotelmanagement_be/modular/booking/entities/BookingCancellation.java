@@ -96,7 +96,9 @@ public class BookingCancellation {
     String refundEmail;
 
     LocalDateTime reviewedAt;
+
     LocalDateTime refundedAt;
+
     LocalDateTime cancelledAt;
 }
 

@@ -381,12 +381,27 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         // ==========================================
         BigDecimal totalRoom = BigDecimal.ZERO;
         BigDecimal totalService = BigDecimal.ZERO;
+        BigDecimal totalSurcharge = BigDecimal.ZERO;
 
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
                 detail.setTotalPrice(0.0);
                 continue;
             }
+
+            BigDecimal earlyCheckInFee = detail.getEarlyCheckInFee() != null
+                    ? detail.getEarlyCheckInFee()
+                    : BigDecimal.ZERO;
+            BigDecimal lateCheckOutFee = detail.getLateCheckOutFee() != null
+                    ? detail.getLateCheckOutFee()
+                    : BigDecimal.ZERO;
+            BigDecimal otherSurcharges = detail.getOtherSurcharges() != null
+                    ? detail.getOtherSurcharges()
+                    : BigDecimal.ZERO;
+            totalSurcharge = totalSurcharge
+                    .add(earlyCheckInFee)
+                    .add(lateCheckOutFee)
+                    .add(otherSurcharges);
 
             double roomSub = detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0;
 
@@ -420,17 +435,18 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         booking.setApplyAmount(totalDiscount);
 
         // 8. CHỐT TỔNG TIỀN VÀ TRẠNG THÁI ORDER
-        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService);
+        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService).add(totalSurcharge);
         BigDecimal newTotalAmount = currentTotalAmountBeforeDiscount.subtract(totalDiscount); // Trừ chuẩn tổng tiền giảm ở đây!
         BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
         BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
 
         BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
+        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount).max(BigDecimal.ZERO);
 
         // Gán lại các giá trị tổng và khuyến mãi đầy đủ vào Order
         order.setRoomTotalAmount(totalRoom);
         order.setServiceTotalAmount(totalService);
+        order.setSurchargeTotalAmount(totalSurcharge);
 
         order.setDiscountAmountTotal(discountTotalOrder);
         order.setDiscountRoomAmount(discountRoom);

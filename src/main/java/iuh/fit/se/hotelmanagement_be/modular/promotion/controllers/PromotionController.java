@@ -15,6 +15,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionR
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 
 @RestController
@@ -127,6 +129,26 @@ public class PromotionController {
                         hotelId, status, type, keyword, startDate, endDate, // Truyền thêm hotelId xuống Service
                         PageRequest.of(page, size, sort)))
                 .message("Lấy danh sách thành công")
+                .build());
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Lấy thống kê khuyến mãi theo chi nhánh và tháng")
+    public ResponseEntity<ApiResponse<PromotionSummaryResponse>> getSummary(
+            @RequestParam(required = false) Long hotelId,
+            @RequestParam(required = false) YearMonth month,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        boolean isSuperAdmin = account.getRoles().stream()
+                .anyMatch(role -> "ROLE_SUPER_ADMIN".equals(role.getCode()));
+        Long targetHotelId = isSuperAdmin ? hotelId : account.getHotelId();
+
+        PromotionSummaryResponse summary = promotionService.getPromotionSummary(targetHotelId, month);
+        return ResponseEntity.ok(ApiResponse.<PromotionSummaryResponse>builder()
+                .code(1000)
+                .result(summary)
+                .message("Lấy thống kê khuyến mãi thành công")
                 .build());
     }
 

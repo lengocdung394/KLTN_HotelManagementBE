@@ -70,7 +70,6 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
                 BookingServiceRequest sReq = new BookingServiceRequest();
                 sReq.setServiceId(serviceId);
                 sReq.setQuantity(request.getNumAdults() != null ? request.getNumAdults() : 1);
-                sReq.setUsedAt(request.getCheckInTime());
                 return sReq;
             }).collect(Collectors.toList());
         }

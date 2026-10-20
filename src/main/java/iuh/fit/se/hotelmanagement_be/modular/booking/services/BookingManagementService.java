@@ -1,8 +1,10 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 
@@ -31,6 +33,8 @@ public interface BookingManagementService {
      * @return Yêu cầu chỉnh sửa ban đầu (hoặc DTO kết quả tương ứng).
      */
     BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request);
+
+    BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, Account account);
 
            /**
      * Thêm mới các phòng vào đơn đặt phòng hiện có (có thể kèm theo các dịch vụ đi kèm ngay tại thời điểm thêm).

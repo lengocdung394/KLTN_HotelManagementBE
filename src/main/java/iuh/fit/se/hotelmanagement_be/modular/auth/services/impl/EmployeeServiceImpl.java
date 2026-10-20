@@ -7,6 +7,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeProfileUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.EmployeeService;
@@ -55,28 +56,27 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Quyền hạn bị từ chối: Quản lý chi nhánh chỉ được phép tạo tài khoản Nhân viên cấp dưới!");
         }
 
-        if (isManager) {
-            Long currentHotelId = currentAccount.getHotelId();
-            if (currentHotelId != null) {
-                dto.setHotelId(currentHotelId);
-            } else {
-                throw new RuntimeException("Lỗi hệ thống: Tài khoản Quản lý hiện tại chưa được cấu hình chi nhánh làm việc!");
-            }
-        } else if (isAdmin) {
-            if (dto.getHotelId() == null) {
-                throw new RuntimeException("Yêu cầu nhập liệu: Vui lòng lựa chọn chi nhánh khách sạn trực thuộc cho nhân sự mới!");
-            }
-        } else {
-            throw new RuntimeException("Quyền hạn bị từ chối: Bạn không có đặc quyền thực hiện hành động này!");
-        }
+//        if (isManager) {
+//            Long currentHotelId = currentAccount.getHotelId();
+//            if (currentHotelId != null) {
+//                dto.setHotelId(currentHotelId);
+//            } else {
+//                throw new RuntimeException("Lỗi hệ thống: Tài khoản Quản lý hiện tại chưa được cấu hình chi nhánh làm việc!");
+//            }
+//        } else if (isAdmin) {
+//            if (dto.getHotelId() == null) {
+//                throw new RuntimeException("Yêu cầu nhập liệu: Vui lòng lựa chọn chi nhánh khách sạn trực thuộc cho nhân sự mới!");
+//            }
+//        } else {
+//            throw new RuntimeException("Quyền hạn bị từ chối: Bạn không có đặc quyền thực hiện hành động này!");
+//        }
 
         // Kiểm tra trùng lặp Email
         if (accountRepository.existsByEmail(dto.getEmail())) {
             throw new RuntimeException("Lỗi: Email này đã được đăng ký tài khoản trong hệ thống!");
         }
 
-        // Upload avatar lên Cloudinary
-        String uploadedUrl = "";
+        String uploadedUrl = dto.getAvatarUrl() == null ? "" : dto.getAvatarUrl().trim();
         if (avatarFile != null && !avatarFile.isEmpty()) {
             uploadedUrl = cloudinaryService.uploadImage(avatarFile, "avatars");
         }
@@ -87,7 +87,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         // Phân loại Role
         String targetRoleName = "Quản lý".equalsIgnoreCase(dto.getPosition()) ? "ROLE_MANAGER" : "ROLE_EMPLOYEE";
-        Role assignedRole = roleRepository.findByName(targetRoleName)
+        Role assignedRole = roleRepository.findByCode(targetRoleName)
                 .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Không tìm thấy vai trò " + targetRoleName + " dưới DB!"));
 
         // Tạo Account trước
@@ -153,9 +153,24 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Transactional
     @Override
-    public EmployeeResponse updateEmployee(String id, UserRegisterRequest dto, MultipartFile avatarFile) {
+    public EmployeeResponse updateEmployee(String id, UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount) {
+        Set<String> updaterRoles = currentAccount.getRoles().stream()
+                .map(Role::getCode)
+                .collect(Collectors.toSet());
+        if (!updaterRoles.contains("ROLE_MANAGER") && !updaterRoles.contains("ROLE_ADMIN")) {
+            throw new RuntimeException("Quyền hạn bị từ chối: Chỉ Quản lý chi nhánh hoặc Admin chi nhánh được cập nhật nhân viên!");
+        }
+
         Employee emp = employeeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên có ID: " + id));
+        Long currentHotelId = currentAccount.getHotelId();
+        if (currentHotelId == null || emp.getHotel() == null || !currentHotelId.equals(emp.getHotel().getId())) {
+            throw new RuntimeException("Quyền hạn bị từ chối: Bạn chỉ được cập nhật nhân viên thuộc chi nhánh của mình!");
+        }
+        if (emp.getAccount() == null || emp.getAccount().getRoles().stream()
+                .noneMatch(role -> "ROLE_EMPLOYEE".equals(role.getCode()))) {
+            throw new RuntimeException("Chỉ có thể cập nhật tài khoản nhân viên cấp dưới.");
+        }
 
         // Kiểm tra trùng SĐT nếu thay đổi
         if (dto.getPhone() != null && !dto.getPhone().isBlank() && !dto.getPhone().equals(emp.getPhone())) {
@@ -182,21 +197,86 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (dto.getPosition() != null && !dto.getPosition().isBlank()) {
             emp.setPosition(dto.getPosition());
         }
+        if (dto.getEmail() != null) {
+            String email = dto.getEmail().trim();
+            if (email.isBlank()) {
+                throw new RuntimeException("Email không được để trống!");
+            }
+            if (!email.equalsIgnoreCase(emp.getAccount().getEmail())
+                    && accountRepository.existsByEmailIgnoreCaseAndIdNot(email, emp.getAccount().getId())) {
+                throw new RuntimeException("Email này đã được sử dụng bởi tài khoản khác!");
+            }
+            emp.getAccount().setEmail(email);
+        }
+        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+            if (dto.getPassword().length() < 8) {
+                throw new RuntimeException("Mật khẩu mới phải có ít nhất 8 ký tự!");
+            }
+            emp.getAccount().setPassword(passwordEncoder.encode(dto.getPassword()));
+        }
 
         // Upload avatar nếu có file mới
         if (avatarFile != null && !avatarFile.isEmpty()) {
             String uploadedUrl = cloudinaryService.uploadImage(avatarFile, "avatars");
             emp.setAvatarUrl(uploadedUrl);
-        }
-
-        // Đổi chi nhánh nếu có truyền hotelId
-        if (dto.getHotelId() != null && (emp.getHotel() == null || !dto.getHotelId().equals(emp.getHotel().getId()))) {
-            Hotel newHotel = hotelRepository.findById(dto.getHotelId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn có ID: " + dto.getHotelId()));
-            emp.setHotel(newHotel);
+        } else if (dto.getAvatarUrl() != null && !dto.getAvatarUrl().isBlank()) {
+            emp.setAvatarUrl(dto.getAvatarUrl().trim());
         }
 
         Employee saved = employeeRepository.save(emp);
+        return toEmployeeResponse(saved);
+    }
+
+    @Transactional
+    @Override
+    public EmployeeResponse updateMyProfile(EmployeeProfileUpdateRequest request, Account currentAccount) {
+        Account account = accountRepository.findById(currentAccount.getId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản."));
+        if (!passwordEncoder.matches(request.getCurrentPassword(), account.getPassword())) {
+            throw new RuntimeException("Mật khẩu hiện tại không chính xác.");
+        }
+
+        Employee employee = account.getEmployee();
+        if (employee == null) {
+            throw new RuntimeException("Tài khoản này không có hồ sơ nhân viên.");
+        }
+
+        String email = request.getEmail().trim();
+        if (!email.equalsIgnoreCase(account.getEmail())
+                && accountRepository.existsByEmailIgnoreCaseAndIdNot(email, account.getId())) {
+            throw new RuntimeException("Email này đã được sử dụng bởi tài khoản khác.");
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank()
+                && !request.getPhone().equals(employee.getPhone())
+                && employeeRepository.existsByPhoneAndIdNot(request.getPhone(), employee.getId())) {
+            throw new RuntimeException("Số điện thoại này đã được sử dụng bởi nhân viên khác.");
+        }
+        if (request.getCccd() != null && !request.getCccd().isBlank()
+                && !request.getCccd().equals(employee.getCccd())
+                && employeeRepository.existsByCccdAndIdNot(request.getCccd(), employee.getId())) {
+            throw new RuntimeException("Số CCCD này đã được sử dụng bởi nhân viên khác.");
+        }
+
+        if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
+            if (request.getNewPassword().length() < 8) {
+                throw new RuntimeException("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            }
+            if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+                throw new RuntimeException("Mật khẩu xác nhận không khớp.");
+            }
+            account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        } else if (request.getConfirmPassword() != null && !request.getConfirmPassword().isBlank()) {
+            throw new RuntimeException("Vui lòng nhập mật khẩu mới.");
+        }
+
+        account.setEmail(email);
+        employee.setFullName(request.getFullName().trim());
+        employee.setPosition(request.getPosition());
+        employee.setAddress(request.getAddress());
+        employee.setPhone(request.getPhone());
+        employee.setCccd(request.getCccd());
+        Employee saved = employeeRepository.save(employee);
+
         return toEmployeeResponse(saved);
     }
 
@@ -204,6 +284,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (emp == null) return null;
         Set<String> roles = (emp.getAccount() != null && emp.getAccount().getRoles() != null)
                 ? emp.getAccount().getRoles().stream().map(Role::getName).collect(Collectors.toSet())
+                : Set.of();
+        Set<String> roleCodes = (emp.getAccount() != null && emp.getAccount().getRoles() != null)
+                ? emp.getAccount().getRoles().stream().map(Role::getCode).collect(Collectors.toSet())
                 : Set.of();
         String email = (emp.getAccount() != null) ? emp.getAccount().getEmail() : null;
         Long hotelId = (emp.getHotel() != null) ? emp.getHotel().getId() : null;
@@ -222,6 +305,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .hotelId(hotelId)
                 .hotelName(hotelName)
                 .roles(roles)
+                .roleCodes(roleCodes)
                 .build();
     }
 }

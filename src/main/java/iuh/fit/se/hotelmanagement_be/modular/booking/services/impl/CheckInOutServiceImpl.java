@@ -29,7 +29,6 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusT
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
-import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
@@ -64,7 +63,6 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     BookingDetailRepository bookingDetailRepository;
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
-    PaymentRepository paymentRepository;
 
     @Override
     public CheckInOutSummaryResponse getSummary(Long hotelId, LocalDate date) {
@@ -168,11 +166,18 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     .extraChildFeePerNight(detail.getExtraChildFeePerNight())
                     .paidAmount(order != null && order.getPaidAmount() != null ? order.getPaidAmount().doubleValue() : null)
                     .remainingAmount(order != null ? order.getRemainingAmount().doubleValue() : null)
+                    .surplusAmount(order != null && order.getTotalAmount() != null
+                            ? (order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount())
+                                    .subtract(order.getTotalAmount()).max(BigDecimal.ZERO).doubleValue()
+                            : null)
                     .roomSubTotal(detail.getRoomSubTotal())
                     .serviceSubTotal(detail.getServiceSubTotal())
                     .totalPrice(detail.getTotalPrice())
                     .earlyCheckInFee(detail.getEarlyCheckInFee() != null
                             ? detail.getEarlyCheckInFee().doubleValue()
+                            : 0.0)
+                    .lateCheckOutFee(detail.getLateCheckOutFee() != null
+                            ? detail.getLateCheckOutFee().doubleValue()
                             : 0.0)
                     .paymentStatus(paymentStatus)
                     .bookingDetailStatus(detail.getStatus() != null ? detail.getStatus().name() : null)
@@ -188,7 +193,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                                             .quantity(v.getQuantity())
                                             .cancelled(v.getCancelled())
                                             .cancelledAt(v.getCancelledAt())
-                                            .usedAt(v.getUsedAt()).build()).toList() : Collections.emptyList()
+                                            .usedAt(v.getUsedAt()).used(v.getUsed()).usedBy(v.getUsedBy()).build()).toList() : Collections.emptyList()
                     ).build();
         }).toList();
     }
@@ -311,6 +316,53 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     }
     @Transactional
     @Override
+    public BookingResponse prepareBulkCheckOut(String bookingId, List<String> bookingDetailIds) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        if (booking.getBookingStatus() == BookingStatus.COMPLETED) {
+            return bookingService.toBookingResponse(booking);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        for (String detailId : bookingDetailIds == null ? List.<String>of() : bookingDetailIds) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(detail -> detail.getId().equals(detailId))
+                    .findFirst()
+                    .orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+            if (targetDetail.getStatus() != BookingStatusType.CHECKED_IN
+                    || targetDetail.getCheckoutTime() == null
+                    || !now.isAfter(targetDetail.getCheckoutTime())) {
+                continue;
+            }
+
+            Room room = targetDetail.getRoom();
+            Long hotelId = room.getFloor().getBuilding().getHotel().getId();
+            BranchRoomPolicy policy = branchRoomPolicyRepository
+                    .findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            BigDecimal roomPrice = getDailyRoomPrice(
+                    room,
+                    targetDetail.getCheckoutTime().toLocalDate(),
+                    hotelId,
+                    policy
+            );
+            BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
+                    targetDetail.getCheckoutTime(),
+                    now,
+                    roomPrice
+            );
+            targetDetail.setLateCheckOutFee(lateFee);
+        }
+
+        Order order = booking.getOrder();
+        if (order != null) {
+            recalculateOrderFinancials(order, booking);
+        }
+        Booking saved = bookingRepository.save(booking);
+        return bookingService.toBookingResponse(saved);
+    }
+
+    @Transactional
+    @Override
     public BookingResponse processBulkCheckOut(String bookingId, CheckoutRequest request, String employeeId) {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
@@ -341,10 +393,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
             BranchRoomPolicy policy = branchRoomPolicyRepository
                     .findByHotelIdAndRoomType(hotelId, room.getRoomType());
 
-            BigDecimal roomPrice = BigDecimal.ZERO;
-            if (policy != null) {
-                roomPrice = getDailyRoomPrice(room, checkoutDate, hotelId, policy);
-            }
+            BigDecimal roomPrice = getDailyRoomPrice(room, checkoutDate, hotelId, policy);
 
             // Tính phí trễ hạn checkout
             if (targetDetail.getCheckoutTime() != null && now.isAfter(targetDetail.getCheckoutTime())) {
@@ -395,22 +444,16 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_METHOD);
                 }
                 if (refundMethod == PaymentType.CASH) {
-                    paymentRepository.save(PaymentTransaction.builder()
-                            .order(order)
-                            .amount(refundAmount)
-                            .paymentType(PaymentType.CASH)
-                            .cashFlowType(CashFlowType.REFUND)
-                            .note("Hoàn dư tiền mặt khi check-out booking " + bookingId)
-                            .transactionDate(now)
-                            .build());
-                    BigDecimal remainingPaid = paidAmount.subtract(refundAmount);
-                    order.setPaidAmount(remainingPaid);
-                    order.setRemainingAmount(BigDecimal.ZERO);
-                    order.setPaymentStatus(remainingPaid.signum() == 0
-                            ? PaymentStatus.UNPAID
-                            : remainingPaid.compareTo(order.getTotalAmount()) >= 0
-                            ? PaymentStatus.PAID
-                            : PaymentStatus.PARTIAL);
+                    CheckoutRefund refund = new CheckoutRefund();
+                    refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+                    refund.setBooking(booking);
+                    refund.setAmount(refundAmount);
+                    refund.setRefundMethod(PaymentType.CASH);
+                    refund.setStatus(CheckoutRefundStatus.PENDING);
+                    refund.setNote(request.getRefundNote() == null || request.getRefundNote().isBlank()
+                            ? "Chờ nhân viên xác nhận hoàn tiền mặt tại quầy"
+                            : request.getRefundNote().trim());
+                    checkoutRefundRepository.save(refund);
                 } else {
                     RefundBankDetails bankDetails = resolveCheckoutRefundBankDetails(order);
                     CheckoutRefund refund = new CheckoutRefund();

@@ -6,6 +6,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.BookingCancellationService;
@@ -29,6 +30,22 @@ import org.springframework.web.bind.annotation.*;
 public class BookingManagementController {
     BookingManagementService bookingManagementService;
     BookingCancellationService  bookingCancellationService;
+
+    @PatchMapping("/{bookingId}/service-details/{serviceDetailId}/confirm-use")
+    @PreAuthorize("hasAnyAuthority('ROLE_EMPLOYEE', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse<BookingServiceResponseForHotel>> confirmServiceUsed(
+            @PathVariable String bookingId,
+            @PathVariable String serviceDetailId,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        BookingServiceResponseForHotel result = bookingManagementService.confirmServiceUsed(bookingId, serviceDetailId, account);
+        return ResponseEntity.ok(ApiResponse.<BookingServiceResponseForHotel>builder()
+                .code(200)
+                .message("Đã xác nhận dịch vụ được sử dụng.")
+                .result(result)
+                .build());
+    }
 
     /**
      * API chỉnh sửa đơn đặt phòng (Hỗ trợ đồng thời: Hủy phòng, thêm phòng, đổi phòng, đổi ngày, hủy dịch vụ).

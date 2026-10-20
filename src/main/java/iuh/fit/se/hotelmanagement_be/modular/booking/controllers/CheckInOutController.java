@@ -42,6 +42,15 @@ public class CheckInOutController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
+    @PostMapping("/{bookingId}/check-out/prepare")
+    @Operation(summary = "Tính và lưu phụ thu check-out trễ trước khi thanh toán")
+    public ResponseEntity<BookingResponse> prepareBulkCheckOut(
+            @PathVariable String bookingId,
+            @RequestBody List<String> bookingDetailIds) {
+        return ResponseEntity.ok(checkInOutService.prepareBulkCheckOut(bookingId, bookingDetailIds));
+    }
+
     /**
      * POST: /bookings/{bookingId}/bulk-check-out?employeeId=...
      */

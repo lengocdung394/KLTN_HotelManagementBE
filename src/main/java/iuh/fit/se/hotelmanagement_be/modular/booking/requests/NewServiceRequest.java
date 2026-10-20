@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import java.time.LocalDateTime;
 
 
 @Data
@@ -30,6 +29,4 @@ public class NewServiceRequest {
     @Schema(description = "Đơn giá dịch vụ tại thời điểm đăng ký (có thể để null để Backend tự lấy giá hiện tại trong DB)", example = "50000.00")
     Double price;
 
-    @Schema(description = "Thời gian sử dụng/đăng ký dịch vụ (có thể để null để Backend tự lấy thời gian hiện tại)", example = "2026-09-10T15:30:00")
-    LocalDateTime usedAt;
 }

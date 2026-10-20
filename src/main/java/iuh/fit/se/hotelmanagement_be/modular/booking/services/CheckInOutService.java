@@ -30,5 +30,7 @@ public interface CheckInOutService {
 
     BookingResponse processBulkCheckIn(String bookingId, List<String> bookingDetailIds, String employeeId);
 
+    BookingResponse prepareBulkCheckOut(String bookingId, List<String> bookingDetailIds);
+
     BookingResponse processBulkCheckOut(String bookingId, CheckoutRequest request, String employeeId);
 }

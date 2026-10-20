@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeProfileUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
@@ -18,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -31,6 +34,21 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth") //Giúp Swagger hiển thị khóa Bearer Token trên API này
 public class EmployeeController {
     EmployeeServiceImpl userService;
+
+    @Operation(summary = "Cập nhật hồ sơ của nhân viên đang đăng nhập")
+    @PutMapping("/me/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<EmployeeResponse>> updateMyProfile(
+            @Valid @RequestBody EmployeeProfileUpdateRequest request,
+            @AuthenticationPrincipal Account currentAccount
+    ) {
+        EmployeeResponse result = userService.updateMyProfile(request, currentAccount);
+        return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
+                .code(200)
+                .message("Cập nhật thông tin tài khoản thành công!")
+                .result(result)
+                .build());
+    }
 
     @Operation(summary = "Tạo tài khoản nhân sự cấp dưới")
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -82,7 +100,7 @@ public class EmployeeController {
 
     @Operation(summary = "Cập nhật thông tin nhân sự")
     @PutMapping(value = "/update/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAuthority('UPDATE_STAFF')")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<EmployeeResponse>> updateEmployee(
             @PathVariable("id") String id,
             @Parameter(
@@ -90,9 +108,10 @@ public class EmployeeController {
                             schema = @Schema(implementation = UserRegisterRequest.class))
             )
             @RequestPart("staffInfo") UserRegisterRequest request,
-            @RequestPart(value = "avatarUrl", required = false) MultipartFile avatarFile
+            @RequestPart(value = "avatarUrl", required = false) MultipartFile avatarFile,
+            @AuthenticationPrincipal Account currentAccount
     ) {
-        EmployeeResponse result = userService.updateEmployee(id, request, avatarFile);
+        EmployeeResponse result = userService.updateEmployee(id, request, avatarFile, currentAccount);
         return ResponseEntity.ok(ApiResponse.<EmployeeResponse>builder()
                 .code(200)
                 .message("Cập nhật thông tin nhân sự thành công!")

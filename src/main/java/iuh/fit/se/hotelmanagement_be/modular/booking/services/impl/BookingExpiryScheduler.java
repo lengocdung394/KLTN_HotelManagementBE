@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.BookingCancellationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,7 +18,7 @@ import java.util.List;
 public class BookingExpiryScheduler {
 
     private final BookingRepository bookingRepository;
-    private final BookingSocketEmitter bookingSocketEmitter;
+    private final BookingCancellationService bookingCancellationService;
 
     @Scheduled(fixedRate = 60000) // mỗi 1 phút
     public void releaseExpiredPendingBookings() {
@@ -31,18 +32,10 @@ public class BookingExpiryScheduler {
 
         for (Booking booking : expiredBookings) {
             if (booking.getBookingStatus().equals(BookingStatus.PENDING)) {
-                booking.setBookingStatus(BookingStatus.CANCELLED);
-                bookingRepository.save(booking);
-
-                if (booking.getHotel() != null) {
-                    Long hotelId = booking.getHotel().getId();
-                    bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-                    bookingSocketEmitter.emitBookingCancelled(hotelId, booking.getId(), "quá thời gian chờ thanh toán");
-                    log.info("Expired pending booking released: bookingId={}, hotelId={}",
-                            booking.getId(), booking.getHotel().getId());
-                }
+                bookingCancellationService.expirePendingBooking(booking.getId());
+                log.info("Expired pending booking processed: bookingId={}, hotelId={}",
+                        booking.getId(), booking.getHotel() == null ? null : booking.getHotel().getId());
             }
-
         }
     }
 }

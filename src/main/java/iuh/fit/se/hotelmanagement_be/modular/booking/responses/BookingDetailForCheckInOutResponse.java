@@ -36,12 +36,14 @@ public class BookingDetailForCheckInOutResponse {
     Double serviceSubTotal;             // Tổng tiền dịch vụ của phòng này
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
     Double earlyCheckInFee;             // Phụ phí check-in sớm dự kiến
+    Double lateCheckOutFee;             // Phụ phí check-out trễ đã tính
     Double estimatedEarlyCheckInFee;    // Ước tính phụ phí nếu check-in ngay
     String paymentStatus;               // Trạng thái thanh toán (OPEN, CLOSED...)
     String bookingDetailStatus;
 
     Double paidAmount;                  // Số tiền đã thanh toán của booking
     Double remainingAmount; // so tien chua duoc thanh toan
+    Double surplusAmount;               // Số tiền cần hoàn lại cho khách
     Boolean roomPaid;                   // Đã thanh toán tiền phòng chưa
     List<BookingServiceResponseForHotel>  bookingServiceResponseForHotel;
 }

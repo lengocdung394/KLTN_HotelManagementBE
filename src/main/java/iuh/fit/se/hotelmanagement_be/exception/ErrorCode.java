@@ -128,6 +128,7 @@ public enum ErrorCode {
     BOOKING_DETAIL_NOT_FOUND(6002, "[6002] Chi tiết phòng đặt không tồn tại hoặc không tìm thấy", HttpStatus.NOT_FOUND),
     BOOKING_DETAILS_REQUIRED(6003, "[6003] Chi tiết đặt phòng không được để trống", HttpStatus.BAD_REQUEST),
     BOOKING_ALREADY_CANCELLED(6004, "[6004] Đơn đặt phòng này đã bị hủy trước đó, không thể chỉnh sửa thêm", HttpStatus.BAD_REQUEST),
+    BOOKING_ALREADY_COMPLETED(6005, "[6005] Booking đã checkout hoàn tất, không thể chỉnh sửa", HttpStatus.BAD_REQUEST),
 
     INVALID_BOOKING_DATE(6010, "Thời gian nhận phòng phải trước thời gian trả phòng", HttpStatus.BAD_REQUEST),
     INVALID_CHECKOUT_DATE(6011, "Thời gian trả phòng phải sau thời gian nhận phòng", HttpStatus.BAD_REQUEST),
@@ -145,6 +146,7 @@ public enum ErrorCode {
     SERVICE_NOT_FOUND(7001, "[7001] Không tìm thấy dịch vụ", HttpStatus.NOT_FOUND),
     BOOKING_SERVICE_DETAIL_NOT_FOUND(7002, "Không tìm thấy chi tiết dịch vụ đi kèm trong phòng này!", HttpStatus.BAD_REQUEST),
     PAID_SERVICE_CANNOT_BE_MODIFIED(7003, "[7003] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    SERVICE_ALREADY_USED(7004, "Dịch vụ đã được xác nhận sử dụng nên không thể hủy hoặc thay đổi số lượng", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================

@@ -18,6 +18,8 @@ public class BookingServiceResponseForHotel {
     Integer quantity;
     Double price;
     LocalDateTime usedAt;
+    Boolean used;
+    String usedBy;
     Boolean cancelled;
     LocalDateTime cancelledAt;
 }

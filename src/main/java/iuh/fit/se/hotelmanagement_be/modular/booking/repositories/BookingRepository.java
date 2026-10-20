@@ -19,6 +19,53 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, String> {
     @Query("""
+            SELECT COUNT(b)
+            FROM Booking b
+            WHERE b.hotel.id = :hotelId
+              AND b.createdAt >= :start
+              AND b.createdAt < :end
+            """)
+    long countCreatedBookingsForPeriod(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    interface PromotionReportProjection {
+        String getPromotionId();
+        String getPromotionName();
+        String getPromotionCode();
+        Long getUsageCount();
+        BigDecimal getSavings();
+    }
+
+    @Query("""
+            SELECT COALESCE(p.id, cp.promotion.id) AS promotionId,
+                   COALESCE(p.name, cp.promotion.name) AS promotionName,
+                   COALESCE(p.code, cp.promotion.code) AS promotionCode,
+                   COUNT(b) AS usageCount,
+                   COALESCE(SUM(b.applyAmount), 0) AS savings
+            FROM Booking b
+            LEFT JOIN b.promotion p
+            LEFT JOIN b.customerPromotion cp
+            WHERE b.hotel.id = :hotelId
+              AND b.applyAt >= :start
+              AND b.applyAt < :end
+              AND (b.bookingStatus IS NULL OR b.bookingStatus <> :cancelledStatus)
+              AND (b.promotion IS NOT NULL OR b.customerPromotion IS NOT NULL)
+            GROUP BY COALESCE(p.id, cp.promotion.id),
+                     COALESCE(p.name, cp.promotion.name),
+                     COALESCE(p.code, cp.promotion.code)
+            ORDER BY SUM(b.applyAmount) DESC
+            """)
+    List<PromotionReportProjection> getPromotionReport(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("cancelledStatus") BookingStatus cancelledStatus
+    );
+
+    @Query("""
             SELECT COUNT(b) FROM Booking b
             WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
               AND b.applyAt >= :start

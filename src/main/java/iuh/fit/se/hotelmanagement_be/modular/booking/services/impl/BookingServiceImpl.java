@@ -37,6 +37,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRep
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageService;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
@@ -491,6 +492,11 @@ public class BookingServiceImpl implements BookingService {
             Room roomCheck = roomRepository.findByIdWithLock(room.getId())
                     .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
+            if (roomCheck.getRoomStatus() == RoomStatus.MAINTENANCE
+                    || roomCheck.getRoomStatus() == RoomStatus.CLEANING) {
+                throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+            }
+
             long overlappingCount = bookingDetailRepository.countOverlappingBookings(
                     roomCheck.getId(),
                     detailReq.getCheckInTime(),
@@ -840,6 +846,9 @@ public class BookingServiceImpl implements BookingService {
                             .cancelled(serviceDetail.getCancelled())
                             .cancelledAt(serviceDetail.getCancelledAt())
                             .price(serviceDetail.getPrice())
+                            .subTotal(serviceDetail.getPrice() == null
+                                    ? 0.0
+                                    : serviceDetail.getPrice() * serviceDetail.getQuantity())
                             .usedAt(serviceDetail.getUsedAt())
                             .used(serviceDetail.getUsed())
                             .usedBy(serviceDetail.getUsedBy())

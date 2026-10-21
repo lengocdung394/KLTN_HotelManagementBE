@@ -21,6 +21,8 @@ public interface ShiftService {
 
     List<ShiftAssignmentResponse> assignBatchShifts(ShiftBatchAssignRequest request, Long hotelId);
 
+    WeeklyScheduleResponse replaceWeeklySchedule(ShiftBatchAssignRequest request, Long hotelId, LocalDate weekStartDate);
+
     void deleteShift(String shiftId);
 
     WeeklyScheduleResponse initDefaultWeeklyScheduleIfEmpty(Long hotelId, LocalDate weekStartDate);

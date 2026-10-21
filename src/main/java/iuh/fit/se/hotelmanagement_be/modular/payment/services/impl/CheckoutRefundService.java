@@ -191,6 +191,7 @@ public class CheckoutRefundService {
         return CheckoutRefundResponse.builder()
                 .id(refund.getId())
                 .bookingId(booking.getId())
+                .bookingChannel(booking.getBookingChannel())
                 .customerName(booking.getCustomer() == null ? null : booking.getCustomer().getFullName())
                 .customerPhone(booking.getCustomer() == null ? null : booking.getCustomer().getPhone())
                 .hotelId(booking.getHotel() == null ? null : booking.getHotel().getId())

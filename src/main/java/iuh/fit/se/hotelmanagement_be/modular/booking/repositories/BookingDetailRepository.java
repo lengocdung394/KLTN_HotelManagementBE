@@ -17,6 +17,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
                 SELECT r FROM Room r
                 WHERE r.floor.building.hotel.id = :hotelId
                   AND r.roomStatus != iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus.MAINTENANCE
+                  AND r.roomStatus != iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus.CLEANING
                   AND NOT EXISTS (
                       SELECT 1 FROM BookingDetail bd
                       WHERE bd.room.id = r.id
@@ -62,6 +63,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             "AND (CASE WHEN bd.actualCheckInTime IS NOT NULL THEN bd.actualCheckInTime ELSE bd.checkinTime END) < :checkoutTime " +
             "AND bd.checkoutTime > :effectiveCheckIn")
     boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, String currentDetailId);
+    boolean existsByRoom_IdAndStatus(String roomId, BookingStatusType status);
     @Query("SELECT COUNT(bd) FROM BookingDetail bd WHERE bd.room.id = :roomId " +
             "AND bd.status != 'CANCELLED' " +
             "AND bd.checkinTime < :checkOut AND bd.checkoutTime > :checkIn")
@@ -71,5 +73,4 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
     // Thêm hàm này vào repository của bạn
     List<BookingDetail> findByStatusAndCheckoutTimeBefore(BookingStatusType status, LocalDateTime time);
 }
-
 

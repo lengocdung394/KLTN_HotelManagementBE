@@ -20,6 +20,8 @@ public interface AccountRepository extends JpaRepository<Account, String> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByEmailIgnoreCase(String email);
+
 
     // Phan func cho phan super admin
 

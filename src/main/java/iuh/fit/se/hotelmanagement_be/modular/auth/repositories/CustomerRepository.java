@@ -15,6 +15,8 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 
     boolean existsByCccd(String cccd);
 
+    boolean existsByEmailIgnoreCase(String email);
+
     // Lấy danh sách khách hàng theo chi nhánh hoặc khách hàng mới chưa có đặt phòng
     @Query("SELECT DISTINCT c FROM Customer c " +
             "LEFT JOIN c.bookings b " +

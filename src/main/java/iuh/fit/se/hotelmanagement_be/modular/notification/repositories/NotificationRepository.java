@@ -15,14 +15,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT n FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)
@@ -51,14 +51,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT COUNT(n) FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)
@@ -80,14 +80,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT COUNT(n) FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)
@@ -123,14 +123,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             SELECT n.type AS key, COUNT(n) AS total
             FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)
@@ -148,14 +148,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             SELECT n.type AS key, COUNT(n) AS total
             FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)
@@ -202,14 +202,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("""
             SELECT n FROM Notification n
             WHERE (
-                    (:customer = true AND n.recipientAccountId = :accountId)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND (:hotelFilter IS NULL OR n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                         OR (:superAdmin = false AND (n.hotelId = :hotelFilter OR n.hotelId IS NULL))
                     ))
                   )
               AND (
-                    (:customer = true)
+                    n.recipientAccountId = :accountId
                     OR (:customer = false AND (
                         (:superAdmin = true AND n.visibleToSuperAdmin = true)
                         OR (:superAdmin = false AND n.visibleToHotel = true)

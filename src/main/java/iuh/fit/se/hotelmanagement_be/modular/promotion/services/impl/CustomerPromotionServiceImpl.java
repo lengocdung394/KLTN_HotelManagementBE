@@ -55,6 +55,8 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
 
                     return PromotionGetListByCustomerResponse.builder()
                             .id(cp.getId())
+                            .promotionId(p.getId())
+                            .promotionCode(p.getCode())
                             .code(cp.getUniqueCode()) // mã riêng biệt nè
                             .name(p.getName())
                             .description(p.getDescription()) // Đảm bảo truyền mô tả ở đây
@@ -72,6 +74,20 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                 })
                 .filter(response -> response != null) // Lọc bỏ các phần tử null nếu có cảnh báo trên
                 .toList();
+    }
+
+    @Override
+    public List<PromotionGetListByCustomerResponse> getMySavedPromotions() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof Account account)) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Customer customer = account.getCustomer();
+        if (customer == null) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        }
+        return getPromotionsByCustomerId(customer.getId());
     }
 
 
@@ -146,6 +162,39 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
         );
 
         return toCustomerPromotionResponse(customerPromotion);
+    }
+
+    @Override
+    @Transactional
+    public void unsavePromotion(String promotionOrCustomerPromoId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof Account account)) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        Customer customer = account.getCustomer();
+        if (customer == null) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        CustomerPromotion cp = customerPromotionRepository
+                .findByCustomerIdAndPromotionId(customer.getId(), promotionOrCustomerPromoId)
+                .or(() -> customerPromotionRepository.findByIdAndCustomerIdForUpdate(promotionOrCustomerPromoId, customer.getId()))
+                .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
+
+        if (cp.isUsed() || cp.getBooking() != null) {
+            throw new IllegalStateException("Mã khuyến mãi này đã được sử dụng hoặc đang áp dụng cho đơn đặt phòng, không thể bỏ lưu!");
+        }
+
+        Promotion promotion = cp.getPromotion();
+        if (promotion != null) {
+            int claimedCount = promotion.getClaimedCount() != null ? promotion.getClaimedCount() : 0;
+            promotion.setClaimedCount(Math.max(0, claimedCount - 1));
+            promotionRepository.save(promotion);
+        }
+
+        customerPromotionRepository.delete(cp);
+        log.info("Khách hàng ID {} đã bỏ lưu khuyến mãi [ID: {}]", customer.getId(), promotionOrCustomerPromoId);
     }
 
     private CustomerPromotionResponse toCustomerPromotionResponse(CustomerPromotion cp) {

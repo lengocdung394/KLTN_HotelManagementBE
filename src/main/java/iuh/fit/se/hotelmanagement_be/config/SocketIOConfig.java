@@ -14,13 +14,17 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
+import iuh.fit.se.hotelmanagement_be.modular.chat.services.LiveChatService;
+
 @Configuration
 @Slf4j
 public class SocketIOConfig {
-    private  final  AccountRepository  accountRepository;
+    private final AccountRepository accountRepository;
+    private final LiveChatService liveChatService;
 
-    public SocketIOConfig(AccountRepository accountRepository) {
+    public SocketIOConfig(AccountRepository accountRepository, LiveChatService liveChatService) {
         this.accountRepository = accountRepository;
+        this.liveChatService = liveChatService;
     }
 
     @Bean
@@ -46,19 +50,19 @@ public class SocketIOConfig {
         config.setAuthorizationListener(handshakeData -> {
             String token = handshakeData.getSingleUrlParam("token");
 
-            if (token != null && !token.isEmpty()) {
+            if (token != null && !token.isEmpty() && !"null".equalsIgnoreCase(token) && !"undefined".equalsIgnoreCase(token)) {
                 try {
                     Jwt jwt = jwtDecoder().decode(token);
                     log.info("Xác thực thành công cho user: {}", jwt.getSubject());
                     return AuthorizationResult.SUCCESSFUL_AUTHORIZATION;
 
                 } catch (JwtException e) {
-                    log.error("Lỗi token: {}", e.getMessage());
-                    return AuthorizationResult.FAILED_AUTHORIZATION;
+                    log.warn("Token không hợp lệ hoặc hết hạn: {} -> Tiếp tục kết nối với quyền khách/guest", e.getMessage());
+                    return AuthorizationResult.SUCCESSFUL_AUTHORIZATION;
                 }
             }
-            log.warn("Thiếu token");
-            return AuthorizationResult.FAILED_AUTHORIZATION;
+            log.info("Khách vãng lai (Guest) kết nối Socket.IO thành công");
+            return AuthorizationResult.SUCCESSFUL_AUTHORIZATION;
         });
 
         SocketIOServer server = new SocketIOServer(config);
@@ -66,7 +70,8 @@ public class SocketIOConfig {
         server.addEventListener("join_user_room", String.class, (client, userId, ackSender) -> {
             if (userId != null && !userId.trim().isEmpty()) {
                 client.joinRoom(userId);
-                log.info("User {} joined their personal socket room", userId);
+                client.joinRoom("user_" + userId);
+                log.info("User {} joined their personal socket room ({} and user_{})", userId, userId, userId);
             } else {
                 log.warn("join_user_room received with empty userId");
             }
@@ -101,7 +106,80 @@ public class SocketIOConfig {
                 log.error("Could not add client {} to super_admin_accounts room", client.getSessionId(), e);
             }
         });
-        log.info("SocketIO Server started with join_user_room listener");
+
+        // ==================== REAL-TIME CUSTOMER <-> STAFF CHAT ====================
+        server.addEventListener("customer_send_staff_chat", java.util.Map.class, (client, data, ackSender) -> {
+            log.info("📩 [SocketIO] Khách hàng gửi tin nhắn tới nhân viên: {}", data);
+
+            try {
+                String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
+                String customerName = data.get("customerName") != null ? data.get("customerName").toString() : null;
+                String customerPhone = data.get("customerPhone") != null ? data.get("customerPhone").toString() : null;
+                String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
+                String message = data.get("message") != null ? data.get("message").toString() : null;
+                String msgId = data.get("msgId") != null ? data.get("msgId").toString() : null;
+                Long hotelId = null;
+                if (data.get("hotelId") != null) {
+                    try {
+                        hotelId = Long.parseLong(data.get("hotelId").toString());
+                    } catch (NumberFormatException ignored) {}
+                }
+
+                if (message != null && !message.trim().isEmpty()) {
+                    liveChatService.saveCustomerMessage(
+                            customerId, customerName, customerPhone, hotelId, branchName, message, msgId
+                    );
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
+            }
+
+            Object hotelId = data.get("hotelId");
+            if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
+                server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
+            } else {
+                server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
+            }
+            client.sendEvent("customer_staff_chat_ack", data);
+        });
+
+        server.addEventListener("staff_send_customer_chat", java.util.Map.class, (client, data, ackSender) -> {
+            log.info("💬 [SocketIO] Nhân viên phản hồi khách hàng: {}", data);
+
+            try {
+                String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
+                String staffId = data.get("staffId") != null ? data.get("staffId").toString() : null;
+                String staffName = data.get("staffName") != null ? data.get("staffName").toString() : null;
+                String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
+                String message = data.get("message") != null ? data.get("message").toString() : null;
+                String msgId = data.get("msgId") != null ? data.get("msgId").toString() : null;
+                Long hotelId = null;
+                if (data.get("hotelId") != null) {
+                    try {
+                        hotelId = Long.parseLong(data.get("hotelId").toString());
+                    } catch (NumberFormatException ignored) {}
+                }
+
+                if (message != null && !message.trim().isEmpty()) {
+                    liveChatService.saveStaffMessage(
+                            customerId, staffId, staffName, hotelId, branchName, message, msgId
+                    );
+                }
+            } catch (Exception e) {
+                log.error("Lỗi khi lưu tin nhắn nhân viên vào PostgreSQL: ", e);
+            }
+
+            Object customerId = data.get("customerId");
+            if (customerId != null && !customerId.toString().trim().isEmpty()) {
+                server.getRoomOperations("user_" + customerId).sendEvent("staff_customer_chat_reply", data);
+            }
+            Object hotelId = data.get("hotelId");
+            if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
+                server.getRoomOperations("hotel_" + hotelId).sendEvent("staff_customer_chat_reply", data);
+            }
+        });
+
+        log.info("SocketIO Server started with customer-staff chat listeners");
 
         return server;
     }

@@ -2,8 +2,10 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
@@ -78,6 +80,7 @@ public class BookingServiceImpl implements BookingService {
     BookingSocketEmitter bookingSocketEmitter;
     PromotionUsageService promotionUsageService;
     EmailService emailService;
+    AccountRepository accountRepository;
 
 
     /**
@@ -86,7 +89,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     @Override
     public BookingResponse createCustomerBooking(BookingCreateRequest request) {
-        Customer customer = validateAndGetCustomer(request.getCustomerId());
+        Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
         // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
@@ -133,15 +136,13 @@ public class BookingServiceImpl implements BookingService {
         Long hotelId = hotel.getId();
         String customerId = customer.getId();
 
-        // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
-        bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
-
         Map<String, Object> bookingData = new LinkedHashMap<>();
         bookingData.put("bookingId", savedBooking.getId());
         bookingData.put("customerName", customer.getFullName());
         bookingData.put("customerPhone", customer.getPhone());
         bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
 
+        // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
         bookingSocketEmitter.emitNewBookingNotification(
@@ -171,7 +172,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     @Override
     public BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request) {
-        Customer customer = validateAndGetCustomer(request.getCustomerId());
+        Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
@@ -264,11 +265,23 @@ public class BookingServiceImpl implements BookingService {
         }
 
         String email = request.getCustomerEmail();
-        if (email == null || email.isBlank()) {
-            throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
+        if (email != null && !email.isBlank()) {
+            customer.setEmail(email.trim());
+            customerRepository.save(customer);
+            return;
         }
 
-        customer.setEmail(email.trim());
+        if (customer.getAccount() != null && customer.getAccount().getEmail() != null && !customer.getAccount().getEmail().isBlank()) {
+            customer.setEmail(customer.getAccount().getEmail().trim());
+            customerRepository.save(customer);
+            return;
+        }
+
+        // Tự động gắn email fallback từ SĐT hoặc ID để luồng đặt phòng không bị gián đoạn
+        String fallbackEmail = customer.getPhone() != null && !customer.getPhone().isBlank()
+                ? customer.getPhone() + "@guest.senviet.vn"
+                : "khachhang." + customer.getId() + "@guest.senviet.vn";
+        customer.setEmail(fallbackEmail);
         customerRepository.save(customer);
     }
 
@@ -326,8 +339,41 @@ public class BookingServiceImpl implements BookingService {
         return createAndLinkOrder(roomTotal, serviceTotal, discountResult, surchargeTotal);
     }
 
-    private Customer validateAndGetCustomer(String customerId) {
-        return customerRepository.findById(customerId).orElseThrow(() -> new AppException(ErrorCode.CUSTOMER_NOT_FOUND));
+    private Customer validateAndGetCustomer(String customerId, String customerEmail) {
+        if (customerId != null && !customerId.isBlank()) {
+            Optional<Customer> opt = customerRepository.findById(customerId);
+            if (opt.isPresent()) return opt.get();
+
+            if (!customerId.startsWith("CUS_") && !customerId.startsWith("CUS")) {
+                Optional<Customer> optPrefix = customerRepository.findById("CUS_" + customerId);
+                if (optPrefix.isPresent()) return optPrefix.get();
+            }
+            Optional<Customer> optPhone = customerRepository.findFirstByPhone(customerId);
+            if (optPhone.isPresent()) return optPhone.get();
+        }
+
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            Optional<Customer> optEmail = customerRepository.findFirstByEmail(customerEmail.trim());
+            if (optEmail.isPresent()) return optEmail.get();
+
+            Optional<Account> acc = accountRepository.findByEmail(customerEmail.trim());
+            if (acc.isPresent()) {
+                Optional<Customer> optAcc = customerRepository.findFirstByAccount(acc.get());
+                if (optAcc.isPresent()) return optAcc.get();
+            }
+        }
+
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            Customer newCustomer = Customer.builder()
+                    .email(customerEmail.trim())
+                    .fullName(customerEmail.split("@")[0])
+                    .loyaltyTier(iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier.BRONZE)
+                    .isRegistered(false)
+                    .build();
+            return customerRepository.save(newCustomer);
+        }
+
+        throw new AppException(ErrorCode.CUSTOMER_NOT_FOUND);
     }
 
     private Employee validateAndGetEmployee(String employeeId) {
@@ -464,7 +510,19 @@ public class BookingServiceImpl implements BookingService {
         // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
 
         return detailRequests.stream().map(detailReq -> {
-            Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+            String targetRoomId = detailReq.getRoomId();
+            Room room = roomRepository.findById(targetRoomId)
+                    .or(() -> roomRepository.findFirstByRoomNumber(targetRoomId))
+                    .or(() -> roomRepository.findAll().stream()
+                            .filter(r -> r.getId().endsWith(targetRoomId) || r.getRoomNumber().equals(targetRoomId))
+                            .findFirst())
+                    .or(() -> {
+                        if (booking.getHotel() != null) {
+                            return roomRepository.findByFloor_Building_Hotel_Id(booking.getHotel().getId()).stream().findFirst();
+                        }
+                        return java.util.Optional.empty();
+                    })
+                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
             BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());

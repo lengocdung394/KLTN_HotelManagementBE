@@ -27,12 +27,16 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 
     // Dùng Optional giúp bắt lỗi không tìm thấy thanh lịch hơn
     Optional<Customer> findByPhone(String phone);
+    Optional<Customer> findFirstByPhone(String phone);
 
     Optional<Customer> findByCccd(String cccd);
+    Optional<Customer> findFirstByCccd(String cccd);
 
     Optional<Customer> findByEmail(String email);
+    Optional<Customer> findFirstByEmail(String email);
 
     Optional<Customer> findByAccount(Account account);
+    Optional<Customer> findFirstByAccount(Account account);
     // 1. Tìm kiếm khách hàng theo Số điện thoại hoặc Căn cước công dân (Dùng để check trùng khi tạo mới)
     Optional<Customer> findByPhoneAndCccd(String phone, String cccd);
 }

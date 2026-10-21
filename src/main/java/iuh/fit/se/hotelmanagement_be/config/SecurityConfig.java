@@ -58,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers("/role_permissions/**").permitAll()
                         .requestMatchers("/super-admin/accounts/**").permitAll()
                         .requestMatchers("/rooms/temporary-locks/**").permitAll()
+                        .requestMatchers("/live-chat/**").permitAll()
                         .requestMatchers("/notifications/**").permitAll()
                         .requestMatchers("/management-bookings/cancellations/**").permitAll()
                         // TODO: Xóa dòng này sau khi hoàn thiện Auth cho module KM

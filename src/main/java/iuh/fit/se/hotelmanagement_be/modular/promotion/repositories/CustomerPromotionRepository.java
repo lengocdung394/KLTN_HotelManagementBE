@@ -16,6 +16,8 @@ public interface CustomerPromotionRepository extends JpaRepository<CustomerPromo
 
     boolean existsByCustomerIdAndPromotionId(String customerId, String promotionId);
 
+    Optional<CustomerPromotion> findByCustomerIdAndPromotionId(String customerId, String promotionId);
+
     Optional<CustomerPromotion> findByUniqueCodeAndCustomerId(String uniqueCode, String customerId);
 
     List<CustomerPromotion> findByCustomerId(String customerId);

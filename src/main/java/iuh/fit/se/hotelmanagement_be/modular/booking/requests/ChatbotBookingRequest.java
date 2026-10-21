@@ -17,6 +17,7 @@ import java.util.List;
 public class ChatbotBookingRequest {
     String customerName;
     String customerPhone;
+    String customerEmail;
     Long hotelId;
     List<String> roomIds;
     LocalDateTime checkInTime;

@@ -51,16 +51,26 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
 
         // 1. Find or create Customer
         Customer customer = null;
-        if (request.getCustomerPhone() != null && !request.getCustomerPhone().isEmpty()) {
-            customer = customerRepository.findByPhone(request.getCustomerPhone()).orElse(null);
+        if (request.getCustomerEmail() != null && !request.getCustomerEmail().isEmpty()) {
+            customer = customerRepository.findFirstByEmail(request.getCustomerEmail().trim()).orElse(null);
+        }
+        if (customer == null && request.getCustomerPhone() != null && !request.getCustomerPhone().isEmpty()) {
+            customer = customerRepository.findFirstByPhone(request.getCustomerPhone().trim()).orElse(null);
         }
         
         if (customer == null) {
             customer = Customer.builder()
                     .fullName(request.getCustomerName())
                     .phone(request.getCustomerPhone())
+                    .email(request.getCustomerEmail())
                     .build();
             customer = customerRepository.save(customer);
+        } else {
+            if (request.getCustomerEmail() != null && !request.getCustomerEmail().isBlank()
+                    && (customer.getEmail() == null || customer.getEmail().isBlank())) {
+                customer.setEmail(request.getCustomerEmail().trim());
+                customer = customerRepository.save(customer);
+            }
         }
 
         // 2. Build Services List
@@ -90,8 +100,10 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
         }
 
         // 4. Create Booking using standard Java BE logic
+        String effectiveEmail = customer.getEmail() != null ? customer.getEmail() : request.getCustomerEmail();
         BookingCreateRequest bookingRequest = BookingCreateRequest.builder()
                 .customerId(customer.getId())
+                .customerEmail(effectiveEmail)
                 .hotelId(request.getHotelId())
                 .bookingChannel(BookingChannel.ONLINE)
                 .promotionId(actualPromoId) // Global promotion

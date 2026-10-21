@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomStatusUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
@@ -131,6 +132,22 @@ public class RoomController {
 
         return ResponseEntity.ok(ApiResponse.<RoomCreateResponse>builder()
                 .code(200)
+                .result(response)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('UPDATE_ROOM') or hasAuthority('MANAGE_CHECKIN_CHECKOUT') or hasAuthority('ROLE_SUPER_ADMIN')")
+    @PatchMapping("/{roomId}/status")
+    public ResponseEntity<ApiResponse<RoomResponse>> updateRoomStatus(
+            @PathVariable String roomId,
+            @Valid @RequestBody RoomStatusUpdateRequest request,
+            Authentication authentication) {
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        RoomResponse response = roomService.updateRoomStatus(roomId, request.roomStatus(), isSuperAdmin);
+        return ResponseEntity.ok(ApiResponse.<RoomResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật trạng thái phòng thành công.")
                 .result(response)
                 .build());
     }

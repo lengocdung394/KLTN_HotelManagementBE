@@ -11,7 +11,10 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolic
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.*;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -45,6 +48,7 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class RoomServiceImpl implements RoomService {
     RoomRepository roomRepository;
+    BookingDetailRepository bookingDetailRepository;
     FloorRepository floorRepository;
     AmenityRepository amenityRepository;
     CloudinaryService cloudinaryService;
@@ -196,7 +200,6 @@ public class RoomServiceImpl implements RoomService {
         }
 
         room.setAvatarUrl(finalRoomImages);
-        room.setRoomStatus(dto.getRoomStatus());
         room.setRoomType(dto.getRoomType());
 
         if (dto.getAmenityIds() != null) {
@@ -278,6 +281,42 @@ public class RoomServiceImpl implements RoomService {
         );
 
         return response;
+    }
+
+    @Transactional
+    @Override
+    public RoomResponse updateRoomStatus(String roomId, RoomStatus roomStatus, boolean isSuperAdmin) {
+        if (roomStatus != RoomStatus.READY && roomStatus != RoomStatus.MAINTENANCE) {
+            throw new AppException(ErrorCode.INVALID_ROOM_STATUS_TRANSITION);
+        }
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+        Long roomHotelId = room.getFloor() != null
+                && room.getFloor().getBuilding() != null
+                && room.getFloor().getBuilding().getHotel() != null
+                ? room.getFloor().getBuilding().getHotel().getId()
+                : null;
+        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
+        if (roomHotelId == null
+                || (!isSuperAdmin && (currentHotelId == null || !currentHotelId.equals(roomHotelId)))
+                || (currentHotelId != null && !currentHotelId.equals(roomHotelId))) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (room.getRoomStatus() == RoomStatus.IN_USE
+                || bookingDetailRepository.existsByRoom_IdAndStatus(roomId, BookingStatusType.CHECKED_IN)) {
+            throw new AppException(ErrorCode.ROOM_STATUS_CHANGE_WHILE_OCCUPIED);
+        }
+
+        room.setRoomStatus(roomStatus);
+        Room updatedRoom = roomRepository.save(room);
+        roomSocketEmitter.emitRoomStatusUpdated(
+                roomHotelId,
+                updatedRoom.getId(),
+                updatedRoom.getRoomNumber(),
+                updatedRoom.getRoomStatus()
+        );
+        return getRoomById(roomId, roomHotelId, isSuperAdmin);
     }
 
     @Transactional

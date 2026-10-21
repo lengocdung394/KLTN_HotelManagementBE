@@ -37,6 +37,7 @@ public class BookingDetailForCheckInOutResponse {
     Double totalPrice;                  // Tổng cộng cuối cùng của chi tiết này (Phòng + Dịch vụ)
     Double earlyCheckInFee;             // Phụ phí check-in sớm dự kiến
     Double lateCheckOutFee;             // Phụ phí check-out trễ đã tính
+    Double otherSurcharges;
     Double estimatedEarlyCheckInFee;    // Ước tính phụ phí nếu check-in ngay
     String paymentStatus;               // Trạng thái thanh toán (OPEN, CLOSED...)
     String bookingDetailStatus;

@@ -13,6 +13,8 @@ import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationS
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
@@ -39,6 +41,36 @@ public class BookingSocketEmitter {
                     .sendEvent("room_matrix_updated", "Lịch tổng phòng vừa được làm mới do có booking mới!");
             log.info("🏢 [Booking Socket] Đã gửi 'room_matrix_updated' tới room chi nhánh: {}", roomName);
         }
+    }
+
+    public void emitBookingStateUpdated(Long hotelId, String bookingId, String action) {
+        if (hotelId == null || bookingId == null) return;
+
+        Map<String, Object> payload = Map.of(
+                "hotelId", hotelId,
+                "bookingId", bookingId,
+                "action", action
+        );
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations("hotel_" + hotelId)
+                        .sendEvent("booking_state_updated", payload);
+                log.info("Emitted booking_state_updated for booking {} at hotel {}", bookingId, hotelId);
+            } catch (RuntimeException exception) {
+                log.error("Could not emit booking_state_updated for booking {}", bookingId, exception);
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            emit.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                emit.run();
+            }
+        });
     }
 
     /**

@@ -11,6 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeProfileUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +21,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -76,12 +79,31 @@ public class EmployeeController {
 
     @Operation(summary = "Lấy danh sách nhân viên theo chi nhánh khách sạn")
     @GetMapping("/hotel/{hotelId}")
-    @PreAuthorize("hasAuthority('VIEW_STAFFS')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFFS', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesByHotel(@PathVariable("hotelId") Long hotelId) {
         List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId);
         return ResponseEntity.ok(ApiResponse.<List<EmployeeResponse>>builder()
                 .code(200)
                 .message("Lấy danh sách nhân viên thành công!")
+                .result(result)
+                .build());
+    }
+
+    @Operation(summary = "Lấy danh sách nhân viên của chi nhánh tài khoản đang đăng nhập")
+    @GetMapping("/my-hotel")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFFS', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse<List<EmployeeResponse>>> getEmployeesForCurrentHotel() {
+        Long hotelId = SecurityUtils.getCurrentUserHotelId();
+        if (hotelId == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Tài khoản hiện tại chưa được liên kết với chi nhánh khách sạn."
+            );
+        }
+        List<EmployeeResponse> result = userService.getEmployeesByHotelId(hotelId);
+        return ResponseEntity.ok(ApiResponse.<List<EmployeeResponse>>builder()
+                .code(200)
+                .message("Lấy danh sách nhân viên của chi nhánh thành công!")
                 .result(result)
                 .build());
     }

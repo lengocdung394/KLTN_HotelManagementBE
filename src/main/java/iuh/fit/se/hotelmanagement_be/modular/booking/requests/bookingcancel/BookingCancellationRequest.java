@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 import lombok.*;
@@ -13,6 +14,9 @@ import lombok.experimental.FieldDefaults;
 public class BookingCancellationRequest {
     @Size(max = 500)
     String reason; // nguyen nhan huy booking
+
+    BookingCancellationRefundMethod refundMethod;
+    Boolean cashRefundConfirmed;
 
     @Size(max = 120)
     String bankName;

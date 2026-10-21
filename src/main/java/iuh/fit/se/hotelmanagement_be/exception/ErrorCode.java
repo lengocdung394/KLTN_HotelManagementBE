@@ -106,6 +106,9 @@ public enum ErrorCode {
     ROOM_IS_BEING_LOCKED(5004, "Phòng này đang được giữ chỗ tạm thời", HttpStatus.BAD_REQUEST),
     ROOM_ALREADY_OCCUPIED_OR_BOOKED(5005, "Phòng này hiện đang có khách ở hoặc đã bị trùng lịch đặt phòng!", HttpStatus.BAD_REQUEST),
     INVALID_IMAGE_COUNT(5006, "[5006] Mỗi phòng phải có từ 4 đến 8 hình ảnh", HttpStatus.BAD_REQUEST),
+    INVALID_ROOM_STATUS_TRANSITION(5007, "Trạng thái phòng chỉ có thể được đặt thủ công là Sẵn sàng hoặc Bảo trì", HttpStatus.BAD_REQUEST),
+    ROOM_STATUS_CHANGE_WHILE_OCCUPIED(5008, "Không thể đổi trạng thái khi phòng vẫn đang có khách", HttpStatus.BAD_REQUEST),
+    ROOM_NOT_AVAILABLE_FOR_BOOKING(5009, "Phòng đang bảo trì hoặc dọn dẹp nên không thể đặt", HttpStatus.BAD_REQUEST),
 
     EXCEEDS_MAX_INFANTS(5010, "Số lượng em bé vượt quá giới hạn tối đa của phòng", HttpStatus.BAD_REQUEST),
     EXCEEDS_MAX_CAPACITY(5011, "Tổng số lượng khách (người lớn và trẻ em) vượt quá sức chứa tối đa của phòng", HttpStatus.BAD_REQUEST),
@@ -203,6 +206,7 @@ public enum ErrorCode {
     CANCELLATION_REVIEW_NOTE_REQUIRED(2014, "Cần ghi lý do khi từ chối hoàn tiền", HttpStatus.BAD_REQUEST),
     CANCELLATION_REFUND_EXCEEDS_PAID(2015, "Số tiền hoàn vượt quá số tiền khách đã thanh toán", HttpStatus.BAD_REQUEST),
     CANCELLATION_REVIEW_CONFIRMATION_REQUIRED(2017, "Cần xác nhận số tiền và tài khoản nhận hoàn trước khi duyệt", HttpStatus.BAD_REQUEST),
+    CANCELLATION_CASH_CONFIRMATION_REQUIRED(2028, "Cần xác nhận đã giao tiền mặt hoàn cho khách", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_METHOD_REQUIRED(2018, "Chọn cách hoàn khoản thu dư trước khi hoàn tất check-out", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_METHOD(2019, "Khoản thu dư chỉ được hoàn bằng tiền mặt hoặc chuyển khoản ngân hàng", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_STATUS(2020, "Trạng thái yêu cầu hoàn dư check-out không cho phép thao tác này", HttpStatus.BAD_REQUEST),

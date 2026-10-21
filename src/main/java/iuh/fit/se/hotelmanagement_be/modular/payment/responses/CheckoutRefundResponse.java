@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.responses;
 
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefundStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
 public class CheckoutRefundResponse {
     String id;
     String bookingId;
+    BookingChannel bookingChannel;
     String customerName;
     String customerPhone;
     Long hotelId;

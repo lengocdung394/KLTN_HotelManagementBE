@@ -23,11 +23,13 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("endDate") LocalDate endDate
     );
 
-    Optional<ShiftAssignment> findByHotel_IdAndWorkDateAndRoleAndShiftType(
+    List<ShiftAssignment> findAllByHotel_IdAndWorkDateAndRoleAndShiftType(
             Long hotelId, LocalDate workDate, String role, String shiftType
     );
 
     List<ShiftAssignment> findByHotel_IdAndWorkDateBetweenOrderByWorkDateAsc(
             Long hotelId, LocalDate startDate, LocalDate endDate
     );
+
+    long deleteByHotel_IdAndWorkDateBetween(Long hotelId, LocalDate startDate, LocalDate endDate);
 }

@@ -31,6 +31,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageSe
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
@@ -117,6 +118,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 .name(serviceDetail.getName())
                 .quantity(serviceDetail.getQuantity())
                 .price(serviceDetail.getPrice())
+                .subTotal(serviceDetail.getPrice() == null
+                        ? 0.0
+                        : serviceDetail.getPrice() * serviceDetail.getQuantity())
                 .usedAt(serviceDetail.getUsedAt())
                 .used(serviceDetail.getUsed())
                 .usedBy(serviceDetail.getUsedBy())
@@ -149,6 +153,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                         log.error("Room not found with ID: {}", roomReq.getRoomId());
                         return new AppException(ErrorCode.ROOM_NOT_FOUND);
                     });
+            if (room.getRoomStatus() == RoomStatus.MAINTENANCE
+                    || room.getRoomStatus() == RoomStatus.CLEANING) {
+                throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+            }
 
             LocalDate startDate = roomReq.getCheckInTime().toLocalDate();
             LocalDate endDate = roomReq.getCheckOutTime().toLocalDate();
@@ -264,6 +272,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             log.error("New Room not found with ID: {}", req.getNewRoomId());
                             return new AppException(ErrorCode.ROOM_NOT_FOUND);
                         });
+                if (newRoom.getRoomStatus() == RoomStatus.MAINTENANCE
+                        || newRoom.getRoomStatus() == RoomStatus.CLEANING) {
+                    throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+                }
                 targetDetail.setRoom(newRoom);
                 log.info("Updated room ID to {} for BookingDetail ID: {}", newRoom.getId(), targetDetail.getId());
             }

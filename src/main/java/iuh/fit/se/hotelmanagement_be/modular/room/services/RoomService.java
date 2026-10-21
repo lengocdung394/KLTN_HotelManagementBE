@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
@@ -12,6 +13,7 @@ import java.util.List;
 
 public interface RoomService {
     RoomCreateResponse updateRoom(String roomId, RoomUpdateRequest dto, List<MultipartFile> imageFiles,boolean isSuperAdmin);
+    RoomResponse updateRoomStatus(String roomId, RoomStatus roomStatus, boolean isSuperAdmin);
     RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles);
     List<RoomResponse> getRoomsByFloorId(String floorId);
     List<RoomResponse> getRoomsByHotelId(Long hotelId);

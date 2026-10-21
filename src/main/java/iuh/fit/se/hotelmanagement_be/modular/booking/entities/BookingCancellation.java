@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -33,6 +34,10 @@ public class BookingCancellation {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     BookingCancellationStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    BookingCancellationRefundMethod refundMethod;
 
     @Column(length = 500)
     String reason;
@@ -101,4 +106,3 @@ public class BookingCancellation {
 
     LocalDateTime cancelledAt;
 }
-

@@ -1,9 +1,12 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.services.impl;
 
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
@@ -34,6 +37,7 @@ import java.util.stream.Collectors;
 public class EmployeeServiceImpl implements EmployeeService {
     EmployeeRepository employeeRepository;
     AccountRepository accountRepository;
+    CustomerRepository customerRepository;
     RoleRepository roleRepository;
     HotelRepository hotelRepository;
     PasswordEncoder passwordEncoder;
@@ -71,9 +75,22 @@ public class EmployeeServiceImpl implements EmployeeService {
 //            throw new RuntimeException("Quyền hạn bị từ chối: Bạn không có đặc quyền thực hiện hành động này!");
 //        }
 
-        // Kiểm tra trùng lặp Email
-        if (accountRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Lỗi: Email này đã được đăng ký tài khoản trong hệ thống!");
+        String email = dto.getEmail() == null ? "" : dto.getEmail().trim();
+        String phone = dto.getPhone() == null ? "" : dto.getPhone().trim();
+        String cccd = dto.getCccd() == null ? "" : dto.getCccd().trim();
+        dto.setEmail(email);
+        dto.setPhone(phone);
+        dto.setCccd(cccd);
+
+        if (accountRepository.existsByEmailIgnoreCase(email)
+                || customerRepository.existsByEmailIgnoreCase(email)) {
+            throw new AppException(ErrorCode.EMAIL_EXISTED);
+        }
+        if (employeeRepository.existsByPhone(phone) || customerRepository.existsByPhone(phone)) {
+            throw new AppException(ErrorCode.PHONE_EXISTED);
+        }
+        if (employeeRepository.existsByCccd(cccd) || customerRepository.existsByCccd(cccd)) {
+            throw new AppException(ErrorCode.CCCD_EXISTED);
         }
 
         String uploadedUrl = dto.getAvatarUrl() == null ? "" : dto.getAvatarUrl().trim();

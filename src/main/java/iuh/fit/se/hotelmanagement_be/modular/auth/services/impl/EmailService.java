@@ -35,7 +35,8 @@ public class EmailService {
             String bookingChannel,
             String bookingDetails,
             String refundAmount,
-            boolean refundExpected) {
+            boolean refundExpected,
+            boolean cashRefundCompleted) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(email);
         message.setSubject("Xác nhận yêu cầu hủy booking " + bookingId);
@@ -49,9 +50,13 @@ public class EmailService {
                 .append("Loại booking: ").append(bookingChannel).append("\n")
                 .append("Chi tiết đặt phòng:\n").append(bookingDetails).append("\n");
         if (refundExpected) {
-            body.append("Số tiền dự kiến hoàn: ").append(refundAmount).append("\n")
-                    .append("Yêu cầu hoàn tiền sẽ được xử lý trong vòng 1–3 ngày. ")
-                    .append("Khách sạn sẽ gửi email thông báo khi đã hoàn tiền.\n");
+            if (cashRefundCompleted) {
+                body.append("Số tiền đã hoàn trực tiếp bằng tiền mặt: ").append(refundAmount).append("\n");
+            } else {
+                body.append("Số tiền dự kiến hoàn: ").append(refundAmount).append("\n")
+                        .append("Yêu cầu hoàn tiền sẽ được xử lý trong vòng 1–3 ngày. ")
+                        .append("Khách sạn sẽ gửi email thông báo khi đã hoàn tiền.\n");
+            }
         } else {
             body.append("Yêu cầu hủy đã được ghi nhận. Booking này không phát sinh khoản hoàn tiền.\n");
         }

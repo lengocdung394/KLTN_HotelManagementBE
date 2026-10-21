@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailR
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.HoldRoomRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.HoldRoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -40,6 +41,12 @@ public class TemporaryRoomHoldService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Không tìm thấy phòng."
                 ));
+        if (room.getRoomStatus() == RoomStatus.MAINTENANCE
+                || room.getRoomStatus() == RoomStatus.CLEANING) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Phòng đang bảo trì hoặc dọn dẹp nên không thể giữ chỗ."
+            );
+        }
 
         LocalDate checkIn = request.checkInTime().toLocalDate();
         LocalDate checkOut = request.checkOutTime().toLocalDate();

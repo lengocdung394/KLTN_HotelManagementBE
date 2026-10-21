@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 
 @Component
 @RequiredArgsConstructor
@@ -48,6 +49,39 @@ public class RoomSocketEmitter {
                 Map.of("count", count),
                 false
         );
+    }
+
+    public void emitRoomStatusUpdated(Long hotelId, String roomId, String roomNumber, RoomStatus roomStatus) {
+        if (hotelId == null) return;
+
+        Map<String, Object> roomData = new LinkedHashMap<>();
+        roomData.put("roomId", roomId);
+        roomData.put("roomNumber", roomNumber);
+        roomData.put("roomStatus", roomStatus);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("hotelId", hotelId);
+        payload.put("action", "STATUS_UPDATED");
+        payload.put("data", roomData);
+        payload.put("occurredAt", Instant.now().toString());
+
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations("hotel_" + hotelId).sendEvent("room_update", payload);
+                socketIOServer.getRoomOperations(SUPER_ADMIN_ROOM).sendEvent("room_update", payload);
+            } catch (RuntimeException exception) {
+                log.error("Could not emit room status update for room {}", roomId, exception);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
+        } else {
+            emit.run();
+        }
     }
 
     private void emitRoomChanged(

@@ -8,7 +8,7 @@ import lombok.experimental.FieldDefaults;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
 @Entity
 @Table(name = "shift_assignments")
@@ -61,9 +61,7 @@ public class ShiftAssignment {
     @PrePersist
     protected void onCreate() {
         if (this.id == null || this.id.isBlank()) {
-            String dateStr = DateTimeFormatter.ofPattern("yyyyMMdd").format(LocalDateTime.now());
-            int rand = (int) (Math.random() * 9000) + 1000;
-            this.id = "SHF" + dateStr + rand;
+            this.id = "SHF" + UUID.randomUUID().toString().replace("-", "");
         }
         if (this.status == null || this.status.isBlank()) {
             this.status = "SCHEDULED";

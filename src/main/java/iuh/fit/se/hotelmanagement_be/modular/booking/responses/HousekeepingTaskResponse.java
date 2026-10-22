@@ -9,6 +9,8 @@ public record HousekeepingTaskResponse(
         String bookingDetailId,
         String status,
         LocalDateTime createdAt,
-        LocalDateTime assignedAt
+        LocalDateTime assignedAt,
+        String assignedEmployeeId,
+        String assignedEmployeeName
 ) {
 }

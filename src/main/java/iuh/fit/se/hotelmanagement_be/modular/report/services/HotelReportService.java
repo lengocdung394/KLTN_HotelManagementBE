@@ -65,7 +65,7 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        OrderStatusType.CANCELLED,
+                        OrderStatusType.CLOSED,
                         BookingStatus.CANCELLED
                 );
         BigDecimal serviceRevenue = BigDecimal.ZERO;

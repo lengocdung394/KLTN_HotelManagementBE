@@ -33,7 +33,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             WHERE o.booking.hotel.id = :hotelId
               AND o.closeDate >= :start
               AND o.closeDate < :end
-              AND (o.orderStatus IS NULL OR o.orderStatus <> :cancelledStatus)
+              AND o.orderStatus = :closedStatus
               AND (o.booking.bookingStatus IS NULL OR o.booking.bookingStatus <> :cancelledBookingStatus)
             GROUP BY FUNCTION('DATE', o.closeDate)
             ORDER BY FUNCTION('DATE', o.closeDate)
@@ -42,7 +42,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledStatus") OrderStatusType cancelledStatus,
+            @Param("closedStatus") OrderStatusType closedStatus,
             @Param("cancelledBookingStatus") BookingStatus cancelledBookingStatus
     );
 

@@ -146,6 +146,39 @@ public class ShiftController {
     }
 
     @PreAuthorize("hasAuthority('ROLE_MANAGER')")
+    @DeleteMapping("/weekly")
+    @Operation(summary = "Xóa toàn bộ lịch phân ca đã lưu của một tuần")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> clearWeeklySchedule(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        Long targetHotelId = resolveHotelId(hotelId);
+        WeeklyScheduleResponse result = shiftService.clearWeeklySchedule(targetHotelId, weekStartDate);
+        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
+                .code(1000)
+                .message("Đã xóa lịch phân ca tuần")
+                .result(result)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
+    @PostMapping("/weekly/copy")
+    @Operation(summary = "Sao chép lịch phân ca từ tuần nguồn sang tuần đích")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> copyWeeklySchedule(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate sourceWeekStartDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetWeekStartDate,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        Long targetHotelId = resolveHotelId(hotelId);
+        WeeklyScheduleResponse result = shiftService.copyWeeklySchedule(targetHotelId, sourceWeekStartDate, targetWeekStartDate);
+        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
+                .code(1000)
+                .message("Đã sao chép lịch phân ca tuần")
+                .result(result)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
     @DeleteMapping("/{shiftId}")
     @Operation(summary = "Hủy / Xóa phân công một ca trực")
     public ResponseEntity<ApiResponse<Void>> deleteShift(@PathVariable String shiftId) {
@@ -156,19 +189,4 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
-    @PostMapping("/init-default")
-    @Operation(summary = "Tự động tạo lịch phân ca mẫu nếu tuần chưa có lịch")
-    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> initDefaultWeeklySchedule(
-            @RequestParam(required = false) Long hotelId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate
-    ) {
-        Long targetHotelId = resolveHotelId(hotelId);
-        WeeklyScheduleResponse result = shiftService.initDefaultWeeklyScheduleIfEmpty(targetHotelId, weekStartDate);
-        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
-                .code(1000)
-                .message("Khởi tạo lịch mẫu tuần thành công")
-                .result(result)
-                .build());
-    }
 }

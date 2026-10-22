@@ -77,7 +77,7 @@ class HotelReportServiceTest {
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                OrderStatusType.CANCELLED,
+                OrderStatusType.CLOSED,
                 BookingStatus.CANCELLED
         )).thenReturn(List.of(revenueRow));
 

@@ -6,6 +6,6 @@ import java.time.LocalDate;
 public record DailyServiceRevenueResponse(
         LocalDate date,
         BigDecimal revenue,
-        long closedInvoiceCount
+        long serviceUsageCount
 ) {
 }

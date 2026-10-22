@@ -1,10 +1,10 @@
 package iuh.fit.se.hotelmanagement_be.modular.report.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
-import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
@@ -13,7 +13,9 @@ import iuh.fit.se.hotelmanagement_be.modular.report.responses.BookingCancellatio
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.HotelReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.PromotionUsageReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomStatusReportResponse;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomTypeBookingReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,28 @@ public class HotelReportService {
         LocalDateTime start = startDate.atStartOfDay();
         LocalDateTime endExclusive = endDate.plusDays(1).atStartOfDay();
         long totalBookingCount = bookingRepository.countCreatedBookingsForPeriod(hotelId, start, endExclusive);
+        Map<RoomType, Long> roomTypeBookingCounts = new EnumMap<>(RoomType.class);
+        for (RoomType roomType : RoomType.values()) {
+            roomTypeBookingCounts.put(roomType, 0L);
+        }
+        for (BookingRepository.RoomTypeBookingReportProjection row :
+                bookingRepository.getRoomTypeBookingReport(
+                        hotelId,
+                        start,
+                        endExclusive,
+                        BookingStatus.CANCELLED,
+                        BookingStatusType.CANCELLED
+                )) {
+            if (row.getRoomType() != null) {
+                roomTypeBookingCounts.put(
+                        row.getRoomType(),
+                        row.getBookingCount() == null ? 0 : row.getBookingCount()
+                );
+            }
+        }
+        List<RoomTypeBookingReportResponse> roomTypeBookings = roomTypeBookingCounts.entrySet().stream()
+                .map(entry -> new RoomTypeBookingReportResponse(entry.getKey().name(), entry.getValue()))
+                .toList();
         PaymentTransactionRepository.CashFlowReportProjection cashFlow =
                 paymentTransactionRepository.getCashFlowReport(
                         hotelId,
@@ -65,18 +89,20 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        OrderStatusType.CLOSED,
+                        BookingStatusType.CANCELLED,
                         BookingStatus.CANCELLED
                 );
         BigDecimal serviceRevenue = BigDecimal.ZERO;
-        long closedInvoiceCount = 0;
+        long serviceUsageCount = 0;
         List<DailyServiceRevenueResponse> dailyServiceRevenue = new ArrayList<>();
         for (OrderRepository.DailyServiceRevenueProjection row : revenueRows) {
-            BigDecimal revenue = row.getRevenue() == null ? BigDecimal.ZERO : row.getRevenue();
-            long invoiceCount = row.getClosedInvoiceCount() == null ? 0 : row.getClosedInvoiceCount();
+            BigDecimal revenue = row.getRevenue() == null
+                    ? BigDecimal.ZERO
+                    : BigDecimal.valueOf(row.getRevenue());
+            long usageCount = row.getServiceUsageCount() == null ? 0 : row.getServiceUsageCount();
             serviceRevenue = serviceRevenue.add(revenue);
-            closedInvoiceCount += invoiceCount;
-            dailyServiceRevenue.add(new DailyServiceRevenueResponse(row.getRevenueDate(), revenue, invoiceCount));
+            serviceUsageCount += usageCount;
+            dailyServiceRevenue.add(new DailyServiceRevenueResponse(row.getRevenueDate(), revenue, usageCount));
         }
 
         List<BookingRepository.PromotionReportProjection> promotionRows =
@@ -149,7 +175,7 @@ public class HotelReportService {
                 cashChangeReturned,
                 cashReceived.subtract(cashRefunded).subtract(cashChangeReturned),
                 serviceRevenue,
-                closedInvoiceCount,
+                serviceUsageCount,
                 dailyServiceRevenue,
                 promotionUsageCount,
                 promotionSavings,
@@ -159,7 +185,8 @@ public class HotelReportService {
                 offlineCancelledBookingCount,
                 cancelledBookings,
                 totalRoomCount,
-                roomStatuses
+                roomStatuses,
+                roomTypeBookings
         );
     }
 }

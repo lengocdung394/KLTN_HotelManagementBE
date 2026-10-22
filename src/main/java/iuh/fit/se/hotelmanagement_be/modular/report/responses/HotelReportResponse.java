@@ -13,7 +13,7 @@ public record HotelReportResponse(
         BigDecimal cashChangeReturned,
         BigDecimal netCashReceived,
         BigDecimal serviceRevenue,
-        long closedInvoiceCount,
+        long serviceUsageCount,
         List<DailyServiceRevenueResponse> dailyServiceRevenue,
         long promotionUsageCount,
         BigDecimal promotionSavings,
@@ -23,6 +23,7 @@ public record HotelReportResponse(
         long offlineCancelledBookingCount,
         List<BookingCancellationReportResponse> cancelledBookings,
         long totalRoomCount,
-        List<RoomStatusReportResponse> roomStatuses
+        List<RoomStatusReportResponse> roomStatuses,
+        List<RoomTypeBookingReportResponse> roomTypeBookings
 ) {
 }

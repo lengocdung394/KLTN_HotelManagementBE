@@ -23,7 +23,9 @@ public interface ShiftService {
 
     WeeklyScheduleResponse replaceWeeklySchedule(ShiftBatchAssignRequest request, Long hotelId, LocalDate weekStartDate);
 
-    void deleteShift(String shiftId);
+    WeeklyScheduleResponse clearWeeklySchedule(Long hotelId, LocalDate weekStartDate);
 
-    WeeklyScheduleResponse initDefaultWeeklyScheduleIfEmpty(Long hotelId, LocalDate weekStartDate);
+    WeeklyScheduleResponse copyWeeklySchedule(Long hotelId, LocalDate sourceWeekStartDate, LocalDate targetWeekStartDate);
+
+    void deleteShift(String shiftId);
 }

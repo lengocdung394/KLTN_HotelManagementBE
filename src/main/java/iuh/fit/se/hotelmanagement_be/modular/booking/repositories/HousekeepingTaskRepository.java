@@ -16,6 +16,11 @@ public interface HousekeepingTaskRepository extends JpaRepository<HousekeepingTa
             List<String> statuses
     );
 
+    List<HousekeepingTask> findByHotelIdAndStatusInOrderByCreatedAtAsc(
+            Long hotelId,
+            List<String> statuses
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT task FROM HousekeepingTask task WHERE task.status = 'ASSIGNED' AND task.assignedAt <= :cutoff")
     List<HousekeepingTask> findTasksAwaitingReassignment(@Param("cutoff") LocalDateTime cutoff);

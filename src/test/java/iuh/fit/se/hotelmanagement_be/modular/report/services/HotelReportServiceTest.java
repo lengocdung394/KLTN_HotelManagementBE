@@ -1,14 +1,16 @@
 package iuh.fit.se.hotelmanagement_be.modular.report.services;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
-import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomTypeBookingReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,6 +57,21 @@ class HotelReportServiceTest {
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay()
         )).thenReturn(8L);
+        BookingRepository.RoomTypeBookingReportProjection standardRoomBookings =
+                mock(BookingRepository.RoomTypeBookingReportProjection.class);
+        when(standardRoomBookings.getRoomType()).thenReturn(RoomType.STANDARD);
+        when(standardRoomBookings.getBookingCount()).thenReturn(3L);
+        BookingRepository.RoomTypeBookingReportProjection familyRoomBookings =
+                mock(BookingRepository.RoomTypeBookingReportProjection.class);
+        when(familyRoomBookings.getRoomType()).thenReturn(RoomType.FAMILY);
+        when(familyRoomBookings.getBookingCount()).thenReturn(1L);
+        when(bookingRepository.getRoomTypeBookingReport(
+                7L,
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay(),
+                BookingStatus.CANCELLED,
+                BookingStatusType.CANCELLED
+        )).thenReturn(List.of(standardRoomBookings, familyRoomBookings));
         PaymentTransactionRepository.CashFlowReportProjection cashFlow =
                 mock(PaymentTransactionRepository.CashFlowReportProjection.class);
         when(cashFlow.getCashReceived()).thenReturn(new BigDecimal("500000"));
@@ -71,13 +88,13 @@ class HotelReportServiceTest {
         OrderRepository.DailyServiceRevenueProjection revenueRow =
                 mock(OrderRepository.DailyServiceRevenueProjection.class);
         when(revenueRow.getRevenueDate()).thenReturn(startDate);
-        when(revenueRow.getRevenue()).thenReturn(new BigDecimal("125000"));
-        when(revenueRow.getClosedInvoiceCount()).thenReturn(2L);
+        when(revenueRow.getRevenue()).thenReturn(125000.0);
+        when(revenueRow.getServiceUsageCount()).thenReturn(2L);
         when(orderRepository.getDailyServiceRevenue(
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                OrderStatusType.CANCELLED,
+                BookingStatusType.CANCELLED,
                 BookingStatus.CANCELLED
         )).thenReturn(List.of(revenueRow));
 
@@ -125,13 +142,19 @@ class HotelReportServiceTest {
 
         var report = service.getHotelReport(7L, startDate, endDate);
 
-        assertEquals(new BigDecimal("125000"), report.serviceRevenue());
+        assertEquals(0, new BigDecimal("125000").compareTo(report.serviceRevenue()));
         assertEquals(8, report.totalBookingCount());
+        assertEquals(List.of(
+                new RoomTypeBookingReportResponse("STANDARD", 3),
+                new RoomTypeBookingReportResponse("DELUXE", 0),
+                new RoomTypeBookingReportResponse("SUITE", 0),
+                new RoomTypeBookingReportResponse("FAMILY", 1)
+        ), report.roomTypeBookings());
         assertEquals(new BigDecimal("500000"), report.cashReceived());
         assertEquals(new BigDecimal("75000"), report.cashRefunded());
         assertEquals(new BigDecimal("25000"), report.cashChangeReturned());
         assertEquals(new BigDecimal("400000"), report.netCashReceived());
-        assertEquals(2, report.closedInvoiceCount());
+        assertEquals(2, report.serviceUsageCount());
         assertEquals(1, report.dailyServiceRevenue().size());
         assertEquals(3, report.promotionUsageCount());
         assertEquals(new BigDecimal("50000"), report.promotionSavings());

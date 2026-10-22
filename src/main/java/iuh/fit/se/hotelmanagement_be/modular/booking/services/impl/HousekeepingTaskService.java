@@ -14,8 +14,6 @@ import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationS
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.impl.RoomSocketEmitter;
-import iuh.fit.se.hotelmanagement_be.modular.shift.entities.ShiftAssignment;
-import iuh.fit.se.hotelmanagement_be.modular.shift.repositories.ShiftAssignmentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,24 +22,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class HousekeepingTaskService {
     private static final List<String> ACTIVE_STATUSES = List.of("ASSIGNED", "REASSIGNED");
+    private static final List<String> MANAGER_STATUSES = List.of("NEEDS_ASSIGNMENT", "ASSIGNED", "REASSIGNED");
 
     private final HousekeepingTaskRepository taskRepository;
-    private final ShiftAssignmentRepository shiftAssignmentRepository;
     private final EmployeeRepository employeeRepository;
     private final AccountRepository accountRepository;
     private final RoomRepository roomRepository;
@@ -51,55 +43,56 @@ public class HousekeepingTaskService {
     @Transactional
     public void createTaskForCheckout(BookingDetail detail, Room room, LocalDateTime checkoutTime) {
         Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-        LocalDate workDate = checkoutTime.toLocalDate();
-        String shiftType = shiftForTime(checkoutTime.toLocalTime());
-        if (shiftType.equals("Ca đêm") && checkoutTime.toLocalTime().isBefore(LocalTime.of(6, 0))) {
-            workDate = workDate.minusDays(1);
-        }
-
-        Set<String> scheduledEmployeeIds = new HashSet<>();
-        List<Employee> scheduledHousekeepers = shiftAssignmentRepository
-                .findByHotelIdAndWorkDate(hotelId, workDate).stream()
-                .filter(assignment -> isHousekeeping(assignment.getRole()))
-                .filter(assignment -> shiftType.equals(normalizeShift(assignment.getShiftType())))
-                .map(ShiftAssignment::getEmployee)
-                .filter(employee -> employee != null && scheduledEmployeeIds.add(employee.getId()))
-                .toList();
-
-        List<Employee> assignedHousekeepers = new ArrayList<>(scheduledHousekeepers);
-        if (scheduledHousekeepers.size() < 2) {
-            List<Employee> fallback = employeeRepository.findByHotelId(hotelId).stream()
-                    .filter(employee -> isHousekeeping(employee.getPosition()))
-                    .filter(employee -> scheduledHousekeepers.stream().noneMatch(assigned -> assigned.getId().equals(employee.getId())))
-                    .toList();
-            assignedHousekeepers.addAll(fallback);
-        }
-
-        Employee primary = assignedHousekeepers.isEmpty()
-                ? null
-                : assignedHousekeepers.get(ThreadLocalRandom.current().nextInt(Math.min(2, assignedHousekeepers.size())));
-        Employee backup = assignedHousekeepers.stream()
-                .filter(employee -> primary == null || !employee.getId().equals(primary.getId()))
-                .findFirst()
-                .orElse(null);
-
         HousekeepingTask task = new HousekeepingTask();
         task.setRoom(room);
         task.setHotelId(hotelId);
         task.setBookingDetailId(detail.getId());
-        task.setAssignedEmployee(primary);
-        task.setBackupEmployee(backup);
-        task.setStatus(primary == null ? "NEEDS_ASSIGNMENT" : "ASSIGNED");
+        task.setStatus("NEEDS_ASSIGNMENT");
         task.setCreatedAt(checkoutTime);
-        task.setAssignedAt(primary == null ? null : checkoutTime);
         taskRepository.save(task);
+        notifyHotel(hotelId, task, "Phòng " + room.getRoomNumber() + " vừa checkout. Quản lý cần phân công nhân viên buồng phòng.");
+    }
 
-        if (primary == null) {
-            notifyHotel(hotelId, task, "Chưa có nhân viên buồng phòng được phân ca cho phòng " + room.getRoomNumber() + ".");
-        } else {
-            notifyEmployee(primary, hotelId, task, NotificationType.HOUSEKEEPING_TASK_ASSIGNED,
-                    "Phòng " + room.getRoomNumber() + " vừa checkout, vui lòng dọn và xác nhận hoàn tất trong 1 giờ.");
+    @Transactional(readOnly = true)
+    public List<HousekeepingTaskResponse> getHotelTasks() {
+        Account account = currentAccount();
+        Long hotelId = account.getHotelId();
+        if (hotelId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa được liên kết với chi nhánh.");
         }
+        return taskRepository.findByHotelIdAndStatusInOrderByCreatedAtAsc(hotelId, MANAGER_STATUSES)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public HousekeepingTaskResponse assignTask(String taskId, String employeeId) {
+        Account account = currentAccount();
+        Long hotelId = account.getHotelId();
+        if (hotelId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa được liên kết với chi nhánh.");
+        }
+        HousekeepingTask task = taskRepository.findById(taskId)
+                .filter(candidate -> hotelId.equals(candidate.getHotelId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy việc dọn phòng trong chi nhánh."));
+        if (!MANAGER_STATUSES.contains(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Việc dọn phòng này đã được xử lý.");
+        }
+        Employee employee = employeeRepository.findById(employeeId)
+                .filter(candidate -> candidate.getHotel() != null && hotelId.equals(candidate.getHotel().getId()))
+                .filter(candidate -> isHousekeeping(candidate.getPosition()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chọn nhân viên buồng phòng đang thuộc chi nhánh."));
+
+        task.setAssignedEmployee(employee);
+        task.setBackupEmployee(null);
+        task.setAssignedAt(LocalDateTime.now());
+        task.setReassignedAt(null);
+        task.setStatus("ASSIGNED");
+        taskRepository.save(task);
+        notifyEmployee(employee, hotelId, task, NotificationType.HOUSEKEEPING_TASK_ASSIGNED,
+                "Bạn được giao dọn phòng " + task.getRoom().getRoomNumber() + " sau checkout.");
+        return toResponse(task);
     }
 
     @Transactional(readOnly = true)
@@ -118,7 +111,9 @@ public class HousekeepingTaskService {
                         task.getBookingDetailId(),
                         task.getStatus(),
                         task.getCreatedAt(),
-                        task.getAssignedAt()))
+                        task.getAssignedAt(),
+                        task.getAssignedEmployee() == null ? null : task.getAssignedEmployee().getId(),
+                        task.getAssignedEmployee() == null ? null : task.getAssignedEmployee().getFullName()))
                 .toList();
     }
 
@@ -138,6 +133,27 @@ public class HousekeepingTaskService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Việc dọn phòng đã được xử lý.");
         }
 
+        return markTaskCompleted(task);
+    }
+
+    @Transactional
+    public HousekeepingTaskResponse completeTaskByManager(String taskId) {
+        Account account = currentAccount();
+        Long hotelId = account.getHotelId();
+        if (hotelId == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tài khoản chưa được liên kết với chi nhánh.");
+        }
+        HousekeepingTask task = taskRepository.findById(taskId)
+                .filter(candidate -> hotelId.equals(candidate.getHotelId()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy việc dọn phòng trong chi nhánh."));
+        if (!ACTIVE_STATUSES.contains(task.getStatus()) || task.getAssignedEmployee() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ xác nhận hoàn tất được công việc đã phân công.");
+        }
+
+        return markTaskCompleted(task);
+    }
+
+    private HousekeepingTaskResponse markTaskCompleted(HousekeepingTask task) {
         LocalDateTime completedAt = LocalDateTime.now();
         task.setStatus("COMPLETED");
         task.setCompletedAt(completedAt);
@@ -156,7 +172,9 @@ public class HousekeepingTaskService {
                 task.getId());
         return new HousekeepingTaskResponse(
                 task.getId(), room.getId(), room.getRoomNumber(),
-                task.getBookingDetailId(), task.getStatus(), task.getCreatedAt(), task.getAssignedAt());
+                task.getBookingDetailId(), task.getStatus(), task.getCreatedAt(), task.getAssignedAt(),
+                task.getAssignedEmployee() == null ? null : task.getAssignedEmployee().getId(),
+                task.getAssignedEmployee() == null ? null : task.getAssignedEmployee().getFullName());
     }
 
     @Transactional
@@ -213,24 +231,24 @@ public class HousekeepingTaskService {
                 message, "HOUSEKEEPING_TASK", task.getId());
     }
 
+    private HousekeepingTaskResponse toResponse(HousekeepingTask task) {
+        Employee assignedEmployee = task.getAssignedEmployee();
+        return new HousekeepingTaskResponse(
+                task.getId(),
+                task.getRoom().getId(),
+                task.getRoom().getRoomNumber(),
+                task.getBookingDetailId(),
+                task.getStatus(),
+                task.getCreatedAt(),
+                task.getAssignedAt(),
+                assignedEmployee == null ? null : assignedEmployee.getId(),
+                assignedEmployee == null ? null : assignedEmployee.getFullName()
+        );
+    }
+
     private boolean isHousekeeping(String roleOrPosition) {
         if (roleOrPosition == null) return false;
         String value = roleOrPosition.trim().toLowerCase(Locale.ROOT);
-        return value.contains("buồng") || value.contains("housekeeping") || value.contains("housekeeper");
-    }
-
-    private String normalizeShift(String shift) {
-        if (shift == null) return "";
-        String value = shift.trim().toLowerCase(Locale.ROOT);
-        if (value.equals("ca sáng") || value.equals("morning")) return "Ca sáng";
-        if (value.equals("ca chiều") || value.equals("ca tối") || value.equals("afternoon") || value.equals("evening")) return "Ca chiều";
-        if (value.equals("ca đêm") || value.equals("night")) return "Ca đêm";
-        return shift;
-    }
-
-    private String shiftForTime(LocalTime time) {
-        if (!time.isBefore(LocalTime.of(6, 0)) && time.isBefore(LocalTime.of(14, 0))) return "Ca sáng";
-        if (!time.isBefore(LocalTime.of(14, 0)) && time.isBefore(LocalTime.of(22, 0))) return "Ca chiều";
-        return "Ca đêm";
+        return value.contains("buồng") || value.contains("buong") || value.contains("housekeeping") || value.contains("housekeeper");
     }
 }

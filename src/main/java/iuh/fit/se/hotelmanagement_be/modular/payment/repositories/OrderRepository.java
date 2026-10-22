@@ -1,6 +1,7 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import jakarta.persistence.LockModeType;
@@ -21,28 +22,32 @@ public interface OrderRepository extends JpaRepository<Order, String> {
 
     interface DailyServiceRevenueProjection {
         LocalDate getRevenueDate();
-        BigDecimal getRevenue();
-        Long getClosedInvoiceCount();
+        Double getRevenue();
+        Long getServiceUsageCount();
     }
 
     @Query("""
-            SELECT FUNCTION('DATE', o.closeDate) AS revenueDate,
-                   COALESCE(SUM(COALESCE(o.serviceTotalAmount, 0) - COALESCE(o.discountServiceAmount, 0)), 0) AS revenue,
-                   COUNT(o) AS closedInvoiceCount
-            FROM Order o
-            WHERE o.booking.hotel.id = :hotelId
-              AND o.closeDate >= :start
-              AND o.closeDate < :end
-              AND (o.orderStatus IS NULL OR o.orderStatus <> :cancelledStatus)
-              AND (o.booking.bookingStatus IS NULL OR o.booking.bookingStatus <> :cancelledBookingStatus)
-            GROUP BY FUNCTION('DATE', o.closeDate)
-            ORDER BY FUNCTION('DATE', o.closeDate)
+            SELECT FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime)) AS revenueDate,
+                   COALESCE(SUM(COALESCE(service.price, 0) * service.quantity), 0) AS revenue,
+                   COUNT(service.id) AS serviceUsageCount
+            FROM BookingServiceDetail service
+            JOIN service.bookingDetail detail
+            JOIN detail.booking booking
+            WHERE booking.hotel.id = :hotelId
+              AND COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime) >= :start
+              AND COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime) < :end
+              AND service.used = true
+              AND (service.cancelled = false OR service.cancelled IS NULL)
+              AND (detail.status IS NULL OR detail.status <> :cancelledRoomStatus)
+              AND (booking.bookingStatus IS NULL OR booking.bookingStatus <> :cancelledBookingStatus)
+            GROUP BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
+            ORDER BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
             """)
     List<DailyServiceRevenueProjection> getDailyServiceRevenue(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledStatus") OrderStatusType cancelledStatus,
+            @Param("cancelledRoomStatus") BookingStatusType cancelledRoomStatus,
             @Param("cancelledBookingStatus") BookingStatus cancelledBookingStatus
     );
 

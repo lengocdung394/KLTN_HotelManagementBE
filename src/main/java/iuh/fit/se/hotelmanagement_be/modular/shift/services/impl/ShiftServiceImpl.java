@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
@@ -33,6 +34,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ShiftServiceImpl implements ShiftService {
+
+    private static final ZoneId HOTEL_TIME_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     ShiftAssignmentRepository shiftAssignmentRepository;
     EmployeeRepository employeeRepository;
@@ -99,6 +102,7 @@ public class ShiftServiceImpl implements ShiftService {
     @Override
     @Transactional
     public ShiftAssignmentResponse assignShift(ShiftAssignRequest request, Long hotelId) {
+        requireEditableDate(request.getWorkDate());
         Hotel hotel = hotelRepository.findById(hotelId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
 
@@ -180,11 +184,20 @@ public class ShiftServiceImpl implements ShiftService {
     ) {
         LocalDate monday = weekStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         LocalDate sunday = monday.plusDays(6);
+        LocalDate today = today();
+        if (!sunday.isAfter(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa lịch của hôm nay hoặc ngày đã qua.");
+        }
+        LocalDate firstEditableDate = today.plusDays(1);
+        LocalDate editableStart = firstEditableDate.isAfter(monday) ? firstEditableDate : monday;
         Map<String, List<ShiftAssignRequest>> slots = new HashMap<>();
         Set<String> employeesPerDay = new HashSet<>();
         for (ShiftAssignRequest assignment : request.getAssignments()) {
             if (assignment.getWorkDate().isBefore(monday) || assignment.getWorkDate().isAfter(sunday)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch phân ca phải nằm trong tuần đã chọn.");
+            }
+            if (!assignment.getWorkDate().isAfter(today)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa phân công của hôm nay hoặc ngày đã qua.");
             }
             String role = normalizeRole(assignment.getRole());
             if (!List.of("Lễ tân", "Buồng phòng", "Bảo vệ").contains(role)) {
@@ -208,8 +221,7 @@ public class ShiftServiceImpl implements ShiftService {
             }
         }
 
-        for (int day = 0; day < 7; day++) {
-            LocalDate workDate = monday.plusDays(day);
+        for (LocalDate workDate = editableStart; !workDate.isAfter(sunday); workDate = workDate.plusDays(1)) {
             for (String shiftType : List.of("Ca sáng", "Ca chiều", "Ca đêm")) {
                 requireSlotCount(slots, workDate, shiftType, "Lễ tân", 2);
                 requireSlotCount(slots, workDate, shiftType, "Buồng phòng", 2);
@@ -240,26 +252,103 @@ public class ShiftServiceImpl implements ShiftService {
                     .build());
         }
 
-        shiftAssignmentRepository.deleteByHotel_IdAndWorkDateBetween(hotelId, monday, sunday);
+        shiftAssignmentRepository.deleteByHotel_IdAndWorkDateBetween(hotelId, editableStart, sunday);
         shiftAssignmentRepository.saveAll(assignments);
         return getWeeklySchedule(hotelId, monday);
     }
 
     @Override
     @Transactional
-    public void deleteShift(String shiftId) {
-        if (shiftAssignmentRepository.existsById(shiftId)) {
-            shiftAssignmentRepository.deleteById(shiftId);
+    public WeeklyScheduleResponse clearWeeklySchedule(Long hotelId, LocalDate weekStartDate) {
+        LocalDate monday = weekStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate sunday = monday.plusDays(6);
+        LocalDate today = today();
+        if (!sunday.isAfter(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể xóa lịch của hôm nay hoặc ngày đã qua.");
         }
+        LocalDate firstEditableDate = today.plusDays(1);
+        LocalDate editableStart = firstEditableDate.isAfter(monday) ? firstEditableDate : monday;
+        shiftAssignmentRepository.deleteByHotel_IdAndWorkDateBetween(hotelId, editableStart, sunday);
+        return getWeeklySchedule(hotelId, monday);
     }
 
     @Override
     @Transactional
-    public WeeklyScheduleResponse initDefaultWeeklyScheduleIfEmpty(Long hotelId, LocalDate weekStartDate) {
-        LocalDate monday = (weekStartDate != null)
-                ? weekStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                : LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        return getWeeklySchedule(hotelId, monday);
+    public WeeklyScheduleResponse copyWeeklySchedule(Long hotelId, LocalDate sourceWeekStartDate, LocalDate targetWeekStartDate) {
+        LocalDate sourceMonday = sourceWeekStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate targetMonday = targetWeekStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate targetSunday = targetMonday.plusDays(6);
+        LocalDate today = today();
+        if (sourceMonday.equals(targetMonday)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tuần nguồn và tuần đích phải khác nhau.");
+        }
+        if (!targetSunday.isAfter(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể sao chép vào hôm nay hoặc ngày đã qua.");
+        }
+
+        List<ShiftAssignment> sourceAssignments = shiftAssignmentRepository.findByHotelIdAndWorkDateBetween(
+                hotelId, sourceMonday, sourceMonday.plusDays(6));
+        if (sourceAssignments.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tuần nguồn chưa có lịch phân ca để sao chép.");
+        }
+
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy khách sạn."));
+        LocalDate firstEditableDate = today.plusDays(1);
+        LocalDate editableStart = firstEditableDate.isAfter(targetMonday) ? firstEditableDate : targetMonday;
+        List<ShiftAssignment> copiedAssignments = new ArrayList<>();
+        Set<String> employeeDays = new HashSet<>();
+        for (ShiftAssignment source : sourceAssignments) {
+            LocalDate targetDate = targetMonday.plusDays(java.time.temporal.ChronoUnit.DAYS.between(sourceMonday, source.getWorkDate()));
+            if (targetDate.isBefore(editableStart) || targetDate.isAfter(targetSunday)) continue;
+            Employee employee = source.getEmployee();
+            String role = normalizeRole(source.getRole());
+            String shiftType = normalizeShiftType(source.getShiftType());
+            if (!List.of("Lễ tân", "Buồng phòng", "Bảo vệ").contains(role) || shiftType == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch nguồn có vị trí hoặc ca làm không hợp lệ.");
+            }
+            if (employee == null || employee.getHotel() == null || !hotelId.equals(employee.getHotel().getId())
+                    || !employeeMatchesRole(employee, role)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch nguồn có nhân viên không hợp lệ với chi nhánh hoặc vị trí.");
+            }
+            if (!employeeDays.add(targetDate + "|" + employee.getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lịch nguồn có nhân viên bị phân nhiều ca trong cùng ngày.");
+            }
+            copiedAssignments.add(ShiftAssignment.builder()
+                    .hotel(hotel)
+                    .employee(employee)
+                    .workDate(targetDate)
+                    .shiftType(shiftType)
+                    .shiftTime(source.getShiftTime())
+                    .role(role)
+                    .task(source.getTask())
+                    .note(source.getNote())
+                    .status("SCHEDULED")
+                    .build());
+        }
+
+        shiftAssignmentRepository.deleteByHotel_IdAndWorkDateBetween(hotelId, editableStart, targetSunday);
+        shiftAssignmentRepository.saveAll(copiedAssignments);
+        return getWeeklySchedule(hotelId, targetMonday);
+    }
+
+    @Override
+    @Transactional
+    public void deleteShift(String shiftId) {
+        shiftAssignmentRepository.findById(shiftId).ifPresent(assignment -> {
+            requireEditableDate(assignment.getWorkDate());
+            shiftAssignmentRepository.delete(assignment);
+        });
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(HOTEL_TIME_ZONE);
+    }
+
+    private void requireEditableDate(LocalDate workDate) {
+        if (workDate == null || !workDate.isAfter(today())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Không thể chỉnh sửa phân công của hôm nay hoặc ngày đã qua.");
+        }
     }
 
     private void requireSlotCount(

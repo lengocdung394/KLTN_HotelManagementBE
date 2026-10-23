@@ -103,9 +103,15 @@ public class Order {
     }
 
     public void operation() {
-        if (getRemainingAmount().compareTo(BigDecimal.ZERO) == 0 && this.orderStatus == OrderStatusType.OPEN) {
-            this.orderStatus = OrderStatusType.CLOSED;
-            this.closeDate = LocalDateTime.now();
+        this.remainingAmount = getRemainingAmount();
+        if (this.remainingAmount.compareTo(BigDecimal.ZERO) == 0) {
+            this.paymentStatus = PaymentStatus.PAID;
+            if (this.orderStatus == OrderStatusType.OPEN || this.orderStatus == OrderStatusType.CANCELLED) {
+                this.orderStatus = OrderStatusType.CLOSED;
+                this.closeDate = LocalDateTime.now();
+            }
+        } else if (this.paidAmount != null && this.paidAmount.compareTo(BigDecimal.ZERO) > 0) {
+            this.paymentStatus = PaymentStatus.PARTIAL;
         }
     }
 

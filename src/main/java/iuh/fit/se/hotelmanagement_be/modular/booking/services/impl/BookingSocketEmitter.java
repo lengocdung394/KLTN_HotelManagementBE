@@ -136,22 +136,51 @@ public class BookingSocketEmitter {
         String formattedAmount = formatAmount(amount != null ? amount : BigDecimal.ZERO);
         String paymentMethod = switch (paymentType != null ? paymentType : PaymentType.CASH) {
             case CASH -> "Tiền mặt";
-            case BANK -> "Chuyển khoản";
+            case BANK -> "Chuyển khoản (VietQR)";
             case EWALLET -> "Ví điện tử";
         };
+
+        boolean isOnline = booking.getBookingChannel() == iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel.ONLINE;
+        String title = isOnline ? "Đặt phòng & Thanh toán thành công" : "Đã nhận thanh toán booking";
+        String description = "Mã booking: #" + booking.getId()
+                + " | Khách hàng: " + customerName
+                + " | SĐT: " + customerPhone
+                + " | Số tiền thanh toán: " + formattedAmount + "đ"
+                + " | Phương thức: " + paymentMethod + ".";
 
         notificationService.createAndPublish(
                 hotelId,
                 NotificationType.PAYMENT_RECEIVED,
-                "Đã nhận thanh toán booking",
-                "Mã booking: #" + booking.getId()
-                        + " | Khách hàng: " + customerName
-                        + " | SĐT: " + customerPhone
-                        + " | Số tiền thanh toán: " + formattedAmount + "đ"
-                        + " | Phương thức: " + paymentMethod + ".",
+                title,
+                description,
                 "BOOKING",
                 booking.getId()
         );
+
+        Map<String, Object> paymentData = Map.of(
+                "action", "PAYMENT_RECEIVED",
+                "bookingId", booking.getId(),
+                "customerName", customerName,
+                "customerPhone", customerPhone,
+                "amount", (amount != null ? amount : BigDecimal.ZERO).doubleValue(),
+                "paymentMethod", paymentMethod
+        );
+        socketIOServer.getRoomOperations("hotel_" + hotelId)
+                .sendEvent("new_booking_notification", paymentData);
+        socketIOServer.getRoomOperations("super_admin_accounts")
+                .sendEvent("new_booking_notification", Map.of("hotelId", hotelId, "data", paymentData));
+
+        if (customer != null) {
+            emitCustomerBookingStatus(
+                    customer,
+                    booking,
+                    NotificationType.PAYMENT_RECEIVED,
+                    "Đặt phòng & Thanh toán thành công",
+                    "Mã booking: #" + booking.getId()
+                            + " | Quý khách đã thanh toán thành công " + formattedAmount + "đ qua " + paymentMethod + ".");
+        }
+
+        emitRoomMatrixUpdate(hotelId);
     }
 
     public void emitBookingUpdated(
@@ -358,4 +387,5 @@ public class BookingSocketEmitter {
     ) {
 
     }
-}
+
+    }

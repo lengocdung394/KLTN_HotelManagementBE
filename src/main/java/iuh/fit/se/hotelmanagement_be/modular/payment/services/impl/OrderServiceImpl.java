@@ -70,21 +70,30 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
-        if (order.getOrderStatus() == OrderStatusType.CLOSED) {
-            throw new AppException(ErrorCode.ORDER_ALREADY_CLOSED);
-        }
-
         BigDecimal paymentAmount = request.getAmount();
         if (paymentAmount == null || paymentAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(ErrorCode.INVALID_PAYMENT_AMOUNT);
         }
 
         CashFlowType cashFlow = request.getCashFlowType() != null ? request.getCashFlowType() : CashFlowType.RECEIPT;
+        Booking booking = order.getBooking();
+        boolean isOnlineCustomerPayment = request.getNote() != null && request.getNote().contains("trực tuyến");
 
-        if (cashFlow == CashFlowType.RECEIPT) {
+        if (isOnlineCustomerPayment && cashFlow == CashFlowType.RECEIPT) {
+            order.setTotalAmount(paymentAmount);
+            order.setPaidAmount(BigDecimal.ZERO);
+            order.setOrderStatus(OrderStatusType.OPEN);
+            order.setCloseDate(null);
+        } else if (order.getOrderStatus() == OrderStatusType.CLOSED) {
+            throw new AppException(ErrorCode.ORDER_ALREADY_CLOSED);
+        } else if (order.getOrderStatus() == OrderStatusType.CANCELLED) {
+            order.setOrderStatus(OrderStatusType.OPEN);
+        }
+
+        if (cashFlow == CashFlowType.RECEIPT && !isOnlineCustomerPayment) {
             BigDecimal remaining = order.getRemainingAmount();
             if (paymentAmount.compareTo(remaining) > 0) {
-                throw new AppException(ErrorCode.PAYMENT_EXCEEDS_REMAINING);
+                order.setTotalAmount((order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO).add(paymentAmount));
             }
         }
 
@@ -95,6 +104,7 @@ public class OrderServiceImpl implements OrderService {
                 .paymentType(request.getPaymentType())
                 .cashFlowType(cashFlow)
                 .note(request.getNote())
+                .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
                 .build();
         PaymentTransaction savedTx = paymentTransactionRepository.save(transaction);
@@ -108,19 +118,26 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 3. Kiểm tra tự động đóng hóa đơn nếu đã trả hết
+        order.setRemainingAmount(order.getRemainingAmount());
+        order.setPaymentStatus(order.getRemainingAmount().compareTo(BigDecimal.ZERO) == 0
+                ? iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus.PAID
+                : iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus.PARTIAL);
         order.operation();
 
-        // 4. Nếu đơn hàng đã hoàn tất thanh toán, cập nhật trạng thái Booking nếu đang PENDING
-        Booking booking = order.getBooking();
-        if (booking != null && order.getOrderStatus() == OrderStatusType.CLOSED) {
-            if (booking.getBookingStatus() == BookingStatus.PENDING) {
-                if (booking.getBookingStatus() == BookingStatus.IN_HOUSE) {
-                    bookingRepository.save(booking);
-                } else {
-                    booking.setBookingStatus(BookingStatus.CONFIRMED);
-                    bookingRepository.save(booking);
+        // 4. Cập nhật trạng thái Booking sang CONFIRMED nếu đang PENDING hoặc bị auto-cancel
+        if (booking != null && cashFlow == CashFlowType.RECEIPT) {
+            if (booking.getBookingStatus() == BookingStatus.PENDING
+                    || booking.getBookingStatus() == BookingStatus.CANCELLED) {
+                booking.setBookingStatus(BookingStatus.CONFIRMED);
+                if (booking.getBookingDetails() != null) {
+                    booking.getBookingDetails().forEach(detail -> {
+                        if (detail.getStatus() == iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED) {
+                            detail.setStatus(iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.PENDING);
+                            detail.setCancelledAt(null);
+                        }
+                    });
                 }
-
+                bookingRepository.save(booking);
             }
         }
 

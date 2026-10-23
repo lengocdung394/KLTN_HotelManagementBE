@@ -275,6 +275,19 @@ public class PaymentServiceImpl implements PaymentService {
                 order.getPaymentTransactions() != null ? order.getPaymentTransactions().size() : 0);
 
         orderRepository.save(order);
+        Booking booking = order.getBooking();
+        if (booking != null && (booking.getBookingStatus() == BookingStatus.PENDING || booking.getBookingStatus() == BookingStatus.CANCELLED)) {
+            booking.setBookingStatus(BookingStatus.CONFIRMED);
+            if (booking.getBookingDetails() != null) {
+                booking.getBookingDetails().forEach(detail -> {
+                    if (detail.getStatus() == BookingStatusType.CANCELLED) {
+                        detail.setStatus(BookingStatusType.PENDING);
+                        detail.setCancelledAt(null);
+                    }
+                });
+            }
+            bookingRepository.save(booking);
+        }
         log.info("[Webhook] Đã gọi orderRepository.save(order.id={})", order.getId());
         bookingSocketEmitter.emitPaymentReceived(order, BigDecimal.valueOf(amountPaidOnGateway), xacDinhPaymentType);
         sendPaymentEmailAfterCommit(

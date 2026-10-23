@@ -43,5 +43,6 @@ public interface RoomRepository extends JpaRepository<Room, String> {
             String id,
             Long hotelId
     );
-
+    Optional<Room> findFirstByRoomNumber(String roomNumber);
+    Optional<Room> findFirstByRoomNumberAndFloor_Building_Hotel_Id(String roomNumber, Long hotelId);
 }

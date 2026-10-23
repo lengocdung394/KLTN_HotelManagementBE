@@ -136,33 +136,38 @@ public class BookingServiceImpl implements BookingService {
         Long hotelId = hotel.getId();
         String customerId = customer.getId();
 
-        Map<String, Object> bookingData = new LinkedHashMap<>();
-        bookingData.put("bookingId", savedBooking.getId());
-        bookingData.put("customerName", customer.getFullName());
-        bookingData.put("customerPhone", customer.getPhone());
-        bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
-
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
-        bookingSocketEmitter.emitNewBookingNotification(
-                hotelId,
-                savedBooking,
-                bookingData
-        );
-        // Báo về cho khách hàng trạng thái đơn hàng
-        bookingSocketEmitter.emitCustomerBookingStatus(
-                customer,
-                savedBooking,
-                NotificationType.BOOKING_CREATED,
-                "Đặt phòng thành công",
-                "Mã booking: #" + savedBooking.getId()
-                        + " | Khách hàng: " + customer.getFullName()
-                        + " | SĐT: " + customer.getPhone()
-                        + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
+        // CHỈ bắn thông báo đơn mới tới nhân viên và email khi booking ĐÃ ĐƯỢC XÁC NHẬN / THANH TOÁN THÀNH CÔNG
+        // Đơn ONLINE đang PENDING chờ thanh toán sẽ chỉ bắn thông báo sau khi PayOS/ngân hàng xác nhận thanh toán thành công
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED) {
+            Map<String, Object> bookingData = new LinkedHashMap<>();
+            bookingData.put("bookingId", savedBooking.getId());
+            bookingData.put("customerName", customer.getFullName());
+            bookingData.put("customerPhone", customer.getPhone());
+            bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+
+            bookingSocketEmitter.emitNewBookingNotification(
+                    hotelId,
+                    savedBooking,
+                    bookingData
+            );
+            // Báo về cho khách hàng trạng thái đơn hàng
+            bookingSocketEmitter.emitCustomerBookingStatus(
+                    customer,
+                    savedBooking,
+                    NotificationType.BOOKING_CREATED,
+                    "Đặt phòng thành công",
+                    "Mã booking: #" + savedBooking.getId()
+                            + " | Khách hàng: " + customer.getFullName()
+                            + " | SĐT: " + customer.getPhone()
+                            + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
+
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
+        }
         // ==========================================
 
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         return toBookingResponse(savedBooking);
     }
 
@@ -510,19 +515,68 @@ public class BookingServiceImpl implements BookingService {
         // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
 
         return detailRequests.stream().map(detailReq -> {
+            Long targetHotelId = booking.getHotel() != null ? booking.getHotel().getId() : null;
             String targetRoomId = detailReq.getRoomId();
-            Room room = roomRepository.findById(targetRoomId)
-                    .or(() -> roomRepository.findFirstByRoomNumber(targetRoomId))
-                    .or(() -> roomRepository.findAll().stream()
-                            .filter(r -> r.getId().endsWith(targetRoomId) || r.getRoomNumber().equals(targetRoomId))
-                            .findFirst())
-                    .or(() -> {
-                        if (booking.getHotel() != null) {
-                            return roomRepository.findByFloor_Building_Hotel_Id(booking.getHotel().getId()).stream().findFirst();
-                        }
-                        return java.util.Optional.empty();
-                    })
-                    .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+            Room room = null;
+            if (targetHotelId != null && targetRoomId != null && !targetRoomId.isBlank()) {
+                room = roomRepository.findByIdAndFloor_Building_Hotel_Id(targetRoomId, targetHotelId)
+                        .or(() -> roomRepository.findFirstByRoomNumberAndFloor_Building_Hotel_Id(targetRoomId, targetHotelId))
+                        .orElse(null);
+            }
+
+            if (room == null && targetRoomId != null && !targetRoomId.isBlank()) {
+                room = roomRepository.findById(targetRoomId)
+                        .or(() -> roomRepository.findFirstByRoomNumber(targetRoomId))
+                        .or(() -> roomRepository.findAll().stream()
+                                .filter(r -> r.getId().endsWith(targetRoomId) || r.getRoomNumber().equals(targetRoomId))
+                                .findFirst())
+                        .orElse(null);
+            }
+
+            // Nếu phòng không khớp hotel của booking, bỏ để tìm phòng thuộc đúng khách sạn
+            if (room != null && targetHotelId != null) {
+                Long roomHotelId = room.getFloor().getBuilding().getHotel().getId();
+                if (!roomHotelId.equals(targetHotelId)) {
+                    room = null;
+                }
+            }
+
+            // Kiểm tra phòng có bị trùng lịch đặt không, nếu trùng thì tự động tìm phòng khác cùng loại còn trống
+            if (room != null) {
+                long overlapping = bookingDetailRepository.countOverlappingBookings(
+                        room.getId(),
+                        detailReq.getCheckInTime(),
+                        detailReq.getCheckOutTime()
+                );
+                if (overlapping > 0) {
+                    var targetType = room.getRoomType();
+                    Long hId = targetHotelId != null ? targetHotelId : room.getFloor().getBuilding().getHotel().getId();
+                    List<Room> available = bookingDetailRepository.findAvailableRooms(
+                            hId,
+                            detailReq.getCheckInTime(),
+                            detailReq.getCheckOutTime()
+                    );
+                    room = available.stream()
+                            .filter(r -> r.getRoomType() == targetType)
+                            .findFirst()
+                            .or(() -> available.stream().findFirst())
+                            .orElse(null);
+                }
+            } else if (targetHotelId != null) {
+                List<Room> available = bookingDetailRepository.findAvailableRooms(
+                        targetHotelId,
+                        detailReq.getCheckInTime(),
+                        detailReq.getCheckOutTime()
+                );
+                if (!available.isEmpty()) {
+                    room = available.get(0);
+                }
+            }
+
+            if (room == null) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
+            }
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
             BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());

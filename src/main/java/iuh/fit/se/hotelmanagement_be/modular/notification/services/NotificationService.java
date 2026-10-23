@@ -335,7 +335,7 @@ public class NotificationService {
     private void ensureSupportedRole(Account account) {
         if (account == null || account.getId() == null || account.getRoles() == null
                 || account.getRoles().stream().noneMatch(role -> Set.of(
-                        "ROLE_SUPER_ADMIN", "ROLE_ADMIN", "ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_CUSTOMER")
+                        "ROLE_SUPER_ADMIN", "ROLE_ADMIN", "ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_RECEPTIONIST", "ROLE_STAFF", "ROLE_CUSTOMER")
                 .contains(role.getCode()))) {
             throw new AppException(ErrorCode.NOTIFICATION_ROLE);
         }
@@ -405,7 +405,7 @@ public class NotificationService {
                         account.getHotelId(), List.of("ROLE_ADMIN", "ROLE_MANAGER")));
             } else {
                 keys.addAll(accountRepository.findAccountIdsByHotelIdAndRoleCodeIn(
-                        account.getHotelId(), List.of("ROLE_EMPLOYEE")));
+                        account.getHotelId(), List.of("ROLE_EMPLOYEE", "ROLE_RECEPTIONIST", "ROLE_STAFF")));
             }
         } else {
             keys.add(account.getId());
@@ -452,6 +452,6 @@ public class NotificationService {
                 notification.getDescription(),
                 notification.getReferenceType(),
                 notification.getReferenceId(),
-                notification.getCreatedAt());
+                notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : java.time.LocalDateTime.now().toString());
     }
 }

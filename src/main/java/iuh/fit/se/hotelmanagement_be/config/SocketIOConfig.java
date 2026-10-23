@@ -46,6 +46,7 @@ public class SocketIOConfig {
         config.setPort(8085);
 //        config.setOrigin("https://tobochat-next.vercel.app");
         config.setOrigin("*");
+        config.setJsonSupport(new com.corundumstudio.socketio.protocol.JacksonJsonSupport(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
 
         config.setAuthorizationListener(handshakeData -> {
             String token = handshakeData.getSingleUrlParam("token");

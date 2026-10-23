@@ -65,7 +65,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
     boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, String currentDetailId);
     boolean existsByRoom_IdAndStatus(String roomId, BookingStatusType status);
     @Query("SELECT COUNT(bd) FROM BookingDetail bd WHERE bd.room.id = :roomId " +
-            "AND bd.status != 'CANCELLED' " +
+            "AND bd.status IN ('PENDING', 'CHECKED_IN') " +
             "AND bd.checkinTime < :checkOut AND bd.checkoutTime > :checkIn")
     long countOverlappingBookings(@Param("roomId") String roomId,
                                   @Param("checkIn") LocalDateTime checkIn,
@@ -73,4 +73,3 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
     // Thêm hàm này vào repository của bạn
     List<BookingDetail> findByStatusAndCheckoutTimeBefore(BookingStatusType status, LocalDateTime time);
 }
-

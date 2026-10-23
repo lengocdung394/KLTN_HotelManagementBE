@@ -3,6 +3,8 @@ package iuh.fit.se.hotelmanagement_be.modular.auth.services;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeProfileUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeCreateResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
@@ -19,5 +21,7 @@ public interface EmployeeService {
 
     EmployeeResponse getEmployeeById(String id);
 
-    EmployeeResponse updateEmployee(String id, UserRegisterRequest dto, MultipartFile avatarFile);
+    EmployeeResponse updateEmployee(String id, UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount);
+
+    EmployeeResponse updateMyProfile(EmployeeProfileUpdateRequest request, Account currentAccount);
 }

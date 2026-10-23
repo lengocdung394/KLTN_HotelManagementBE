@@ -26,4 +26,5 @@ public class EmployeeResponse {
     Long hotelId;
     String hotelName;
     Set<String> roles;
+    Set<String> roleCodes;
 }

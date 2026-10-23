@@ -33,6 +33,12 @@ public class BookingServiceDetail {
 
     LocalDateTime usedAt;
 
+    @Builder.Default
+    @Column(name = "is_used")
+    Boolean used = false;
+
+    String usedBy;
+
     Double price;
 
     // Khóa ngoại trỏ về Danh mục Service
@@ -71,11 +77,11 @@ public class BookingServiceDetail {
             // this.id = UUID.randomUUID().toString();
         }
 
-        if (this.usedAt == null) {
-            this.usedAt = LocalDateTime.now();
-        }
         if (this.isPaid == null) {
             this.isPaid = false;
+        }
+        if (this.used == null) {
+            this.used = false;
         }
         if (this.cancelled == null) {
             this.cancelled = false;

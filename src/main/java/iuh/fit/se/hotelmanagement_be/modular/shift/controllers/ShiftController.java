@@ -40,7 +40,7 @@ public class ShiftController {
         return (tokenHotelId != null) ? tokenHotelId : 1L;
     }
 
-    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
     @GetMapping("/today")
     @Operation(summary = "Lấy danh sách ca trực hôm nay (Tab 1: Ca trực hôm nay)",
             description = "Trả về danh sách nhân viên trực ca sáng / tối kèm vị trí và công việc của ngày hôm nay.")
@@ -58,7 +58,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
     @GetMapping("/today/summary")
     @Operation(summary = "Lấy tóm tắt ca trực trong ngày",
             description = "Bao gồm ngày, thứ, trạng thái đủ ca và danh sách phân công.")
@@ -76,7 +76,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('VIEW_STAFF_SHIFTS')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
     @GetMapping("/weekly")
     @Operation(summary = "Lấy lịch phân ca cả tuần (Tab 3: Lịch phân ca tuần)",
             description = "Trả về ma trận 7 ngày (từ Thứ 2 đến Chủ nhật) kèm thống kê số ca đã phân công và nhân viên trực.")
@@ -94,7 +94,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
     @PostMapping("/assign")
     @Operation(summary = "Phân công một ca trực cho nhân viên",
             description = "Tạo mới hoặc cập nhật phân công nhân viên vào ca làm việc theo ngày và vị trí.")
@@ -111,7 +111,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
     @PostMapping("/assign-batch")
     @Operation(summary = "Lưu phân công ca trực hàng loạt cho cả tuần",
             description = "Nhận danh sách phân ca của nhiều ngày/nhiều vị trí và lưu đồng loạt vào CSDL.")
@@ -128,7 +128,57 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
+    @PutMapping("/weekly")
+    @Operation(summary = "Thay thế lịch phân ca cho một tuần")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> replaceWeeklySchedule(
+            @Valid @RequestBody ShiftBatchAssignRequest request,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        Long targetHotelId = resolveHotelId(hotelId);
+        WeeklyScheduleResponse result = shiftService.replaceWeeklySchedule(request, targetHotelId, weekStartDate);
+        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
+                .code(1000)
+                .message("Lưu lịch phân ca tuần thành công")
+                .result(result)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
+    @DeleteMapping("/weekly")
+    @Operation(summary = "Xóa toàn bộ lịch phân ca đã lưu của một tuần")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> clearWeeklySchedule(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        Long targetHotelId = resolveHotelId(hotelId);
+        WeeklyScheduleResponse result = shiftService.clearWeeklySchedule(targetHotelId, weekStartDate);
+        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
+                .code(1000)
+                .message("Đã xóa lịch phân ca tuần")
+                .result(result)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
+    @PostMapping("/weekly/copy")
+    @Operation(summary = "Sao chép lịch phân ca từ tuần nguồn sang tuần đích")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> copyWeeklySchedule(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate sourceWeekStartDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetWeekStartDate,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        Long targetHotelId = resolveHotelId(hotelId);
+        WeeklyScheduleResponse result = shiftService.copyWeeklySchedule(targetHotelId, sourceWeekStartDate, targetWeekStartDate);
+        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
+                .code(1000)
+                .message("Đã sao chép lịch phân ca tuần")
+                .result(result)
+                .build());
+    }
+
+    @PreAuthorize("hasAuthority('ROLE_MANAGER')")
     @DeleteMapping("/{shiftId}")
     @Operation(summary = "Hủy / Xóa phân công một ca trực")
     public ResponseEntity<ApiResponse<Void>> deleteShift(@PathVariable String shiftId) {
@@ -139,19 +189,4 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAuthority('MANAGE_STAFF_SHIFTS')")
-    @PostMapping("/init-default")
-    @Operation(summary = "Tự động tạo lịch phân ca mẫu nếu tuần chưa có lịch")
-    public ResponseEntity<ApiResponse<WeeklyScheduleResponse>> initDefaultWeeklySchedule(
-            @RequestParam(required = false) Long hotelId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStartDate
-    ) {
-        Long targetHotelId = resolveHotelId(hotelId);
-        WeeklyScheduleResponse result = shiftService.initDefaultWeeklyScheduleIfEmpty(targetHotelId, weekStartDate);
-        return ResponseEntity.ok(ApiResponse.<WeeklyScheduleResponse>builder()
-                .code(1000)
-                .message("Khởi tạo lịch mẫu tuần thành công")
-                .result(result)
-                .build());
-    }
 }

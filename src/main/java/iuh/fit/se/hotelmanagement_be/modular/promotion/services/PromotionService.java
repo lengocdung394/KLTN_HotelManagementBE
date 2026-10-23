@@ -9,10 +9,12 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.UpdatePromotionR
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionSummaryResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 
 public interface PromotionService {
@@ -32,6 +34,8 @@ public interface PromotionService {
     );
 
     List<PromotionResponse> getActivePromotions();
+
+    PromotionSummaryResponse getPromotionSummary(Long hotelId, YearMonth month);
 
     PromotionQuoteResponse quotePromotion(String id, PromotionQuoteRequest request);
 

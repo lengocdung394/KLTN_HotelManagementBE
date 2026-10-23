@@ -89,7 +89,9 @@ public class CheckoutRefundService {
             CheckoutRefundReviewRequest request,
             Account account) {
         CheckoutRefund refund = getRefundForAccount(refundId, account);
-        if (refund.getStatus() != CheckoutRefundStatus.APPROVED) {
+        boolean cashRefundPending = refund.getRefundMethod() == PaymentType.CASH
+                && refund.getStatus() == CheckoutRefundStatus.PENDING;
+        if (!cashRefundPending && refund.getStatus() != CheckoutRefundStatus.APPROVED) {
             throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_STATUS);
         }
         Order order = refund.getBooking().getOrder();
@@ -105,11 +107,14 @@ public class CheckoutRefundService {
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .order(order)
                 .amount(refund.getAmount())
-                .paymentType(PaymentType.BANK)
+                .paymentType(refund.getRefundMethod())
                 .cashFlowType(CashFlowType.REFUND)
-                .note("Hoàn dư khi check-out booking " + refund.getBooking().getId()
+                .note((refund.getRefundMethod() == PaymentType.CASH
+                        ? "Hoàn dư tiền mặt tại quầy khi check-out booking "
+                        : "Hoàn dư qua ngân hàng khi check-out booking ")
+                        + refund.getBooking().getId()
                         + (request == null || request.getNote() == null || request.getNote().isBlank()
-                        ? "" : " · Mã giao dịch: " + request.getNote().trim()))
+                        ? "" : " · Ghi chú: " + request.getNote().trim()))
                 .transactionDate(now)
                 .build();
         paymentRepository.save(transaction);
@@ -186,10 +191,16 @@ public class CheckoutRefundService {
         return CheckoutRefundResponse.builder()
                 .id(refund.getId())
                 .bookingId(booking.getId())
+                .bookingChannel(booking.getBookingChannel())
                 .customerName(booking.getCustomer() == null ? null : booking.getCustomer().getFullName())
                 .customerPhone(booking.getCustomer() == null ? null : booking.getCustomer().getPhone())
                 .hotelId(booking.getHotel() == null ? null : booking.getHotel().getId())
-                .paidAmount(order == null ? BigDecimal.ZERO : zeroIfNull(order.getPaidAmount()))
+                .paidAmount(order == null
+                        ? BigDecimal.ZERO
+                        : zeroIfNull(order.getPaidAmount()).add(
+                                refund.getStatus() == CheckoutRefundStatus.REFUNDED
+                                        ? zeroIfNull(refund.getAmount())
+                                        : BigDecimal.ZERO))
                 .finalAmount(order == null ? BigDecimal.ZERO : zeroIfNull(order.getTotalAmount()))
                 .refundAmount(refund.getAmount())
                 .refundMethod(refund.getRefundMethod())

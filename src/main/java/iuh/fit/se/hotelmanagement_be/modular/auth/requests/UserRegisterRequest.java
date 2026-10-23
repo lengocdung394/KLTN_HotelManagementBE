@@ -17,4 +17,5 @@ public class UserRegisterRequest {
     String position;
     Long hotelId;
     String password;
+    String avatarUrl;
 }

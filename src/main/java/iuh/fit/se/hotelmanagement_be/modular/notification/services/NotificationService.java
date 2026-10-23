@@ -77,6 +77,23 @@ public class NotificationService {
                 false, false, recipientAccountId);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Notification createAndPublishToAccount(
+            String recipientAccountId,
+            Long hotelId,
+            NotificationType type,
+            String title,
+            String description,
+            String referenceType,
+            String referenceId) {
+        if (recipientAccountId == null || recipientAccountId.isBlank()) {
+            throw new IllegalArgumentException("Recipient account ID must not be blank");
+        }
+        return createAndPublish(
+                hotelId, type, title, description, referenceType, referenceId,
+                false, false, recipientAccountId);
+    }
+
     @Transactional
     public Notification createAndPublishSystemWide(
             NotificationType type,

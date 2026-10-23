@@ -60,6 +60,36 @@ public interface PromotionRepository extends JpaRepository<Promotion, String> {
 
     List<Promotion> findAllByStatusAndDeletedFalseOrderByCreatedAtDesc(PromotionStatus status);
 
+    @Query("""
+            SELECT COUNT(p) FROM Promotion p
+            WHERE p.deleted = false
+              AND p.status = :status
+              AND p.startDate <= :now
+              AND p.endDate >= :now
+              AND (:hotelId IS NULL OR p.hotel.id = :hotelId OR p.hotel IS NULL)
+            """)
+    long countCurrentlyActiveForSummary(
+            @Param("hotelId") Long hotelId,
+            @Param("status") PromotionStatus status,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+            SELECT COUNT(p) FROM Promotion p
+            WHERE p.deleted = false
+              AND p.status = :status
+              AND p.startDate <= :now
+              AND p.endDate >= :now
+              AND p.endDate <= :soon
+              AND (:hotelId IS NULL OR p.hotel.id = :hotelId OR p.hotel IS NULL)
+            """)
+    long countExpiringSoonForSummary(
+            @Param("hotelId") Long hotelId,
+            @Param("status") PromotionStatus status,
+            @Param("now") LocalDateTime now,
+            @Param("soon") LocalDateTime soon
+    );
+
     @Modifying
     @Query("""
             UPDATE Promotion p

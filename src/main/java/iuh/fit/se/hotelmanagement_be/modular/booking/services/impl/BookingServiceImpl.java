@@ -39,6 +39,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRep
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageService;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
@@ -603,6 +604,11 @@ public class BookingServiceImpl implements BookingService {
             Room roomCheck = roomRepository.findByIdWithLock(room.getId())
                     .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
 
+            if (roomCheck.getRoomStatus() == RoomStatus.MAINTENANCE
+                    || roomCheck.getRoomStatus() == RoomStatus.CLEANING) {
+                throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+            }
+
             long overlappingCount = bookingDetailRepository.countOverlappingBookings(
                     roomCheck.getId(),
                     detailReq.getCheckInTime(),
@@ -725,9 +731,7 @@ public class BookingServiceImpl implements BookingService {
             iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(servReq.getServiceId()).orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
             BigDecimal unitPrice = servReq.getPrice() != null ? BigDecimal.valueOf(servReq.getPrice()) : BigDecimal.valueOf(service.getPrice());
-            LocalDateTime usageTime = servReq.getUsedAt() != null ? servReq.getUsedAt() : LocalDateTime.now();
-
-            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName()).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).usedAt(usageTime).isPaid(false).build();
+            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName()).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).used(false).isPaid(false).build();
         }).collect(Collectors.toList());
     }
 
@@ -954,7 +958,12 @@ public class BookingServiceImpl implements BookingService {
                             .cancelled(serviceDetail.getCancelled())
                             .cancelledAt(serviceDetail.getCancelledAt())
                             .price(serviceDetail.getPrice())
+                            .subTotal(serviceDetail.getPrice() == null
+                                    ? 0.0
+                                    : serviceDetail.getPrice() * serviceDetail.getQuantity())
                             .usedAt(serviceDetail.getUsedAt())
+                            .used(serviceDetail.getUsed())
+                            .usedBy(serviceDetail.getUsedBy())
                             .build()).toList() : null).build()).toList();
         }
         Order order = booking.getOrder();
@@ -963,6 +972,7 @@ public class BookingServiceImpl implements BookingService {
                 .bookingId(booking.getId())
                 .customerId(booking.getCustomer() != null ? booking.getCustomer().getId() : null)
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
+                .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 // map phan khuyen mai

@@ -8,6 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailR
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateCheckOutBookingNotificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.LateRoomDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.enums.SurchargeLevel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
@@ -34,6 +35,7 @@ public class LateCheckOutScheduler {
     private final RoomSeasonalRateRepository roomSeasonalRateRepository;
     private final BranchRoomPolicyRepository branchRoomPolicyRepository;
     private final BookingSocketEmitter bookingSocketEmitter;
+    private final CheckInOutService checkInOutService;
 
     @Scheduled(fixedRate = 60000) // Chạy mỗi 1 phút
     public void checkAndBroadcastLateCheckOuts() {
@@ -61,6 +63,30 @@ public class LateCheckOutScheduler {
                 continue;
             }
             Long hotelId = booking.getHotel().getId();
+
+            List<String> detailIdsWithUpdatedSurcharge = details.stream()
+                    .filter(detail -> {
+                        LocalDateTime scheduledCheckOut = detail.getCheckoutTime();
+                        Room room = detail.getRoom();
+                        LocalDate checkoutDate = scheduledCheckOut != null
+                                ? scheduledCheckOut.toLocalDate()
+                                : now.toLocalDate();
+                        BigDecimal dailyRate = calculateRoomPriceForDate(hotelId, checkoutDate, room);
+                        BigDecimal currentSurcharge = SurchargeCalculator.calculateLateCheckOutFee(
+                                scheduledCheckOut,
+                                now,
+                                dailyRate
+                        );
+                        BigDecimal savedSurcharge = detail.getLateCheckOutFee() != null
+                                ? detail.getLateCheckOutFee()
+                                : BigDecimal.ZERO;
+                        return savedSurcharge.compareTo(currentSurcharge) != 0;
+                    })
+                    .map(BookingDetail::getId)
+                    .toList();
+            if (!detailIdsWithUpdatedSurcharge.isEmpty()) {
+                checkInOutService.prepareBulkCheckOut(booking.getId(), detailIdsWithUpdatedSurcharge);
+            }
 
             List<LateRoomDetailResponse> roomDtos = details.stream().map(detail -> {
                 LocalDateTime scheduledCheckOut = detail.getCheckoutTime();

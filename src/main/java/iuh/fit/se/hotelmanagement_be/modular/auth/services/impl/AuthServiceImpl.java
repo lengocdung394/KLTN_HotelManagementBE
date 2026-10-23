@@ -41,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     AccountRepository accountRepository;
     OtpRepository otpRepository;
     OtpService otpService;
+    OtpAttemptService otpAttemptService;
     JwtService jwtService;
     EmailService emailService;
 
@@ -259,12 +260,7 @@ public class AuthServiceImpl implements AuthService {
                 .build();
         otpRepository.save(otp);
 
-        log.info(">>> [FORGOT PASSWORD OTP] Email: {}, OTP: {}", request.getEmail().trim(), otpCode);
-        try {
-            emailService.sendOtpEmail(request.getEmail().trim(), otpCode);
-        } catch (Exception e) {
-            log.warn(">>> Gửi email OTP thất bại: {}", e.getMessage());
-        }
+        emailService.sendOtpEmail(request.getEmail().trim(), otpCode);
     }
 
     @Override
@@ -286,9 +282,16 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (!otp.getOtpCode().equals(request.getOtp().trim())) {
-            otp.setFailedAttempts(otp.getFailedAttempts() + 1);
-            otpRepository.save(otp);
-            throw new RuntimeException("Mã OTP không chính xác");
+            int failedAttempts = otp.getFailedAttempts() + 1;
+            otpAttemptService.incrementFailedAttempt(request.getEmail().trim());
+
+            if (failedAttempts >= 3) {
+                throw new AppException(ErrorCode.OTP_LOCKED);
+            }
+            if (failedAttempts == 2) {
+                throw new AppException(ErrorCode.OTP_INCORRECT_1_ATTEMPT);
+            }
+            throw new AppException(ErrorCode.OTP_INCORRECT_2_ATTEMPTS);
         }
 
         Account account = accountRepository.findByEmail(request.getEmail().trim())

@@ -12,6 +12,19 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RoomRepository extends JpaRepository<Room, String> {
+    interface RoomStatusReportProjection {
+        iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus getRoomStatus();
+        Long getRoomCount();
+    }
+
+    @Query("""
+            SELECT r.roomStatus AS roomStatus, COUNT(r) AS roomCount
+            FROM Room r
+            WHERE r.floor.building.hotel.id = :hotelId
+            GROUP BY r.roomStatus
+            """)
+    List<RoomStatusReportProjection> getRoomStatusReport(@Param("hotelId") Long hotelId);
+
     // Hoặc lấy các Room thuộc về 1 Floor cụ thể
     List<Room> findByFloorId(String floorId);
     List<Room> findByFloor_Building_Hotel_Id(Long hotelId);

@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
@@ -11,8 +12,10 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDeta
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
@@ -28,6 +31,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageSe
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
@@ -57,6 +61,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     ServiceRepository serviceRepository;
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
+    BookingRepository bookingRepository;
     EmployeeRepository employeeRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
@@ -68,6 +73,61 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     CustomerPromotionRepository customerPromotionRepository;
     PromotionUsageService promotionUsageService;
     BookingSocketEmitter bookingSocketEmitter;
+
+    @Override
+    @Transactional
+    public BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, Account account) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        if (account.getHotelId() == null || booking.getHotel() == null
+                || !account.getHotelId().equals(booking.getHotel().getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+        }
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+
+        BookingDetail detail = booking.getBookingDetails().stream()
+                .filter(item -> item.getBookingServiceDetails() != null
+                        && item.getBookingServiceDetails().stream()
+                        .anyMatch(service -> service.getId().equals(serviceDetailId)))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND));
+        if (detail.getStatus() == BookingStatusType.CANCELLED) {
+            throw new AppException(ErrorCode.CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM);
+        }
+
+        BookingServiceDetail serviceDetail = detail.getBookingServiceDetails().stream()
+                .filter(item -> item.getId().equals(serviceDetailId))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND));
+        if (Boolean.TRUE.equals(serviceDetail.getCancelled())) {
+            throw new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND);
+        }
+        if (Boolean.TRUE.equals(serviceDetail.getUsed())) {
+            throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+        }
+
+        serviceDetail.setUsed(true);
+        serviceDetail.setUsedAt(LocalDateTime.now());
+        serviceDetail.setUsedBy(account.getEmployee() == null ? account.getEmail() : account.getEmployee().getFullName());
+
+        return BookingServiceResponseForHotel.builder()
+                .bookingServiceDetailId(serviceDetail.getId())
+                .serviceId(serviceDetail.getService().getId())
+                .name(serviceDetail.getName())
+                .quantity(serviceDetail.getQuantity())
+                .price(serviceDetail.getPrice())
+                .subTotal(serviceDetail.getPrice() == null
+                        ? 0.0
+                        : serviceDetail.getPrice() * serviceDetail.getQuantity())
+                .usedAt(serviceDetail.getUsedAt())
+                .used(serviceDetail.getUsed())
+                .usedBy(serviceDetail.getUsedBy())
+                .cancelled(serviceDetail.getCancelled())
+                .cancelledAt(serviceDetail.getCancelledAt())
+                .build();
+    }
 
 
     // Thêm phòng + kèm theo dịch vụ
@@ -93,6 +153,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                         log.error("Room not found with ID: {}", roomReq.getRoomId());
                         return new AppException(ErrorCode.ROOM_NOT_FOUND);
                     });
+            if (room.getRoomStatus() == RoomStatus.MAINTENANCE
+                    || room.getRoomStatus() == RoomStatus.CLEANING) {
+                throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+            }
 
             LocalDate startDate = roomReq.getCheckInTime().toLocalDate();
             LocalDate endDate = roomReq.getCheckOutTime().toLocalDate();
@@ -208,6 +272,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             log.error("New Room not found with ID: {}", req.getNewRoomId());
                             return new AppException(ErrorCode.ROOM_NOT_FOUND);
                         });
+                if (newRoom.getRoomStatus() == RoomStatus.MAINTENANCE
+                        || newRoom.getRoomStatus() == RoomStatus.CLEANING) {
+                    throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
+                }
                 targetDetail.setRoom(newRoom);
                 log.info("Updated room ID to {} for BookingDetail ID: {}", newRoom.getId(), targetDetail.getId());
             }
@@ -335,7 +403,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         log.info("==> START modifying booking ID: {} by Employee ID: {}", bookingId, request.getEmployeeId());
 
-        Booking booking = bookingManagementRepository.findById(bookingId)
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> {
                     log.error("Booking not found with ID: {}", bookingId);
                     return new AppException(ErrorCode.BOOKING_NOT_FOUND);
@@ -344,6 +412,17 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
             log.warn("Attempted to modify an already cancelled booking ID: {}", bookingId);
             throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+        boolean allRoomsCheckedOut = booking.getBookingDetails() != null
+                && booking.getBookingDetails().stream()
+                .filter(detail -> detail.getStatus() != BookingStatusType.CANCELLED)
+                .anyMatch(detail -> detail.getStatus() == BookingStatusType.CHECKED_OUT)
+                && booking.getBookingDetails().stream()
+                .filter(detail -> detail.getStatus() != BookingStatusType.CANCELLED)
+                .allMatch(detail -> detail.getStatus() == BookingStatusType.CHECKED_OUT);
+        if (booking.getBookingStatus() == BookingStatus.COMPLETED || allRoomsCheckedOut) {
+            log.warn("Attempted to modify a checked-out booking ID: {}", bookingId);
+            throw new AppException(ErrorCode.BOOKING_ALREADY_COMPLETED);
         }
 
         Employee employee = employeeRepository.findById(request.getEmployeeId())
@@ -381,12 +460,27 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         // ==========================================
         BigDecimal totalRoom = BigDecimal.ZERO;
         BigDecimal totalService = BigDecimal.ZERO;
+        BigDecimal totalSurcharge = BigDecimal.ZERO;
 
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
                 detail.setTotalPrice(0.0);
                 continue;
             }
+
+            BigDecimal earlyCheckInFee = detail.getEarlyCheckInFee() != null
+                    ? detail.getEarlyCheckInFee()
+                    : BigDecimal.ZERO;
+            BigDecimal lateCheckOutFee = detail.getLateCheckOutFee() != null
+                    ? detail.getLateCheckOutFee()
+                    : BigDecimal.ZERO;
+            BigDecimal otherSurcharges = detail.getOtherSurcharges() != null
+                    ? detail.getOtherSurcharges()
+                    : BigDecimal.ZERO;
+            totalSurcharge = totalSurcharge
+                    .add(earlyCheckInFee)
+                    .add(lateCheckOutFee)
+                    .add(otherSurcharges);
 
             double roomSub = detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0;
 
@@ -420,17 +514,18 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         booking.setApplyAmount(totalDiscount);
 
         // 8. CHỐT TỔNG TIỀN VÀ TRẠNG THÁI ORDER
-        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService);
+        BigDecimal currentTotalAmountBeforeDiscount = totalRoom.add(totalService).add(totalSurcharge);
         BigDecimal newTotalAmount = currentTotalAmountBeforeDiscount.subtract(totalDiscount); // Trừ chuẩn tổng tiền giảm ở đây!
         BigDecimal oldTotalAmount = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
         BigDecimal totalOrderChange = newTotalAmount.subtract(oldTotalAmount);
 
         BigDecimal paidAmount = order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO;
-        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount);
+        BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount).max(BigDecimal.ZERO);
 
         // Gán lại các giá trị tổng và khuyến mãi đầy đủ vào Order
         order.setRoomTotalAmount(totalRoom);
         order.setServiceTotalAmount(totalService);
+        order.setSurchargeTotalAmount(totalSurcharge);
 
         order.setDiscountAmountTotal(discountTotalOrder);
         order.setDiscountRoomAmount(discountRoom);
@@ -501,6 +596,11 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.debug("BookingDetail ID: {} is already cancelled. Skipping.", detailId);
                 continue;
             }
+            if (targetDetail.getBookingServiceDetails() != null && targetDetail.getBookingServiceDetails().stream()
+                    .anyMatch(service -> Boolean.TRUE.equals(service.getUsed())
+                            && !Boolean.TRUE.equals(service.getCancelled()))) {
+                throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+            }
 
             targetDetail.setStatus(BookingStatusType.CANCELLED);
             targetDetail.setCancelledAt(LocalDateTime.now());
@@ -569,7 +669,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
                 // 1. Kiểm tra xem dịch vụ này ĐÃ TỒN TẠI TRONG PHÒNG NÀY CHƯA (và chưa bị hủy)
                 BookingServiceDetail existingServiceDetail = targetDetail.getBookingServiceDetails().stream()
-                        .filter(sd -> sd.getService().getId().equals(sReq.getServiceId()) && !Boolean.TRUE.equals(sd.getCancelled()))
+                        .filter(sd -> sd.getService().getId().equals(sReq.getServiceId())
+                                && !Boolean.TRUE.equals(sd.getCancelled())
+                                && !Boolean.TRUE.equals(sd.getUsed()))
                         .findFirst()
                         .orElse(null);
 
@@ -583,10 +685,6 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     int newQty = oldQty + addedQty;
 
                     existingServiceDetail.setQuantity(newQty);
-                    if (sReq.getUsedAt() != null) {
-                        existingServiceDetail.setUsedAt(sReq.getUsedAt());
-                    }
-
                     itemTotal = price * addedQty;
                     log.info("Service ID: {} already exists in BookingDetail ID: {}. Increased quantity from {} to {}",
                             sReq.getServiceId(), targetDetail.getId(), oldQty, newQty);
@@ -598,7 +696,6 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             .name(catalogService.getName())
                             .price(price)
                             .quantity(sReq.getQuantity())
-                            .usedAt(sReq.getUsedAt()) // Gán thời gian sử dụng từ request lên
                             .isPaid(false)
                             .cancelled(false)
                             .build();
@@ -657,6 +754,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 if (Boolean.TRUE.equals(serviceDetail.getCancelled())) {
                     continue;
                 }
+                if (Boolean.TRUE.equals(serviceDetail.getUsed())) {
+                    throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                }
 
                 serviceDetail.setCancelled(true);
                 serviceDetail.setCancelledAt(LocalDateTime.now());
@@ -705,15 +805,40 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             }
 
             for (ServiceQuantityItem sItem : updateReq.getServices()) {
-                // 2. Tìm dịch vụ trong phòng đó dựa vào serviceId
-                BookingServiceDetail targetService = targetDetail.getBookingServiceDetails().stream()
-                        .filter(sd -> sd.getService().getId().equals(sItem.getServiceId()) && !Boolean.TRUE.equals(sd.getCancelled()))
-                        .findFirst()
-                        .orElse(null);
+                BookingServiceDetail targetService;
+                if (sItem.getBookingServiceDetailId() != null && !sItem.getBookingServiceDetailId().isBlank()) {
+                    targetService = targetDetail.getBookingServiceDetails().stream()
+                            .filter(sd -> sd.getId().equals(sItem.getBookingServiceDetailId())
+                                    && sd.getService().getId().equals(sItem.getServiceId()))
+                            .findFirst()
+                            .orElseThrow(() -> new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND));
+                    if (Boolean.TRUE.equals(targetService.getCancelled())) {
+                        throw new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND);
+                    }
+                    if (Boolean.TRUE.equals(targetService.getUsed())) {
+                        throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                    }
+                } else {
+                    targetService = targetDetail.getBookingServiceDetails().stream()
+                            .filter(sd -> sd.getService().getId().equals(sItem.getServiceId())
+                                    && !Boolean.TRUE.equals(sd.getCancelled())
+                                    && !Boolean.TRUE.equals(sd.getUsed()))
+                            .findFirst()
+                            .orElse(null);
+                }
 
                 int newQuantity = sItem.getQuantity();
 
                 if (targetService == null) {
+                    BookingServiceDetail usedService = targetDetail.getBookingServiceDetails().stream()
+                            .filter(sd -> sd.getService().getId().equals(sItem.getServiceId())
+                                    && !Boolean.TRUE.equals(sd.getCancelled())
+                                    && Boolean.TRUE.equals(sd.getUsed()))
+                            .findFirst()
+                            .orElse(null);
+                    if (usedService != null && newQuantity != usedService.getQuantity()) {
+                        throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                    }
                     if (newQuantity > 0) {
                         log.warn("Service ID: {} not found in BookingDetail ID: {}.", sItem.getServiceId(), targetDetail.getId());
                     }

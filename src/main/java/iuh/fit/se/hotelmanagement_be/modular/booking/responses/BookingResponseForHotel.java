@@ -18,6 +18,7 @@ public class BookingResponseForHotel {
     String bookingId;
     String customerId;
     String customerName;
+    String cccd;
     Long hotelId;
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;

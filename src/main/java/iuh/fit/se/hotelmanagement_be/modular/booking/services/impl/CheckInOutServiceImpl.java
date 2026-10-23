@@ -14,6 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.CheckInOutRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingDetailForCheckInOutResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckInOutSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
@@ -28,8 +29,10 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusT
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
-import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.services.impl.RoomSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.RoomSeasonalRate;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import lombok.AccessLevel;
@@ -63,7 +66,23 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     BookingDetailRepository bookingDetailRepository;
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
-    PaymentRepository paymentRepository;
+    BookingSocketEmitter bookingSocketEmitter;
+    RoomRepository roomRepository;
+    RoomSocketEmitter roomSocketEmitter;
+    HousekeepingTaskService housekeepingTaskService;
+
+    @Override
+    public CheckInOutSummaryResponse getSummary(Long hotelId, LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now();
+        LocalDateTime dayStart = targetDate.atStartOfDay();
+        LocalDateTime dayEnd = targetDate.plusDays(1).atStartOfDay();
+        return new CheckInOutSummaryResponse(
+                checkInOutRepository.countWaitingCheckIns(hotelId, targetDate),
+                checkInOutRepository.countInHouseOnDate(hotelId, dayStart, dayEnd),
+                checkInOutRepository.countWaitingCheckOuts(hotelId, targetDate),
+                checkInOutRepository.countCompletedCheckOuts(hotelId, targetDate)
+        );
+    }
 
     // 💡 LUỒNG XỬ LÝ LINH HOẠT CHO DANH SÁCH CHECK-IN
     @Override
@@ -154,11 +173,21 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     .extraChildFeePerNight(detail.getExtraChildFeePerNight())
                     .paidAmount(order != null && order.getPaidAmount() != null ? order.getPaidAmount().doubleValue() : null)
                     .remainingAmount(order != null ? order.getRemainingAmount().doubleValue() : null)
+                    .surplusAmount(order != null && order.getTotalAmount() != null
+                            ? (order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount())
+                                    .subtract(order.getTotalAmount()).max(BigDecimal.ZERO).doubleValue()
+                            : null)
                     .roomSubTotal(detail.getRoomSubTotal())
                     .serviceSubTotal(detail.getServiceSubTotal())
                     .totalPrice(detail.getTotalPrice())
                     .earlyCheckInFee(detail.getEarlyCheckInFee() != null
                             ? detail.getEarlyCheckInFee().doubleValue()
+                            : 0.0)
+                    .lateCheckOutFee(detail.getLateCheckOutFee() != null
+                            ? detail.getLateCheckOutFee().doubleValue()
+                            : 0.0)
+                    .otherSurcharges(detail.getOtherSurcharges() != null
+                            ? detail.getOtherSurcharges().doubleValue()
                             : 0.0)
                     .paymentStatus(paymentStatus)
                     .bookingDetailStatus(detail.getStatus() != null ? detail.getStatus().name() : null)
@@ -170,11 +199,14 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                                             .bookingServiceDetailId(v.getId())
                                             .serviceId(v.getService() != null ? v.getService().getId() : null)
                                             .price(v.getPrice())
+                                            .subTotal(v.getPrice() == null
+                                                    ? 0.0
+                                                    : v.getPrice() * v.getQuantity())
                                             .name(v.getName())
                                             .quantity(v.getQuantity())
                                             .cancelled(v.getCancelled())
                                             .cancelledAt(v.getCancelledAt())
-                                            .usedAt(v.getUsedAt()).build()).toList() : Collections.emptyList()
+                                            .usedAt(v.getUsedAt()).used(v.getUsed()).usedBy(v.getUsedBy()).build()).toList() : Collections.emptyList()
                     ).build();
         }).toList();
     }
@@ -252,6 +284,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
             targetDetail.setStatus(BookingStatusType.CHECKED_IN);
             targetDetail.setActualCheckInTime(now);
+            updateRoomStatus(room, RoomStatus.IN_USE, hotelId);
 
             // Tính tiền phụ thu check-in sớm
             if (targetDetail.getCheckinTime() != null && now.isBefore(targetDetail.getCheckinTime())) {
@@ -293,8 +326,57 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         }
 
         Booking saved = bookingRepository.save(booking);
+        emitBookingStateUpdated(saved, "CHECKED_IN");
         return bookingService.toBookingResponse(saved);
     }
+    @Transactional
+    @Override
+    public BookingResponse prepareBulkCheckOut(String bookingId, List<String> bookingDetailIds) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        if (booking.getBookingStatus() == BookingStatus.COMPLETED) {
+            return bookingService.toBookingResponse(booking);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        for (String detailId : bookingDetailIds == null ? List.<String>of() : bookingDetailIds) {
+            BookingDetail targetDetail = booking.getBookingDetails().stream()
+                    .filter(detail -> detail.getId().equals(detailId))
+                    .findFirst()
+                    .orElseThrow(() -> new AppException(ErrorCode.BOOKING_DETAIL_NOT_FOUND));
+            if (targetDetail.getStatus() != BookingStatusType.CHECKED_IN
+                    || targetDetail.getCheckoutTime() == null
+                    || !now.isAfter(targetDetail.getCheckoutTime())) {
+                continue;
+            }
+
+            Room room = targetDetail.getRoom();
+            Long hotelId = room.getFloor().getBuilding().getHotel().getId();
+            BranchRoomPolicy policy = branchRoomPolicyRepository
+                    .findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            BigDecimal roomPrice = getDailyRoomPrice(
+                    room,
+                    targetDetail.getCheckoutTime().toLocalDate(),
+                    hotelId,
+                    policy
+            );
+            BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
+                    targetDetail.getCheckoutTime(),
+                    now,
+                    roomPrice
+            );
+            targetDetail.setLateCheckOutFee(lateFee);
+        }
+
+        Order order = booking.getOrder();
+        if (order != null) {
+            recalculateOrderFinancials(order, booking);
+        }
+        Booking saved = bookingRepository.save(booking);
+        emitBookingStateUpdated(saved, "CHECKOUT_PREPARED");
+        return bookingService.toBookingResponse(saved);
+    }
+
     @Transactional
     @Override
     public BookingResponse processBulkCheckOut(String bookingId, CheckoutRequest request, String employeeId) {
@@ -327,31 +409,28 @@ public class CheckInOutServiceImpl implements CheckInOutService {
             BranchRoomPolicy policy = branchRoomPolicyRepository
                     .findByHotelIdAndRoomType(hotelId, room.getRoomType());
 
-            BigDecimal roomPrice = BigDecimal.ZERO;
-            if (policy != null) {
-                roomPrice = getDailyRoomPrice(room, checkoutDate, hotelId, policy);
-            }
+            BigDecimal roomPrice = getDailyRoomPrice(room, checkoutDate, hotelId, policy);
 
-            // Tính phí trễ hạn checkout
-            if (targetDetail.getCheckoutTime() != null && now.isAfter(targetDetail.getCheckoutTime())) {
-                BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
-                        targetDetail.getCheckoutTime(),
-                        now,
-                        roomPrice
-                );
-
-                if (lateFee != null && lateFee.compareTo(BigDecimal.ZERO) > 0) {
-                    targetDetail.setLateCheckOutFee(lateFee);
-                }
-            }
+            BigDecimal lateFee = SurchargeCalculator.calculateLateCheckOutFee(
+                    targetDetail.getCheckoutTime(),
+                    now,
+                    roomPrice
+            );
+            targetDetail.setLateCheckOutFee(lateFee != null ? lateFee : BigDecimal.ZERO);
 
             targetDetail.setStatus(BookingStatusType.CHECKED_OUT);
             targetDetail.setActualCheckOutTime(now);
+            updateRoomStatus(room, RoomStatus.CLEANING, hotelId);
+            housekeepingTaskService.createTaskForCheckout(targetDetail, room, now);
         }
 
         // Cập nhật lại toàn bộ tài chính của Order (bao gồm cả phí trễ hạn nếu có)
         if (order != null) {
             recalculateOrderFinancials(order, booking);
+            if (order.getRemainingAmount() != null
+                    && order.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0) {
+                throw new AppException(ErrorCode.CHECKOUT_PAYMENT_REQUIRED);
+            }
         }
 
         boolean allCheckedOut = booking.getBookingDetails().stream()
@@ -377,22 +456,16 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_METHOD);
                 }
                 if (refundMethod == PaymentType.CASH) {
-                    paymentRepository.save(PaymentTransaction.builder()
-                            .order(order)
-                            .amount(refundAmount)
-                            .paymentType(PaymentType.CASH)
-                            .cashFlowType(CashFlowType.REFUND)
-                            .note("Hoàn dư tiền mặt khi check-out booking " + bookingId)
-                            .transactionDate(now)
-                            .build());
-                    BigDecimal remainingPaid = paidAmount.subtract(refundAmount);
-                    order.setPaidAmount(remainingPaid);
-                    order.setRemainingAmount(BigDecimal.ZERO);
-                    order.setPaymentStatus(remainingPaid.signum() == 0
-                            ? PaymentStatus.UNPAID
-                            : remainingPaid.compareTo(order.getTotalAmount()) >= 0
-                            ? PaymentStatus.PAID
-                            : PaymentStatus.PARTIAL);
+                    CheckoutRefund refund = new CheckoutRefund();
+                    refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+                    refund.setBooking(booking);
+                    refund.setAmount(refundAmount);
+                    refund.setRefundMethod(PaymentType.CASH);
+                    refund.setStatus(CheckoutRefundStatus.PENDING);
+                    refund.setNote(request.getRefundNote() == null || request.getRefundNote().isBlank()
+                            ? "Chờ nhân viên xác nhận hoàn tiền mặt tại quầy"
+                            : request.getRefundNote().trim());
+                    checkoutRefundRepository.save(refund);
                 } else {
                     RefundBankDetails bankDetails = resolveCheckoutRefundBankDetails(order);
                     CheckoutRefund refund = new CheckoutRefund();
@@ -412,10 +485,22 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         }
 
         Booking saved = bookingRepository.save(booking);
+        emitBookingStateUpdated(saved, "CHECKED_OUT");
         if (allCheckedOut) {
             sendCheckoutInvoiceAfterCommit(saved, order, now);
         }
         return bookingService.toBookingResponse(saved);
+    }
+
+    private void emitBookingStateUpdated(Booking booking, String action) {
+        Long hotelId = booking.getHotel() == null ? null : booking.getHotel().getId();
+        bookingSocketEmitter.emitBookingStateUpdated(hotelId, booking.getId(), action);
+    }
+
+    private void updateRoomStatus(Room room, RoomStatus status, Long hotelId) {
+        room.setRoomStatus(status);
+        roomRepository.save(room);
+        roomSocketEmitter.emitRoomStatusUpdated(hotelId, room.getId(), room.getRoomNumber(), status);
     }
 
     private RefundBankDetails resolveCheckoutRefundBankDetails(Order order) {
@@ -515,19 +600,30 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     }
 
     private void recalculateOrderFinancials(Order order, Booking booking) {
-        // 1. Tính tổng phụ thu từ tất cả các booking detail
-        BigDecimal totalSurcharge = booking.getBookingDetails().stream()
-                .filter(detail -> detail.getStatus() != BookingStatusType.CANCELLED)
-                .map(d -> {
-                    BigDecimal early = d.getEarlyCheckInFee() != null ? d.getEarlyCheckInFee() : BigDecimal.ZERO;
-                    BigDecimal late = d.getLateCheckOutFee() != null ? d.getLateCheckOutFee() : BigDecimal.ZERO;
-                    BigDecimal other = d.getOtherSurcharges() != null ? d.getOtherSurcharges() : BigDecimal.ZERO;
-                    return early.add(late).add(other);
-                })
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal roomTotal = BigDecimal.ZERO;
+        BigDecimal serviceTotal = BigDecimal.ZERO;
+        BigDecimal totalSurcharge = BigDecimal.ZERO;
+        for (BookingDetail detail : booking.getBookingDetails()) {
+            if (detail.getStatus() == BookingStatusType.CANCELLED) {
+                continue;
+            }
 
-        BigDecimal roomTotal = order.getRoomTotalAmount() != null ? order.getRoomTotalAmount() : BigDecimal.ZERO;
-        BigDecimal serviceTotal = order.getServiceTotalAmount() != null ? order.getServiceTotalAmount() : BigDecimal.ZERO;
+            roomTotal = roomTotal.add(BigDecimal.valueOf(
+                    detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0
+            ));
+            if (detail.getBookingServiceDetails() != null) {
+                serviceTotal = serviceTotal.add(detail.getBookingServiceDetails().stream()
+                        .filter(service -> !Boolean.TRUE.equals(service.getCancelled()))
+                        .map(service -> BigDecimal.valueOf(service.getPrice() != null ? service.getPrice() : 0.0)
+                                .multiply(BigDecimal.valueOf(service.getQuantity())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add));
+            }
+
+            BigDecimal early = detail.getEarlyCheckInFee() != null ? detail.getEarlyCheckInFee() : BigDecimal.ZERO;
+            BigDecimal late = detail.getLateCheckOutFee() != null ? detail.getLateCheckOutFee() : BigDecimal.ZERO;
+            BigDecimal other = detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO;
+            totalSurcharge = totalSurcharge.add(early).add(late).add(other);
+        }
         BigDecimal discountRoom = order.getDiscountRoomAmount() != null ? order.getDiscountRoomAmount() : BigDecimal.ZERO;
         BigDecimal discountService = order.getDiscountServiceAmount() != null ? order.getDiscountServiceAmount() : BigDecimal.ZERO;
         BigDecimal discountTotal = order.getDiscountAmountTotal() != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO;
@@ -544,10 +640,17 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         // 3. Tính lại số tiền còn lại phải trả: Tổng tiền - Đã thanh toán
         BigDecimal remainingAmount = newTotalAmount.subtract(paidAmount).max(BigDecimal.ZERO);
 
-        // 4. Gán ngược lại vào Order
+        // Rebuild totals from booking details so checkout refunds use the latest charges.
+        order.setRoomTotalAmount(roomTotal);
+        order.setServiceTotalAmount(serviceTotal);
         order.setSurchargeTotalAmount(totalSurcharge);
         order.setTotalAmount(newTotalAmount);
         order.setRemainingAmount(remainingAmount);
         order.setOrderStatus(OrderStatusType.OPEN);
+        order.setPaymentStatus(remainingAmount.signum() == 0
+                ? PaymentStatus.PAID
+                : paidAmount.signum() > 0
+                ? PaymentStatus.PARTIAL
+                : PaymentStatus.UNPAID);
     }
 }

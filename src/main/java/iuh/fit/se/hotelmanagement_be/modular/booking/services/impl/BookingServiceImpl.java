@@ -1018,7 +1018,7 @@ public class BookingServiceImpl implements BookingService {
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
         LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
 
-        List<BookingDetail> activeDetails = bookingDetailRepository.findActiveBookingsByDateRange(
+        List<BookingDetail> activeDetails = bookingDetailRepository.findCalendarBookingsByDateRange(
                 hotelId, startDateTime, endDateTime, fiveMinutesAgo
         );
 
@@ -1043,13 +1043,8 @@ public class BookingServiceImpl implements BookingService {
                     })
                     .map(detail -> {
                         // 1. Ưu tiên lấy mốc thời gian thực tế nếu có, nếu chưa có thì dùng giờ dự kiến
-                        LocalDateTime effectiveCheckIn = detail.getActualCheckInTime() != null
-                                ? detail.getActualCheckInTime()
-                                : detail.getCheckinTime();
-
-                        LocalDateTime effectiveCheckOut = detail.getActualCheckOutTime() != null
-                                ? detail.getActualCheckOutTime()
-                                : detail.getCheckoutTime();
+                        LocalDateTime effectiveCheckIn = detail.getCheckinTime();
+                        LocalDateTime effectiveCheckOut = detail.getCheckoutTime();
 
                         // 2. Tính toán danh sách ngày bị chiếm (occupiedDates) dựa trên mốc thực tế này
                         List<LocalDate> dates = new ArrayList<>();

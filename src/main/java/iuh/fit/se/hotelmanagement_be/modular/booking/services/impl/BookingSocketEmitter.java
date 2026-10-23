@@ -37,10 +37,52 @@ public class BookingSocketEmitter {
     public void emitRoomMatrixUpdate(Long hotelId) {
         if (hotelId != null) {
             String roomName = "hotel_" + hotelId;
-            socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("room_matrix_updated", "Lịch tổng phòng vừa được làm mới do có booking mới!");
-            log.info("🏢 [Booking Socket] Đã gửi 'room_matrix_updated' tới room chi nhánh: {}", roomName);
+            Runnable emit = () -> {
+                try {
+                    socketIOServer.getRoomOperations(roomName)
+                            .sendEvent("room_matrix_updated", "Lịch tổng phòng vừa được làm mới do có booking mới!");
+                    log.info("🏢 [Booking Socket] Đã gửi 'room_matrix_updated' tới room chi nhánh: {}", roomName);
+                } catch (RuntimeException exception) {
+                    log.error("Không thể gửi cập nhật lịch phòng tới chi nhánh {}", roomName, exception);
+                }
+            };
+
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                emit.run();
+                return;
+            }
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
         }
+    }
+
+    public void emitHousekeepingTaskUpdate(Long hotelId) {
+        if (hotelId == null) return;
+
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations("hotel_" + hotelId)
+                        .sendEvent("housekeeping_task_updated", Map.of("hotelId", hotelId));
+                log.info("Emitted housekeeping_task_updated for hotel {}", hotelId);
+            } catch (RuntimeException exception) {
+                log.error("Could not emit housekeeping task update for hotel {}", hotelId, exception);
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            emit.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                emit.run();
+            }
+        });
     }
 
     public void emitBookingStateUpdated(Long hotelId, String bookingId, String action) {

@@ -36,19 +36,18 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             @Param("checkoutTime") LocalDateTime checkoutTime
     );
 
-    @Query("SELECT bd FROM BookingDetail bd " +
-            "JOIN bd.booking b " +
-            "WHERE b.hotel.id = :hotelId " +
-            "AND b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED " +
-            "AND (" +
-            "   b.bookingStatus IN (" +
-            "       iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CONFIRMED, " +
-            "       iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.IN_HOUSE" +
-            "   ) " +
-            "   OR (b.bookingStatus = iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING AND b.createdAt >= :fiveMinutesAgo)" +
-            ") " +
-            "AND bd.checkinTime <= :endDate AND bd.checkoutTime >= :startDate")
-    List<BookingDetail> findActiveBookingsByDateRange(
+    @Query("""
+            SELECT bd FROM BookingDetail bd
+            JOIN bd.booking b
+            WHERE b.hotel.id = :hotelId
+              AND b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED
+              AND (b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING
+                   OR b.createdAt >= :fiveMinutesAgo)
+              AND bd.status <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED
+              AND bd.checkinTime <= :endDate
+              AND bd.checkoutTime >= :startDate
+            """)
+    List<BookingDetail> findCalendarBookingsByDateRange(
             @Param("hotelId") Long hotelId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,

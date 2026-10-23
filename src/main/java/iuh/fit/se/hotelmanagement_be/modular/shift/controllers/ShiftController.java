@@ -40,7 +40,7 @@ public class ShiftController {
         return (tokenHotelId != null) ? tokenHotelId : 1L;
     }
 
-    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @GetMapping("/today")
     @Operation(summary = "Lấy danh sách ca trực hôm nay (Tab 1: Ca trực hôm nay)",
             description = "Trả về danh sách nhân viên trực ca sáng / tối kèm vị trí và công việc của ngày hôm nay.")
@@ -58,7 +58,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @GetMapping("/today/summary")
     @Operation(summary = "Lấy tóm tắt ca trực trong ngày",
             description = "Bao gồm ngày, thứ, trạng thái đủ ca và danh sách phân công.")
@@ -76,7 +76,7 @@ public class ShiftController {
                 .build());
     }
 
-    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('VIEW_STAFF_SHIFTS', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @GetMapping("/weekly")
     @Operation(summary = "Lấy lịch phân ca cả tuần (Tab 3: Lịch phân ca tuần)",
             description = "Trả về ma trận 7 ngày (từ Thứ 2 đến Chủ nhật) kèm thống kê số ca đã phân công và nhân viên trực.")

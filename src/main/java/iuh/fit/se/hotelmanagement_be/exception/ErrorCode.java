@@ -207,6 +207,7 @@ public enum ErrorCode {
     CANCELLATION_REFUND_EXCEEDS_PAID(2015, "Số tiền hoàn vượt quá số tiền khách đã thanh toán", HttpStatus.BAD_REQUEST),
     CANCELLATION_REVIEW_CONFIRMATION_REQUIRED(2017, "Cần xác nhận số tiền và tài khoản nhận hoàn trước khi duyệt", HttpStatus.BAD_REQUEST),
     CANCELLATION_CASH_CONFIRMATION_REQUIRED(2028, "Cần xác nhận đã giao tiền mặt hoàn cho khách", HttpStatus.BAD_REQUEST),
+    CANCELLATION_REFUND_AMOUNT_CHANGED(2029, "Số tiền hoàn đã thay đổi kể từ lúc xem trước; booking chưa bị hủy. Vui lòng tải lại thông tin hoàn tiền và xác nhận lại.", HttpStatus.CONFLICT),
     CHECKOUT_REFUND_METHOD_REQUIRED(2018, "Chọn cách hoàn khoản thu dư trước khi hoàn tất check-out", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_METHOD(2019, "Khoản thu dư chỉ được hoàn bằng tiền mặt hoặc chuyển khoản ngân hàng", HttpStatus.BAD_REQUEST),
     CHECKOUT_REFUND_INVALID_STATUS(2020, "Trạng thái yêu cầu hoàn dư check-out không cho phép thao tác này", HttpStatus.BAD_REQUEST),

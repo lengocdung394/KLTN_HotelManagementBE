@@ -420,7 +420,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
             targetDetail.setStatus(BookingStatusType.CHECKED_OUT);
             targetDetail.setActualCheckOutTime(now);
-            updateRoomStatus(room, RoomStatus.CLEANING, hotelId);
+            updateRoomStatus(room, RoomStatus.CLEANING, hotelId, "CHECKOUT_COMPLETED");
             housekeepingTaskService.createTaskForCheckout(targetDetail, room, now);
         }
 
@@ -498,9 +498,13 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     }
 
     private void updateRoomStatus(Room room, RoomStatus status, Long hotelId) {
+        updateRoomStatus(room, status, hotelId, null);
+    }
+
+    private void updateRoomStatus(Room room, RoomStatus status, Long hotelId, String updateReason) {
         room.setRoomStatus(status);
         roomRepository.save(room);
-        roomSocketEmitter.emitRoomStatusUpdated(hotelId, room.getId(), room.getRoomNumber(), status);
+        roomSocketEmitter.emitRoomStatusUpdated(hotelId, room.getId(), room.getRoomNumber(), status, updateReason);
     }
 
     private RefundBankDetails resolveCheckoutRefundBankDetails(Order order) {

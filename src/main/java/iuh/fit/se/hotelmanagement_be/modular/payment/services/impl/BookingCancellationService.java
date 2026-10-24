@@ -19,6 +19,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationReviewRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationPreviewResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
@@ -164,6 +165,33 @@ public class BookingCancellationService {
                 "Nhân viên yêu cầu hủy booking");
     }
 
+    @Transactional(readOnly = true)
+    public BookingCancellationPreviewResponse previewCancellationByStaff(String bookingId, Account account) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        ensureBranchAccess(booking, account);
+        if (booking.getBookingStatus() != BookingStatus.PENDING
+                && booking.getBookingStatus() != BookingStatus.CONFIRMED) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+        if (cancellationRepository.findByBookingId(bookingId).isPresent()) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
+        }
+
+        CancellationPolicy policy = cancellationPolicy(booking, LocalDateTime.now());
+        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        return BookingCancellationPreviewResponse.builder()
+                .bookingId(bookingId)
+                .paidAmount(booking.getOrder() == null ? BigDecimal.ZERO : zeroIfNull(booking.getOrder().getPaidAmount()))
+                .refundAmount(breakdown.total())
+                .roomRefundAmount(breakdown.roomRefund())
+                .serviceRefundAmount(breakdown.serviceRefund())
+                .roomPenaltyAmount(breakdown.roomPenalty())
+                .hoursBeforeCheckIn(policy.hoursBeforeCheckIn())
+                .refundPolicy(policy.name())
+                .build();
+    }
+
     private BookingCancellationResponse cancelBooking(
             Booking booking,
             BookingCancellationRequest request,
@@ -204,6 +232,16 @@ public class BookingCancellationService {
                 && breakdown.total().signum() > 0;
         if (cashRefund && !Boolean.TRUE.equals(request.getCashRefundConfirmed())) {
             throw new AppException(ErrorCode.CANCELLATION_CASH_CONFIRMATION_REQUIRED);
+        }
+        boolean hasConfirmedRefundAmount = request != null && request.getConfirmedRefundAmount() != null;
+        if (requestedByAccount != null
+                && (cashRefund || hasConfirmedRefundAmount)
+                && (!amountMatches(request.getConfirmedRefundAmount(), breakdown.total())
+                || !amountMatches(request.getConfirmedRoomRefundAmount(), breakdown.roomRefund())
+                || !amountMatches(request.getConfirmedServiceRefundAmount(), breakdown.serviceRefund())
+                || !amountMatches(request.getConfirmedRoomPenaltyAmount(), breakdown.roomPenalty())
+                || !policy.name().equals(request.getConfirmedRefundPolicy()))) {
+            throw new AppException(ErrorCode.CANCELLATION_REFUND_AMOUNT_CHANGED);
         }
         BookingCancellationStatus status = breakdown.total().signum() <= 0
                 ? BookingCancellationStatus.NO_REFUND_REQUIRED
@@ -593,6 +631,10 @@ public class BookingCancellationService {
                     booking.getHotel().getId(),
                     booking.getId(),
                     cancellation.getRefundAmount());
+            bookingSocketEmitter.emitBookingStateUpdated(
+                    booking.getHotel().getId(),
+                    booking.getId(),
+                    "REFUND_COMPLETED");
         }
         String refundEmail = trimToNull(cancellation.getRefundEmail());
         if (refundEmail == null) {
@@ -742,13 +784,13 @@ public class BookingCancellationService {
         Duration timeUntilCheckIn = Duration.between(now, checkIn);
         long secondsBeforeCheckIn = timeUntilCheckIn.getSeconds();
         long hoursBeforeCheckIn = Math.max(0, timeUntilCheckIn.toHours());
-        if (secondsBeforeCheckIn >= Duration.ofDays(7).getSeconds()) {
-            return new CancellationPolicy(BigDecimal.ZERO, "CANCEL_AT_LEAST_7_DAYS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
+        if (secondsBeforeCheckIn >= Duration.ofHours(72).getSeconds()) {
+            return new CancellationPolicy(BigDecimal.ZERO, "CANCEL_AT_LEAST_72_HOURS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
         }
-        if (secondsBeforeCheckIn >= Duration.ofDays(3).getSeconds()) {
-            return new CancellationPolicy(new BigDecimal("0.50"), "CANCEL_3_TO_7_DAYS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
+        if (secondsBeforeCheckIn >= Duration.ofHours(24).getSeconds()) {
+            return new CancellationPolicy(new BigDecimal("0.50"), "CANCEL_24_TO_72_HOURS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
         }
-        return new CancellationPolicy(BigDecimal.ONE, "CANCEL_WITHIN_3_DAYS_OR_NO_SHOW", hoursBeforeCheckIn);
+        return new CancellationPolicy(BigDecimal.ONE, "CANCEL_WITHIN_24_HOURS_OR_NO_SHOW", hoursBeforeCheckIn);
     }
 
     private BookingCancellation getCancellationForUpdate(String cancellationId) {
@@ -830,6 +872,7 @@ public class BookingCancellationService {
             Long hotelId = booking.getHotel().getId();
             bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
             bookingSocketEmitter.emitBookingCancelled(hotelId, booking.getId(), reason);
+            bookingSocketEmitter.emitBookingStateUpdated(hotelId, booking.getId(), "CANCELLED");
         }
         if (booking.getCustomer() != null) {
             bookingSocketEmitter.emitCustomerBookingStatus(
@@ -876,6 +919,10 @@ public class BookingCancellationService {
 
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value.max(BigDecimal.ZERO);
+    }
+
+    private boolean amountMatches(BigDecimal confirmed, BigDecimal calculated) {
+        return confirmed != null && confirmed.compareTo(calculated) == 0;
     }
 
     private String trimToNull(String value) {

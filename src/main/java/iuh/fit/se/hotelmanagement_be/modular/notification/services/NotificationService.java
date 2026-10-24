@@ -60,7 +60,7 @@ public class NotificationService {
         );
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public Notification createAndPublishToCustomer(
             String recipientAccountId,
             Long hotelId,

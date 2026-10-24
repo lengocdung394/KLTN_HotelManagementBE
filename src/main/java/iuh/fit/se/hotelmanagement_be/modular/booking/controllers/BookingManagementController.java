@@ -8,6 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.Book
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationPreviewResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.BookingCancellationService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
@@ -30,6 +31,21 @@ import org.springframework.web.bind.annotation.*;
 public class BookingManagementController {
     BookingManagementService bookingManagementService;
     BookingCancellationService  bookingCancellationService;
+
+    @GetMapping("/{bookingId}/cancellation-preview")
+    @PreAuthorize("hasAuthority('UPDATE_BOOKING') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<BookingCancellationPreviewResponse>> previewBookingCancellation(
+            @PathVariable String bookingId,
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        BookingCancellationPreviewResponse result = bookingCancellationService.previewCancellationByStaff(
+                bookingId, account);
+        return ResponseEntity.ok(ApiResponse.<BookingCancellationPreviewResponse>builder()
+                .code(200)
+                .message("Đã tính trước khoản hoàn tiền.")
+                .result(result)
+                .build());
+    }
 
     @PatchMapping("/{bookingId}/service-details/{serviceDetailId}/confirm-use")
     @PreAuthorize("hasAnyAuthority('ROLE_EMPLOYEE', 'ROLE_MANAGER', 'ROLE_ADMIN')")

@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
@@ -57,6 +58,8 @@ public class Order {
     List<Long> paymentOrderCodes;
 
     @OneToOne(mappedBy = "order")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     Booking booking;
 
     //MỚI THÊM: Thêm field này để Hibernate tạo cột dưới Database
@@ -64,6 +67,8 @@ public class Order {
 
     BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
 
@@ -96,6 +101,9 @@ public class Order {
 
 
     public BigDecimal getRemainingAmount() {
+        if (this.orderStatus == OrderStatusType.CANCELLED) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal total = getTotalAmount(); // Hàm này giờ sẽ lấy từ field totalAmount ra rất nhanh
         BigDecimal paid = paidAmount != null ? paidAmount : BigDecimal.ZERO;
 

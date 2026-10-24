@@ -29,6 +29,8 @@ public class BookingResponseForHotel {
     LocalDateTime applyAt;
     // Tiền đã thanh toán
     BigDecimal  paidAmount;
+    BigDecimal collectedAmount;
+    BigDecimal refundedAmount;
     BigDecimal  remainingAmount;
     BigDecimal surchargeTotalAmount; // tien phu thu
     // Lam ro phan tien giam giá

@@ -11,6 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationSource;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
@@ -115,6 +116,7 @@ public class BookingCancellationService {
                 .booking(booking)
                 .status(status)
                 .refundMethod(BookingCancellationRefundMethod.BANK)
+                .cancellationSource(BookingCancellationSource.CUSTOMER)
                 .reason(request == null ? null : trimToNull(request.getReason()))
                 .refundAmount(breakdown.total())
                 .roomRefundAmount(breakdown.roomRefund())
@@ -255,6 +257,7 @@ public class BookingCancellationService {
                 .booking(booking)
                 .status(status)
                 .refundMethod(refundMethod)
+                .cancellationSource(BookingCancellationSource.STAFF)
                 .reason(request == null ? null : trimToNull(request.getReason()))
                 .refundAmount(breakdown.total())
                 .roomRefundAmount(breakdown.roomRefund())
@@ -686,6 +689,7 @@ public class BookingCancellationService {
                         : breakdown.total().signum() > 0
                         ? BookingCancellationStatus.REFUND_REVIEW_PENDING
                         : BookingCancellationStatus.NO_REFUND_REQUIRED)
+                .cancellationSource(BookingCancellationSource.PAYMENT_TIMEOUT)
                 .reason("Quá thời gian chờ thanh toán")
                 .refundAmount(breakdown.total())
                 .roomRefundAmount(breakdown.roomRefund())
@@ -896,6 +900,7 @@ public class BookingCancellationService {
                 .customerPhone(booking.getCustomer() == null ? null : booking.getCustomer().getPhone())
                 .status(cancellation.getStatus())
                 .refundMethod(cancellation.getRefundMethod())
+                .cancellationSource(cancellation.getEffectiveCancellationSource())
                 .reason(cancellation.getReason())
                 .paidAmount(booking.getOrder() == null ? BigDecimal.ZERO : zeroIfNull(booking.getOrder().getPaidAmount()))
                 .refundAmount(cancellation.getRefundAmount())

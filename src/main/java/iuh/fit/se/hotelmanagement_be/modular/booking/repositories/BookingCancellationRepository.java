@@ -44,6 +44,9 @@ public interface BookingCancellationRepository extends JpaRepository<BookingCanc
 
     Optional<BookingCancellation> findByBookingId(String bookingId);
 
+    @Query("select cancellation from BookingCancellation cancellation where cancellation.booking.hotel.id = :hotelId")
+    List<BookingCancellation> findAllByBookingHotelId(@Param("hotelId") Long hotelId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select cancellation from BookingCancellation cancellation where cancellation.booking.id = :bookingId")
     Optional<BookingCancellation> findByBookingIdForUpdate(@Param("bookingId") String bookingId);

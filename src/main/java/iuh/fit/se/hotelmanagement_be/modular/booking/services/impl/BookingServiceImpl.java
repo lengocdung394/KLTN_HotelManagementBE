@@ -13,11 +13,13 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
@@ -80,6 +82,7 @@ public class BookingServiceImpl implements BookingService {
     HotelRepository hotelRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
+    BookingCancellationRepository bookingCancellationRepository;
     BookingSocketEmitter bookingSocketEmitter;
     PromotionUsageService promotionUsageService;
     EmailService emailService;
@@ -955,10 +958,13 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public BookingResponseForHotel toBookingForHotelResponse(Booking booking) {
-        return toBookingForHotelResponse(booking, BigDecimal.ZERO);
+        return toBookingForHotelResponse(booking, BigDecimal.ZERO, null);
     }
 
-    private BookingResponseForHotel toBookingForHotelResponse(Booking booking, BigDecimal refundedAmount) {
+    private BookingResponseForHotel toBookingForHotelResponse(
+            Booking booking,
+            BigDecimal refundedAmount,
+            BookingCancellation cancellation) {
         if (booking == null) {
             return null;
         }
@@ -1019,7 +1025,11 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
                 .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
-                .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
+                .createdAt(booking.getCreatedAt())
+                .cancellationSource(cancellation == null ? null : cancellation.getEffectiveCancellationSource())
+                .cancellationReason(cancellation == null ? null : cancellation.getReason())
+                .cancelledAt(cancellation == null ? null : cancellation.getCancelledAt())
+                .roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 // map phan khuyen mai
                 .promotionId(booking.getPromotion() != null ? booking.getPromotion().getId() : null)
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
@@ -1059,6 +1069,12 @@ public class BookingServiceImpl implements BookingService {
                 .collect(Collectors.toMap(
                         PaymentRepository.OrderRefundTotalProjection::getOrderId,
                         PaymentRepository.OrderRefundTotalProjection::getRefundedAmount));
+        Map<String, BookingCancellation> cancellationsByBooking = bookingCancellationRepository
+                .findAllByBookingHotelId(hotelId)
+                .stream()
+                .collect(Collectors.toMap(
+                        cancellation -> cancellation.getBooking().getId(),
+                        cancellation -> cancellation));
 
         // Chuyển đổi sang danh sách BookingResponse
         return bookings.stream()
@@ -1066,7 +1082,8 @@ public class BookingServiceImpl implements BookingService {
                         booking,
                         booking.getOrder() == null
                                 ? BigDecimal.ZERO
-                                : refundedAmounts.getOrDefault(booking.getOrder().getId(), BigDecimal.ZERO)))
+                                : refundedAmounts.getOrDefault(booking.getOrder().getId(), BigDecimal.ZERO),
+                        cancellationsByBooking.get(booking.getId())))
                 .collect(Collectors.toList());
     }
 

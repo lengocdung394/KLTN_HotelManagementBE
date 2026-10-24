@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationSource;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -38,6 +39,10 @@ public class BookingCancellation {
     @Enumerated(EnumType.STRING)
     @Column(length = 16)
     BookingCancellationRefundMethod refundMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancellation_source", length = 32)
+    BookingCancellationSource cancellationSource;
 
     @Column(length = 500)
     String reason;
@@ -105,4 +110,20 @@ public class BookingCancellation {
     LocalDateTime refundedAt;
 
     LocalDateTime cancelledAt;
+
+    public BookingCancellationSource getEffectiveCancellationSource() {
+        if (cancellationSource != null) {
+            return cancellationSource;
+        }
+        if (reason != null && reason.toLowerCase().contains("quá thời gian")) {
+            return BookingCancellationSource.PAYMENT_TIMEOUT;
+        }
+        if (requestedByAccount != null) {
+            return BookingCancellationSource.STAFF;
+        }
+        if (requestedByCustomerId != null) {
+            return BookingCancellationSource.CUSTOMER;
+        }
+        return null;
+    }
 }

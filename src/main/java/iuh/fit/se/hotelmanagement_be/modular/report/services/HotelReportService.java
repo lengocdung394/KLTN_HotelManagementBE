@@ -54,7 +54,7 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        BookingStatus.CANCELLED,
+                        BookingStatus.cancelledStatuses(),
                         BookingStatusType.CANCELLED
                 )) {
             if (row.getRoomType() != null) {
@@ -92,7 +92,7 @@ public class HotelReportService {
                         start,
                         endExclusive,
                         BookingStatusType.CANCELLED,
-                        BookingStatus.CANCELLED
+                        BookingStatus.cancelledStatuses()
                 );
         BigDecimal serviceRevenue = BigDecimal.ZERO;
         long serviceUsageCount = 0;
@@ -108,7 +108,8 @@ public class HotelReportService {
         }
 
         List<UserPromotionUsageRepository.PromotionUsageReportProjection> promotionRows =
-                userPromotionUsageRepository.getPromotionReport(hotelId, start, endExclusive, BookingStatus.CANCELLED);
+                userPromotionUsageRepository.getPromotionReport(
+                        hotelId, start, endExclusive, BookingStatus.cancelledStatuses());
         List<PromotionUsageReportResponse> promotions = promotionRows.stream()
                 .map(row -> new PromotionUsageReportResponse(
                         row.getPromotionId(),
@@ -127,7 +128,7 @@ public class HotelReportService {
         List<BookingCancellationRepository.CancellationReportProjection> cancellationRows =
                 bookingCancellationRepository.getCancellationReport(
                         hotelId,
-                        BookingStatus.CANCELLED,
+                        BookingStatus.cancelledStatuses(),
                         start,
                         endExclusive
                 );

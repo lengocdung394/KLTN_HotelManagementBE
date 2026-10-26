@@ -73,7 +73,7 @@ class HotelReportServiceTest {
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatus.CANCELLED,
+                BookingStatus.cancelledStatuses(),
                 BookingStatusType.CANCELLED
         )).thenReturn(List.of(standardRoomBookings, familyRoomBookings));
         PaymentTransactionRepository.CashFlowReportProjection cashFlow =
@@ -99,7 +99,7 @@ class HotelReportServiceTest {
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
                 BookingStatusType.CANCELLED,
-                BookingStatus.CANCELLED
+                BookingStatus.cancelledStatuses()
         )).thenReturn(List.of(revenueRow));
 
         UserPromotionUsageRepository.PromotionUsageReportProjection promotionRow =
@@ -114,7 +114,7 @@ class HotelReportServiceTest {
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatus.CANCELLED
+                BookingStatus.cancelledStatuses()
         )).thenReturn(List.of(promotionRow));
 
         BookingCancellationRepository.CancellationReportProjection onlineCancellation =
@@ -130,7 +130,7 @@ class HotelReportServiceTest {
         when(offlineCancellation.getCancelledAt()).thenReturn(startDate.atTime(11, 30));
         when(bookingCancellationRepository.getCancellationReport(
                 7L,
-                BookingStatus.CANCELLED,
+                BookingStatus.cancelledStatuses(),
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay()
         )).thenReturn(List.of(onlineCancellation, offlineCancellation));

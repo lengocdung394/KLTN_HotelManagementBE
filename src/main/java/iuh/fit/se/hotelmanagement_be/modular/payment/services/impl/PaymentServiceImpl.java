@@ -207,7 +207,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public WebhookResponse processPayOSWebhook(JsonNode webhookBody) throws Exception {
-        log.info("[Webhook] Bắt đầu xử lý: {}", webhookBody);
+        log.info("[Webhook] Bắt đầu xử lý PayOS webhook");
 
         if (webhookBody == null || !webhookBody.has("data")) {
             log.warn("[Webhook] Thiếu field 'data' trong payload -> có thể là ping test từ PayOS dashboard");
@@ -240,12 +240,6 @@ public class PaymentServiceImpl implements PaymentService {
         long amountPaidOnGateway = dataNode.get("amount").asLong();
         String counterAccountName = dataNode.has("counterAccountName") && !dataNode.get("counterAccountName").isNull()
                 ? dataNode.get("counterAccountName").asText() : null;
-        String counterAccountNumber = dataNode.has("counterAccountNumber") && !dataNode.get("counterAccountNumber").isNull()
-                ? dataNode.get("counterAccountNumber").asText() : null;
-        String counterAccountBankId = dataNode.has("counterAccountBankId") && !dataNode.get("counterAccountBankId").isNull()
-                ? dataNode.get("counterAccountBankId").asText() : null;
-        String counterAccountBankName = dataNode.has("counterAccountBankName") && !dataNode.get("counterAccountBankName").isNull()
-                ? dataNode.get("counterAccountBankName").asText() : null;
         String paymentLinkId = dataNode.has("paymentLinkId") ? dataNode.get("paymentLinkId").asText() : "";
 
         PaymentType xacDinhPaymentType = PaymentType.BANK;
@@ -263,11 +257,7 @@ public class PaymentServiceImpl implements PaymentService {
         order.addPaymentSuccess(
                 BigDecimal.valueOf(amountPaidOnGateway),
                 xacDinhPaymentType,
-                paymentLinkId,
-                counterAccountName,
-                counterAccountNumber,
-                counterAccountBankId,
-                counterAccountBankName
+                paymentLinkId
         );
 
         log.info("[Webhook] Sau addPaymentSuccess: paidAmount={}, orderStatus={}, số lượng paymentTransactions={}",
@@ -276,7 +266,8 @@ public class PaymentServiceImpl implements PaymentService {
 
         orderRepository.save(order);
         Booking booking = order.getBooking();
-        if (booking != null && (booking.getBookingStatus() == BookingStatus.PENDING || booking.getBookingStatus() == BookingStatus.CANCELLED)) {
+        if (booking != null && (booking.getBookingStatus() == BookingStatus.PENDING
+                || booking.getBookingStatus() == BookingStatus.CANCELLED_PAYMENT_TIMEOUT)) {
             booking.setBookingStatus(BookingStatus.CONFIRMED);
             if (booking.getBookingDetails() != null) {
                 booking.getBookingDetails().forEach(detail -> {
@@ -558,7 +549,9 @@ public class PaymentServiceImpl implements PaymentService {
     private boolean hasPaymentReference(Order order, String paymentReference) {
         return order.getPaymentTransactions() != null
                 && order.getPaymentTransactions().stream()
-                .anyMatch(transaction -> paymentReference.equals(transaction.getNote()));
+                .anyMatch(transaction -> transaction.getNote() != null
+                        && (paymentReference.equals(transaction.getNote())
+                        || transaction.getNote().startsWith(paymentReference + " | ")));
     }
 
     private void sendPaymentEmailAfterCommit(
@@ -625,7 +618,7 @@ public class PaymentServiceImpl implements PaymentService {
                 boolean alreadyRecorded = order.getPaymentTransactions() != null
                         && order.getPaymentTransactions().stream().anyMatch(transaction ->
                         transaction.getNote() != null
-                                && transaction.getNote().equals("PayOS Webhook Ref: " + paymentLinkId));
+                                && transaction.getNote().startsWith("PayOS Webhook Ref: " + paymentLinkId));
                 long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0
                         ? link.getAmountPaid()
                         : status == PaymentLinkStatus.PAID ? link.getAmount() : 0;

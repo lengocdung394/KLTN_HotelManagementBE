@@ -23,8 +23,6 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolic
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefund;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefundStatus;
-import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
-import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
@@ -50,7 +48,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Comparator;
 import java.util.UUID;
 
 @Slf4j
@@ -467,17 +464,12 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                             : request.getRefundNote().trim());
                     checkoutRefundRepository.save(refund);
                 } else {
-                    RefundBankDetails bankDetails = resolveCheckoutRefundBankDetails(order);
                     CheckoutRefund refund = new CheckoutRefund();
                     refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
                     refund.setBooking(booking);
                     refund.setAmount(refundAmount);
                     refund.setRefundMethod(PaymentType.BANK);
                     refund.setStatus(CheckoutRefundStatus.PENDING);
-                    refund.setBankName(bankDetails.bankName());
-                    refund.setBankCode(bankDetails.bankCode());
-                    refund.setBankAccountName(bankDetails.bankAccountName());
-                    refund.setBankAccountNumber(bankDetails.bankAccountNumber());
                     refund.setNote(request.getRefundNote());
                     checkoutRefundRepository.save(refund);
                 }
@@ -505,43 +497,6 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         room.setRoomStatus(status);
         roomRepository.save(room);
         roomSocketEmitter.emitRoomStatusUpdated(hotelId, room.getId(), room.getRoomNumber(), status, updateReason);
-    }
-
-    private RefundBankDetails resolveCheckoutRefundBankDetails(Order order) {
-        if (order.getPaymentTransactions() == null) {
-            return RefundBankDetails.empty();
-        }
-        return order.getPaymentTransactions().stream()
-                .filter(transaction -> transaction.getCashFlowType() == CashFlowType.RECEIPT)
-                .filter(transaction -> transaction.getCounterAccountName() != null
-                        && !transaction.getCounterAccountName().isBlank()
-                        && transaction.getCounterAccountNumber() != null
-                        && !transaction.getCounterAccountNumber().isBlank()
-                        && ((transaction.getCounterAccountBankName() != null
-                        && !transaction.getCounterAccountBankName().isBlank())
-                        || (transaction.getCounterAccountBankId() != null
-                        && !transaction.getCounterAccountBankId().isBlank())))
-                .max(Comparator.comparing(
-                        PaymentTransaction::getTransactionDate,
-                        Comparator.nullsFirst(Comparator.naturalOrder())))
-                .map(transaction -> new RefundBankDetails(
-                        blankToNull(transaction.getCounterAccountBankName())
-                                == null ? blankToNull(transaction.getCounterAccountBankId())
-                                : blankToNull(transaction.getCounterAccountBankName()),
-                        blankToNull(transaction.getCounterAccountBankId()),
-                        blankToNull(transaction.getCounterAccountName()),
-                        blankToNull(transaction.getCounterAccountNumber())))
-                .orElseGet(RefundBankDetails::empty);
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
-    }
-
-    private record RefundBankDetails(String bankName, String bankCode, String bankAccountName, String bankAccountNumber) {
-        private static RefundBankDetails empty() {
-            return new RefundBankDetails(null, null, null, null);
-        }
     }
 
     private void sendCheckoutInvoiceAfterCommit(Booking booking, Order order, LocalDateTime checkoutTime) {

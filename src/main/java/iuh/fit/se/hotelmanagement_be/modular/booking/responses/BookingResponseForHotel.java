@@ -1,7 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.responses;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationSource;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -24,7 +23,6 @@ public class BookingResponseForHotel {
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
     LocalDateTime createdAt;
-    BookingCancellationSource cancellationSource;
     String cancellationReason;
     LocalDateTime cancelledAt;
 

@@ -36,7 +36,7 @@ public interface UserPromotionUsageRepository extends JpaRepository<UserPromotio
             WHERE b.hotel.id = :hotelId
               AND u.usedAt >= :start
               AND u.usedAt < :end
-              AND (b.bookingStatus IS NULL OR b.bookingStatus <> :cancelledStatus)
+              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledStatuses)
             GROUP BY p.id, p.name, p.code
             ORDER BY SUM(u.booking.applyAmount) DESC
             """)
@@ -44,7 +44,7 @@ public interface UserPromotionUsageRepository extends JpaRepository<UserPromotio
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledStatus") BookingStatus cancelledStatus
+            @Param("cancelledStatuses") List<BookingStatus> cancelledStatuses
     );
 
     @Query("""
@@ -55,13 +55,13 @@ public interface UserPromotionUsageRepository extends JpaRepository<UserPromotio
             WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
               AND u.usedAt >= :start
               AND u.usedAt < :end
-              AND (b.bookingStatus IS NULL OR b.bookingStatus <> :cancelledStatus)
+              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledStatuses)
             """)
     long countPromotionUsagesForPeriod(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledStatus") BookingStatus cancelledStatus
+            @Param("cancelledStatuses") List<BookingStatus> cancelledStatuses
     );
 
     @Query("""
@@ -72,13 +72,13 @@ public interface UserPromotionUsageRepository extends JpaRepository<UserPromotio
             WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
               AND u.usedAt >= :start
               AND u.usedAt < :end
-              AND (b.bookingStatus IS NULL OR b.bookingStatus <> :cancelledStatus)
+              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledStatuses)
             """)
     BigDecimal sumPromotionSavingsForPeriod(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledStatus") BookingStatus cancelledStatus
+            @Param("cancelledStatuses") List<BookingStatus> cancelledStatuses
     );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

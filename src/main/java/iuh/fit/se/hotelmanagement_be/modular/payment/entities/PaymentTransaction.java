@@ -43,18 +43,6 @@ public class PaymentTransaction {
     String note;
     LocalDateTime transactionDate;
 
-    @Column(length = 120)
-    String counterAccountName;
-
-    @Column(length = 50)
-    String counterAccountNumber;
-
-    @Column(length = 30)
-    String counterAccountBankId;
-
-    @Column(length = 120)
-    String counterAccountBankName;
-
     @Column(name = "created_at")
     LocalDateTime createdAt;
 

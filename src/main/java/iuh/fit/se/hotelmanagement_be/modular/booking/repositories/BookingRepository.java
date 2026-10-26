@@ -30,7 +30,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             WHERE b.hotel.id = :hotelId
               AND b.createdAt >= :start
               AND b.createdAt < :end
-              AND (b.bookingStatus IS NULL OR b.bookingStatus <> :cancelledBookingStatus)
+              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledBookingStatuses)
               AND (bd.status IS NULL OR bd.status <> :cancelledDetailStatus)
             GROUP BY bd.room.roomType
             """)
@@ -38,7 +38,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledBookingStatus") BookingStatus cancelledBookingStatus,
+            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses,
             @Param("cancelledDetailStatus") BookingStatusType cancelledDetailStatus
     );
 

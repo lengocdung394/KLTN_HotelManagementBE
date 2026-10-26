@@ -124,27 +124,22 @@ public class Order {
     }
 
     public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
-        addPaymentSuccess(amountPaid, paymentType, paymentLinkId, null, null, null, null);
-    }
+        Booking currentBooking = this.booking;
+        String customerName = currentBooking != null && currentBooking.getCustomer() != null
+                ? currentBooking.getCustomer().getFullName()
+                : "Khách hàng";
+        String bookingId = currentBooking != null ? currentBooking.getId() : "N/A";
+        String transactionNote = "PayOS Webhook Ref: " + paymentLinkId
+                + " | Tên khách hàng: " + customerName
+                + " | Mã booking: " + bookingId
+                + " | Số tiền thanh toán: " + amountPaid.toPlainString();
 
-    public void addPaymentSuccess(
-            BigDecimal amountPaid,
-            PaymentType paymentType,
-            String paymentLinkId,
-            String counterAccountName,
-            String counterAccountNumber,
-            String counterAccountBankId,
-            String counterAccountBankName) {
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .amount(amountPaid)
                 .transactionDate(LocalDateTime.now())
                 .paymentType(paymentType)
                 .cashFlowType(CashFlowType.RECEIPT)
-                .note("PayOS Webhook Ref: " + paymentLinkId)
-                .counterAccountName(counterAccountName)
-                .counterAccountNumber(counterAccountNumber)
-                .counterAccountBankId(counterAccountBankId)
-                .counterAccountBankName(counterAccountBankName)
+                .note(transactionNote)
                 .order(this)
                 .build();
 

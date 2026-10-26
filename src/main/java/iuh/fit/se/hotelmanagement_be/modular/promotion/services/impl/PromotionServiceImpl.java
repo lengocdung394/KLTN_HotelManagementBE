@@ -218,8 +218,10 @@ public class PromotionServiceImpl implements PromotionService {
 
         return new PromotionSummaryResponse(
                 promotionRepository.countCurrentlyActiveForSummary(hotelId, PromotionStatus.ACTIVE, now),
-                userPromotionUsageRepository.countPromotionUsagesForPeriod(hotelId, monthStart, nextMonthStart, BookingStatus.CANCELLED),
-                userPromotionUsageRepository.sumPromotionSavingsForPeriod(hotelId, monthStart, nextMonthStart, BookingStatus.CANCELLED),
+                userPromotionUsageRepository.countPromotionUsagesForPeriod(
+                        hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses()),
+                userPromotionUsageRepository.sumPromotionSavingsForPeriod(
+                        hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses()),
                 promotionRepository.countExpiringSoonForSummary(hotelId, PromotionStatus.ACTIVE, now, now.plusDays(7))
         );
     }

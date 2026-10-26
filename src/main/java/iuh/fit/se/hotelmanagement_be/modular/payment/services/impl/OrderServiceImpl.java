@@ -87,6 +87,9 @@ public class OrderServiceImpl implements OrderService {
         } else if (order.getOrderStatus() == OrderStatusType.CLOSED) {
             throw new AppException(ErrorCode.ORDER_ALREADY_CLOSED);
         } else if (order.getOrderStatus() == OrderStatusType.CANCELLED) {
+            if (booking == null || booking.getBookingStatus() != BookingStatus.CANCELLED_PAYMENT_TIMEOUT) {
+                throw new AppException(ErrorCode.ORDER_ALREADY_CANCELLED);
+            }
             order.setOrderStatus(OrderStatusType.OPEN);
         }
 
@@ -127,7 +130,7 @@ public class OrderServiceImpl implements OrderService {
         // 4. Cập nhật trạng thái Booking sang CONFIRMED nếu đang PENDING hoặc bị auto-cancel
         if (booking != null && cashFlow == CashFlowType.RECEIPT) {
             if (booking.getBookingStatus() == BookingStatus.PENDING
-                    || booking.getBookingStatus() == BookingStatus.CANCELLED) {
+                    || booking.getBookingStatus() == BookingStatus.CANCELLED_PAYMENT_TIMEOUT) {
                 booking.setBookingStatus(BookingStatus.CONFIRMED);
                 if (booking.getBookingDetails() != null) {
                     booking.getBookingDetails().forEach(detail -> {

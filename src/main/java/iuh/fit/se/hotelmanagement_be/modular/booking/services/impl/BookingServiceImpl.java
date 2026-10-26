@@ -1026,7 +1026,6 @@ public class BookingServiceImpl implements BookingService {
                 .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
                 .createdAt(booking.getCreatedAt())
-                .cancellationSource(cancellation == null ? null : cancellation.getEffectiveCancellationSource())
                 .cancellationReason(cancellation == null ? null : cancellation.getReason())
                 .cancelledAt(cancellation == null ? null : cancellation.getCancelledAt())
                 .roomTotal(order != null ? order.getRoomTotalAmount() : null)

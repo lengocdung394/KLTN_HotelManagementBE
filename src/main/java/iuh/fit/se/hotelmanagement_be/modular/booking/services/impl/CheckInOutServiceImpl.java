@@ -23,10 +23,13 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolic
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefund;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefundStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -63,6 +66,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     BookingDetailRepository bookingDetailRepository;
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
+    PaymentRepository paymentRepository;
     BookingSocketEmitter bookingSocketEmitter;
     RoomRepository roomRepository;
     RoomSocketEmitter roomSocketEmitter;
@@ -458,11 +462,32 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     refund.setBooking(booking);
                     refund.setAmount(refundAmount);
                     refund.setRefundMethod(PaymentType.CASH);
-                    refund.setStatus(CheckoutRefundStatus.PENDING);
+                    refund.setStatus(CheckoutRefundStatus.REFUNDED);
+                    refund.setRefundedAt(now);
                     refund.setNote(request.getRefundNote() == null || request.getRefundNote().isBlank()
-                            ? "Chờ nhân viên xác nhận hoàn tiền mặt tại quầy"
+                            ? "Đã hoàn tiền mặt tại quầy khi check-out"
                             : request.getRefundNote().trim());
                     checkoutRefundRepository.save(refund);
+                    paymentRepository.save(PaymentTransaction.builder()
+                            .order(order)
+                            .amount(refundAmount)
+                            .paymentType(PaymentType.CASH)
+                            .cashFlowType(CashFlowType.REFUND)
+                            .note("Hoàn dư tiền mặt tại quầy khi check-out booking " + booking.getId())
+                            .transactionDate(now)
+                            .build());
+                    BigDecimal remainingPaidAmount = paidAmount.subtract(refundAmount);
+                    order.setPaidAmount(remainingPaidAmount);
+                    order.setRemainingAmount((order.getTotalAmount() == null
+                            ? BigDecimal.ZERO
+                            : order.getTotalAmount()).subtract(remainingPaidAmount).max(BigDecimal.ZERO));
+                    order.setPaymentStatus(remainingPaidAmount.signum() == 0
+                            ? PaymentStatus.UNPAID
+                            : remainingPaidAmount.compareTo(order.getTotalAmount() == null
+                                    ? BigDecimal.ZERO
+                                    : order.getTotalAmount()) >= 0
+                                    ? PaymentStatus.PAID
+                                    : PaymentStatus.PARTIAL);
                 } else {
                     CheckoutRefund refund = new CheckoutRefund();
                     refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());

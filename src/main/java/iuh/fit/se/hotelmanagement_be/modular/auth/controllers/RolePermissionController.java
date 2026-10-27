@@ -32,7 +32,7 @@ public class RolePermissionController {
 
     // lay tat ca role
     @GetMapping("/roles")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     public ApiResponse<List<RoleResponse>> getRoles() {
         return new ApiResponse<>(
                 200,
@@ -55,7 +55,7 @@ public class RolePermissionController {
 
     // lay tat ca permisison thuoc role
     @GetMapping("/roles/permissions")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     public ApiResponse<List<RolePermissionOverviewResponse>> getRolePermissions() {
         return new ApiResponse<>(
                 200,
@@ -96,7 +96,7 @@ public class RolePermissionController {
 
     // lay tat ca ds permission
     @GetMapping("/permissions")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
     public ApiResponse<List<PermissionCatalogResponse
             >> getPermissions() {
         return new ApiResponse<>(

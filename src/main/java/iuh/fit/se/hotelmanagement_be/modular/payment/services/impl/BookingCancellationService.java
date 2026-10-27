@@ -638,7 +638,7 @@ public class BookingCancellationService {
             Payout payout = payoutGateway.create(
                     referenceId,
                     amount,
-                    "Refund booking " + cancellation.getBooking().getId(),
+                    "Hoan tien booking",
                     bankDetails.bankCode(),
                     bankDetails.bankAccountNumber());
             cancellation.setPayoutId(payout.getId());
@@ -647,9 +647,23 @@ public class BookingCancellationService {
             cancellation.setPayoutError("PayOS response is pending. Check payout status before retrying.");
             return toResponse(cancellationRepository.save(cancellation));
         } catch (APIException exception) {
+            String httpStatus = exception.getStatusCode()
+                    .map(String::valueOf)
+                    .orElse("unknown");
+            String errorCode = exception.getErrorCode()
+                    .filter(code -> !code.isBlank())
+                    .orElse("UNKNOWN");
+            log.warn(
+                    "PayOS rejected payout creation, cancellationId={}, httpStatus={}, errorCode={}, description={}",
+                    cancellation.getId(),
+                    httpStatus,
+                    errorCode,
+                    exception.getErrorDesc().orElse(exception.getMessage()));
             cancellation.setStatus(BookingCancellationStatus.PAYOUT_FAILED);
-            cancellation.setPayoutState(PayOSPayoutState.FAILED);
-            cancellation.setPayoutError("PayOS rejected the payout request. Review the account details before retrying.");
+            cancellation.setPayoutState(null);
+            cancellation.setPayoutError(
+                    "PayOS did not create the payout (HTTP " + httpStatus + ", code " + errorCode
+                            + "). Check server logs for the error description.");
             return toResponse(cancellationRepository.save(cancellation));
         }
     }

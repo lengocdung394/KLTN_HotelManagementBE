@@ -50,7 +50,7 @@ public enum ErrorCode {
     INVALID_OTP(2050, "[2050] Mã OTP không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     OTP_NOT_FOUND(2051, "[2051] Không tìm thấy thông tin xác thực OTP hợp lệ", HttpStatus.BAD_REQUEST),
     OTP_ALREADY_VERIFIED(2052, "[2052] Tài khoản đã được xác thực thành công trước đó", HttpStatus.BAD_REQUEST),
-    OTP_LOCKED(2053, "[2053] Mã OTP đã bị khóa do nhập sai quá 3 lần", HttpStatus.BAD_REQUEST),
+    OTP_LOCKED(2053, "[2053] Mã OTP đã bị khóa do nhập sai 3 lần", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(2054, "[2054] Mã OTP đã hết hạn, vui lòng yêu cầu gửi lại", HttpStatus.BAD_REQUEST),
     OTP_INCORRECT(2055, "[2055] Mã OTP không chính xác", HttpStatus.BAD_REQUEST),
     OTP_INCORRECT_1_ATTEMPT(2056, "[2056] Mã OTP không chính xác. Bạn còn 2 lần thử", HttpStatus.BAD_REQUEST),

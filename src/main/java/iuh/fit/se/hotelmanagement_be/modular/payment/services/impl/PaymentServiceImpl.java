@@ -56,9 +56,9 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentServiceImpl(
             OrderRepository orderRepository,
             ObjectMapper objectMapper,
-            @Value("${CLIENT_ID}") String clientId,
-            @Value("${API_KEY}") String apiKey,
-            @Value("${CHECKSUM_KEY}") String checksumKey,
+            @Value("${payos.client-id}") String clientId,
+            @Value("${payos.api-key}") String apiKey,
+            @Value("${payos.checksum-key}") String checksumKey,
             PaymentRepository paymentRepository,
             BookingRepository bookingRepository,
             EmailService emailService,

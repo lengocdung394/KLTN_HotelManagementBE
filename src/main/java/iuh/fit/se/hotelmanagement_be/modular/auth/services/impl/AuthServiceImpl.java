@@ -288,7 +288,7 @@ public class AuthServiceImpl implements AuthService {
             if (failedAttempts >= 3) {
                 throw new AppException(ErrorCode.OTP_LOCKED);
             }
-            if (failedAttempts == 2) {
+            if (failedAttempts == 1) {
                 throw new AppException(ErrorCode.OTP_INCORRECT_1_ATTEMPT);
             }
             throw new AppException(ErrorCode.OTP_INCORRECT_2_ATTEMPTS);

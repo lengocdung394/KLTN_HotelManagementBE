@@ -49,7 +49,7 @@ public class CheckoutRefundManagementController {
                 .build());
     }
 
-    // Hoàn trực tiếp tiền mặt / tiền dư lúc check-out: Nhân viên lễ tân và Quản lý đều được thao tác
+    // Chỉ quản lý / admin quyết định duyệt khoản hoàn chuyển khoản.
     @PatchMapping("/{refundId}/approve")
     @PreAuthorize("hasAnyRole('RECEPTIONIST', 'STAFF', 'EMPLOYEE', 'MANAGER', 'ADMIN', 'SUPER_ADMIN') or hasAuthority('UPDATE_BOOKING')")
     public ResponseEntity<ApiResponse<CheckoutRefundResponse>> approve(
@@ -64,7 +64,7 @@ public class CheckoutRefundManagementController {
                 .build());
     }
 
-    // Xác nhận đã hoàn dư
+    // Chuyển khoản chỉ được quản lý xác nhận; nhân viên vẫn có thể xác nhận khoản tiền mặt tồn đọng.
     @PatchMapping("/{refundId}/confirm-refund")
     @PreAuthorize("hasAnyRole('RECEPTIONIST', 'STAFF', 'EMPLOYEE', 'MANAGER', 'ADMIN', 'SUPER_ADMIN') or hasAuthority('UPDATE_BOOKING')")
     public ResponseEntity<ApiResponse<CheckoutRefundResponse>> confirmRefund(

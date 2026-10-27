@@ -24,7 +24,7 @@ public class AmenityExcelController {
     AmenityExcelService amenityExcelService;
 
     @PostMapping("/importExcel/async")
-    @PreAuthorize("hasAuthority('MANAGE_AMENITIES')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     @Operation(summary = "Bắt đầu nhập tiện nghi và trả về mã tiến trình")
     public ResponseEntity<Map<String, String>> startAsyncImport(
             @RequestBody AmenityExcelImportRequest request) {
@@ -36,7 +36,7 @@ public class AmenityExcelController {
     }
 
     @GetMapping("/import-status/{taskId}")
-    @PreAuthorize("hasAuthority('MANAGE_AMENITIES')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     @Operation(summary = "Lấy tiến trình nhập tiện nghi")
     public ResponseEntity<ImportTaskStatus> getImportStatus(@PathVariable String taskId) {
         return ResponseEntity.ok(amenityExcelService.getImportStatus(taskId));

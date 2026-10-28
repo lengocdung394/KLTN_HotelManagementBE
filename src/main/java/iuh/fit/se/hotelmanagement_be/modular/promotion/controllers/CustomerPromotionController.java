@@ -41,11 +41,21 @@ public class CustomerPromotionController {
 
         List<PromotionGetListByCustomerResponse> promotions = customerPromotionService.getPromotionsByCustomerId(customerId);
         return ApiResponse.<List<PromotionGetListByCustomerResponse>>builder()
+                .code(1000)
                 .result(promotions)
                 .build();
     }
 
-
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Lấy danh sách mã khuyến mãi đã lưu của khách hàng đang đăng nhập")
+    public ApiResponse<List<PromotionGetListByCustomerResponse>> getMySavedPromotions() {
+        return ApiResponse.<List<PromotionGetListByCustomerResponse>>builder()
+                .code(1000)
+                .result(customerPromotionService.getMySavedPromotions())
+                .message("Lấy danh sách khuyến mãi đã lưu thành công")
+                .build();
+    }
 
     @PostMapping("/claim")
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -61,5 +71,18 @@ public class CustomerPromotionController {
                         .message("Lưu mã khuyến mãi vào Ví thành công")
                         .result(result)
                         .build());
+    }
+
+    @DeleteMapping({"/unsave/{id}", "/{id}"})
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Khách hàng bỏ lưu mã khuyến mãi khỏi Ví voucher")
+    public ResponseEntity<ApiResponse<Void>> unsavePromotion(
+            @Parameter(description = "ID khuyến mãi (promotionId) hoặc ID voucher cá nhân (customerPromotionId)")
+            @PathVariable String id) {
+        customerPromotionService.unsavePromotion(id);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(1000)
+                .message("Đã bỏ lưu mã khuyến mãi thành công")
+                .build());
     }
 }

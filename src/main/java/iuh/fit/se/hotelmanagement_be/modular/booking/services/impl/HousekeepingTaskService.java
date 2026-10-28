@@ -15,6 +15,8 @@ import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.services.impl.RoomSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.shift.entities.ShiftAssignment;
+import iuh.fit.se.hotelmanagement_be.modular.shift.repositories.ShiftAssignmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,9 +24,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +45,8 @@ public class HousekeepingTaskService {
     private final RoomRepository roomRepository;
     private final RoomSocketEmitter roomSocketEmitter;
     private final NotificationService notificationService;
+    private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final BookingSocketEmitter bookingSocketEmitter;
 
     @Transactional
     public void createTaskForCheckout(BookingDetail detail, Room room, LocalDateTime checkoutTime) {
@@ -83,6 +91,12 @@ public class HousekeepingTaskService {
                 .filter(candidate -> candidate.getHotel() != null && hotelId.equals(candidate.getHotel().getId()))
                 .filter(candidate -> isHousekeeping(candidate.getPosition()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Chọn nhân viên buồng phòng đang thuộc chi nhánh."));
+        if (!isAssignedToHousekeepingShift(employee.getId(), hotelId, task.getCreatedAt())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Chỉ phân công được nhân viên buồng phòng đang trong ca tại thời điểm checkout."
+            );
+        }
 
         task.setAssignedEmployee(employee);
         task.setBackupEmployee(null);
@@ -92,6 +106,7 @@ public class HousekeepingTaskService {
         taskRepository.save(task);
         notifyEmployee(employee, hotelId, task, NotificationType.HOUSEKEEPING_TASK_ASSIGNED,
                 "Bạn được giao dọn phòng " + task.getRoom().getRoomNumber() + " sau checkout.");
+        bookingSocketEmitter.emitHousekeepingTaskUpdate(hotelId);
         return toResponse(task);
     }
 
@@ -162,7 +177,7 @@ public class HousekeepingTaskService {
         roomRepository.save(room);
         taskRepository.save(task);
         roomSocketEmitter.emitRoomStatusUpdated(
-                task.getHotelId(), room.getId(), room.getRoomNumber(), RoomStatus.READY);
+                task.getHotelId(), room.getId(), room.getRoomNumber(), RoomStatus.READY, "HOUSEKEEPING_COMPLETED");
         notificationService.createAndPublish(
                 task.getHotelId(),
                 NotificationType.HOUSEKEEPING_TASK_COMPLETED,
@@ -170,6 +185,7 @@ public class HousekeepingTaskService {
                 "Phòng " + room.getRoomNumber() + " đã được dọn xong và chuyển sang trạng thái sẵn sàng.",
                 "HOUSEKEEPING_TASK",
                 task.getId());
+        bookingSocketEmitter.emitHousekeepingTaskUpdate(task.getHotelId());
         return new HousekeepingTaskResponse(
                 task.getId(), room.getId(), room.getRoomNumber(),
                 task.getBookingDetailId(), task.getStatus(), task.getCreatedAt(), task.getAssignedAt(),
@@ -188,6 +204,7 @@ public class HousekeepingTaskService {
                 taskRepository.save(task);
                 notifyHotel(task.getHotelId(), task,
                         "Phòng " + task.getRoom().getRoomNumber() + " chưa được xác nhận dọn sau 1 giờ; cần quản lý phân công lại.");
+                bookingSocketEmitter.emitHousekeepingTaskUpdate(task.getHotelId());
                 continue;
             }
             task.setAssignedEmployee(backup);
@@ -197,6 +214,7 @@ public class HousekeepingTaskService {
             taskRepository.save(task);
             notifyEmployee(backup, task.getHotelId(), task, NotificationType.HOUSEKEEPING_TASK_REASSIGNED,
                     "Việc dọn phòng " + task.getRoom().getRoomNumber() + " được chuyển cho bạn. Vui lòng hoàn tất và xác nhận.");
+            bookingSocketEmitter.emitHousekeepingTaskUpdate(task.getHotelId());
         }
     }
 
@@ -250,5 +268,40 @@ public class HousekeepingTaskService {
         if (roleOrPosition == null) return false;
         String value = roleOrPosition.trim().toLowerCase(Locale.ROOT);
         return value.contains("buồng") || value.contains("buong") || value.contains("housekeeping") || value.contains("housekeeper");
+    }
+
+    private boolean isAssignedToHousekeepingShift(
+            String employeeId,
+            Long hotelId,
+            LocalDateTime checkoutTime
+    ) {
+        if (checkoutTime == null) return false;
+
+        LocalDate workDate = checkoutTime.toLocalDate();
+        if (checkoutTime.toLocalTime().isBefore(LocalTime.of(6, 0))) {
+            workDate = workDate.minusDays(1);
+        }
+        LocalTime checkoutLocalTime = checkoutTime.toLocalTime();
+
+        return shiftAssignmentRepository.findByHotelIdAndWorkDate(hotelId, workDate).stream()
+                .filter(assignment -> assignment.getEmployee() != null
+                        && employeeId.equals(assignment.getEmployee().getId()))
+                .filter(assignment -> "SCHEDULED".equalsIgnoreCase(assignment.getStatus()))
+                .filter(assignment -> isHousekeeping(assignment.getRole()))
+                .anyMatch(assignment -> shiftContains(assignment.getShiftTime(), checkoutLocalTime));
+    }
+
+    private boolean shiftContains(String shiftTime, LocalTime time) {
+        if (shiftTime == null) return false;
+
+        Matcher matcher = Pattern.compile("(\\d{1,2}):(\\d{2})").matcher(shiftTime);
+        if (!matcher.find()) return false;
+        LocalTime start = LocalTime.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+        if (!matcher.find()) return false;
+        LocalTime end = LocalTime.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
+
+        return start.isBefore(end)
+                ? !time.isBefore(start) && time.isBefore(end)
+                : !time.isBefore(start) || time.isBefore(end);
     }
 }

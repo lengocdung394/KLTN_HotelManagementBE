@@ -3,6 +3,8 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutState;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutStateConverter;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Data;
@@ -60,17 +62,32 @@ public class BookingCancellation {
     @Column(nullable = false, length = 50)
     String refundPolicy;
 
-    @Column(length = 120)
+    @Column(length = 512)
     String bankName;
 
-    @Column(length = 30)
+    @Column(length = 256)
     String bankCode;
 
-    @Column(length = 120)
+    @Column(length = 512)
     String bankAccountName;
 
-    @Column(length = 50)
+    @Column(length = 256)
     String bankAccountNumber;
+
+    LocalDateTime bankDetailsUpdatedAt;
+
+    @Column(length = 100)
+    String payoutId;
+
+    @Column(length = 100)
+    String payoutReference;
+
+    @Convert(converter = PayOSPayoutStateConverter.class)
+    @Column(length = 32)
+    PayOSPayoutState payoutState;
+
+    @Column(length = 200)
+    String payoutError;
 
     @Column(length = 100)
     String requestedByCustomerId;
@@ -105,4 +122,5 @@ public class BookingCancellation {
     LocalDateTime refundedAt;
 
     LocalDateTime cancelledAt;
+
 }

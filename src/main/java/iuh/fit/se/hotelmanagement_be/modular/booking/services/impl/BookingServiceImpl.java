@@ -2,8 +2,10 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
@@ -11,11 +13,13 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
@@ -27,7 +31,9 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionDiscountType;
@@ -76,9 +82,12 @@ public class BookingServiceImpl implements BookingService {
     HotelRepository hotelRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
+    BookingCancellationRepository bookingCancellationRepository;
     BookingSocketEmitter bookingSocketEmitter;
     PromotionUsageService promotionUsageService;
     EmailService emailService;
+    AccountRepository accountRepository;
+    PaymentRepository paymentRepository;
 
 
     /**
@@ -87,7 +96,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     @Override
     public BookingResponse createCustomerBooking(BookingCreateRequest request) {
-        Customer customer = validateAndGetCustomer(request.getCustomerId());
+        Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
         // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
@@ -137,32 +146,35 @@ public class BookingServiceImpl implements BookingService {
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
-        Map<String, Object> bookingData = new LinkedHashMap<>();
-        bookingData.put("bookingId", savedBooking.getId());
-        bookingData.put("customerName", customer.getFullName());
-        bookingData.put("customerPhone", customer.getPhone());
-        bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+        // CHỈ bắn thông báo đơn mới tới nhân viên và email khi booking ĐÃ ĐƯỢC XÁC NHẬN / THANH TOÁN THÀNH CÔNG
+        // Đơn ONLINE đang PENDING chờ thanh toán sẽ chỉ bắn thông báo sau khi PayOS/ngân hàng xác nhận thanh toán thành công
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED) {
+            Map<String, Object> bookingData = new LinkedHashMap<>();
+            bookingData.put("bookingId", savedBooking.getId());
+            bookingData.put("customerName", customer.getFullName());
+            bookingData.put("customerPhone", customer.getPhone());
+            bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
 
-        bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
+            bookingSocketEmitter.emitNewBookingNotification(
+                    hotelId,
+                    savedBooking,
+                    bookingData
+            );
+            // Báo về cho khách hàng trạng thái đơn hàng
+            bookingSocketEmitter.emitCustomerBookingStatus(
+                    customer,
+                    savedBooking,
+                    NotificationType.BOOKING_CREATED,
+                    "Đặt phòng thành công",
+                    "Mã booking: #" + savedBooking.getId()
+                            + " | Khách hàng: " + customer.getFullName()
+                            + " | SĐT: " + customer.getPhone()
+                            + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
 
-        bookingSocketEmitter.emitNewBookingNotification(
-                hotelId,
-                savedBooking,
-                bookingData
-        );
-        // Báo về cho khách hàng trạng thái đơn hàng
-        bookingSocketEmitter.emitCustomerBookingStatus(
-                customer,
-                savedBooking,
-                NotificationType.BOOKING_CREATED,
-                "Đặt phòng thành công",
-                "Mã booking: #" + savedBooking.getId()
-                        + " | Khách hàng: " + customer.getFullName()
-                        + " | SĐT: " + customer.getPhone()
-                        + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
+        }
         // ==========================================
 
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         return toBookingResponse(savedBooking);
     }
 
@@ -172,7 +184,7 @@ public class BookingServiceImpl implements BookingService {
     @Transactional
     @Override
     public BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request) {
-        Customer customer = validateAndGetCustomer(request.getCustomerId());
+        Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
@@ -210,7 +222,10 @@ public class BookingServiceImpl implements BookingService {
         );
 
         // Sửa lại cú pháp log chuẩn SLF4J
-        log.info("Nhan vien Tao booking: {}", order);
+        log.info("Nhan vien Tao booking: orderId={}, bookingId={}, promotionId={}",
+                order.getId(),
+                savedBooking.getId(),
+                savedBooking.getPromotion() != null ? savedBooking.getPromotion().getId() : null);
 
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
         if (hotelId != null) {
@@ -265,11 +280,23 @@ public class BookingServiceImpl implements BookingService {
         }
 
         String email = request.getCustomerEmail();
-        if (email == null || email.isBlank()) {
-            throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
+        if (email != null && !email.isBlank()) {
+            customer.setEmail(email.trim());
+            customerRepository.save(customer);
+            return;
         }
 
-        customer.setEmail(email.trim());
+        if (customer.getAccount() != null && customer.getAccount().getEmail() != null && !customer.getAccount().getEmail().isBlank()) {
+            customer.setEmail(customer.getAccount().getEmail().trim());
+            customerRepository.save(customer);
+            return;
+        }
+
+        // Tự động gắn email fallback từ SĐT hoặc ID để luồng đặt phòng không bị gián đoạn
+        String fallbackEmail = customer.getPhone() != null && !customer.getPhone().isBlank()
+                ? customer.getPhone() + "@guest.senviet.vn"
+                : "khachhang." + customer.getId() + "@guest.senviet.vn";
+        customer.setEmail(fallbackEmail);
         customerRepository.save(customer);
     }
 
@@ -327,8 +354,41 @@ public class BookingServiceImpl implements BookingService {
         return createAndLinkOrder(roomTotal, serviceTotal, discountResult, surchargeTotal);
     }
 
-    private Customer validateAndGetCustomer(String customerId) {
-        return customerRepository.findById(customerId).orElseThrow(() -> new AppException(ErrorCode.CUSTOMER_NOT_FOUND));
+    private Customer validateAndGetCustomer(String customerId, String customerEmail) {
+        if (customerId != null && !customerId.isBlank()) {
+            Optional<Customer> opt = customerRepository.findById(customerId);
+            if (opt.isPresent()) return opt.get();
+
+            if (!customerId.startsWith("CUS_") && !customerId.startsWith("CUS")) {
+                Optional<Customer> optPrefix = customerRepository.findById("CUS_" + customerId);
+                if (optPrefix.isPresent()) return optPrefix.get();
+            }
+            Optional<Customer> optPhone = customerRepository.findFirstByPhone(customerId);
+            if (optPhone.isPresent()) return optPhone.get();
+        }
+
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            Optional<Customer> optEmail = customerRepository.findFirstByEmail(customerEmail.trim());
+            if (optEmail.isPresent()) return optEmail.get();
+
+            Optional<Account> acc = accountRepository.findByEmail(customerEmail.trim());
+            if (acc.isPresent()) {
+                Optional<Customer> optAcc = customerRepository.findFirstByAccount(acc.get());
+                if (optAcc.isPresent()) return optAcc.get();
+            }
+        }
+
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            Customer newCustomer = Customer.builder()
+                    .email(customerEmail.trim())
+                    .fullName(customerEmail.split("@")[0])
+                    .loyaltyTier(iuh.fit.se.hotelmanagement_be.modular.auth.entities.enums.LoyaltyTier.BRONZE)
+                    .isRegistered(false)
+                    .build();
+            return customerRepository.save(newCustomer);
+        }
+
+        throw new AppException(ErrorCode.CUSTOMER_NOT_FOUND);
     }
 
     private Employee validateAndGetEmployee(String employeeId) {
@@ -462,13 +522,104 @@ public class BookingServiceImpl implements BookingService {
         if (detailRequests == null || detailRequests.isEmpty()) {
             throw new AppException(ErrorCode.BOOKING_DETAILS_REQUIRED);
         }
-        // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
+        Long targetHotelId = booking.getHotel() != null ? booking.getHotel().getId() : null;
+        Map<iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType, List<RoomSeasonalRate>> seasonalRatesByRoomType = new HashMap<>();
+        if (targetHotelId != null) {
+            List<BookingDetailCreateRequest> datedDetails = detailRequests.stream()
+                    .filter(detail -> detail != null
+                            && detail.getCheckInTime() != null
+                            && detail.getCheckOutTime() != null
+                            && detail.getCheckOutTime().isAfter(detail.getCheckInTime()))
+                    .toList();
+            if (!datedDetails.isEmpty()) {
+                LocalDate firstStayDate = datedDetails.stream()
+                        .map(detail -> detail.getCheckInTime().toLocalDate())
+                        .min(LocalDate::compareTo)
+                        .orElseThrow();
+                LocalDate lastStayDate = datedDetails.stream()
+                        .map(detail -> detail.getCheckOutTime().toLocalDate())
+                        .max(LocalDate::compareTo)
+                        .orElseThrow()
+                        .minusDays(1);
+                roomSeasonalRateRepository.findRatesByBranchAndDateRange(targetHotelId, firstStayDate, lastStayDate)
+                        .forEach(rate -> seasonalRatesByRoomType
+                                .computeIfAbsent(rate.getRoomType(), ignored -> new ArrayList<>())
+                                .add(rate));
+            }
+        }
+        Map<iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType, BranchRoomPolicy> policiesByRoomType = new HashMap<>();
 
         return detailRequests.stream().map(detailReq -> {
-            Room room = roomRepository.findById(detailReq.getRoomId()).orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+            String targetRoomId = detailReq.getRoomId();
+
+            Room room = null;
+            if (targetHotelId != null && targetRoomId != null && !targetRoomId.isBlank()) {
+                room = roomRepository.findByIdAndFloor_Building_Hotel_Id(targetRoomId, targetHotelId)
+                        .or(() -> roomRepository.findFirstByRoomNumberAndFloor_Building_Hotel_Id(targetRoomId, targetHotelId))
+                        .orElse(null);
+            }
+
+            if (room == null && targetRoomId != null && !targetRoomId.isBlank()) {
+                room = roomRepository.findById(targetRoomId)
+                        .or(() -> roomRepository.findFirstByRoomNumber(targetRoomId))
+                        .or(() -> roomRepository.findAll().stream()
+                                .filter(r -> r.getId().endsWith(targetRoomId) || r.getRoomNumber().equals(targetRoomId))
+                                .findFirst())
+                        .orElse(null);
+            }
+
+            // Nếu phòng không khớp hotel của booking, bỏ để tìm phòng thuộc đúng khách sạn
+            if (room != null && targetHotelId != null) {
+                Long roomHotelId = room.getFloor().getBuilding().getHotel().getId();
+                if (!roomHotelId.equals(targetHotelId)) {
+                    room = null;
+                }
+            }
+
+            // Kiểm tra phòng có bị trùng lịch đặt không, nếu trùng thì tự động tìm phòng khác cùng loại còn trống
+            if (room != null) {
+                long overlapping = bookingDetailRepository.countOverlappingBookings(
+                        room.getId(),
+                        detailReq.getCheckInTime(),
+                        detailReq.getCheckOutTime()
+                );
+                if (overlapping > 0) {
+                    var targetType = room.getRoomType();
+                    Long hId = targetHotelId != null ? targetHotelId : room.getFloor().getBuilding().getHotel().getId();
+                    List<Room> available = bookingDetailRepository.findAvailableRooms(
+                            hId,
+                            detailReq.getCheckInTime(),
+                            detailReq.getCheckOutTime()
+                    );
+                    room = available.stream()
+                            .filter(r -> r.getRoomType() == targetType)
+                            .findFirst()
+                            .or(() -> available.stream().findFirst())
+                            .orElse(null);
+                }
+            } else if (targetHotelId != null) {
+                List<Room> available = bookingDetailRepository.findAvailableRooms(
+                        targetHotelId,
+                        detailReq.getCheckInTime(),
+                        detailReq.getCheckOutTime()
+                );
+                if (!available.isEmpty()) {
+                    room = available.get(0);
+                }
+            }
+
+            if (room == null) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
+            }
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            BranchRoomPolicy policy = policiesByRoomType.get(room.getRoomType());
+            if (policy == null) {
+                policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+                if (policy != null) {
+                    policiesByRoomType.put(room.getRoomType(), policy);
+                }
+            }
 
             if (policy == null) {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
@@ -516,7 +667,13 @@ public class BookingServiceImpl implements BookingService {
             LocalDate currentDate = checkInDate;
 
             while (currentDate.isBefore(checkOutDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+                LocalDate stayDate = currentDate;
+                Optional<RoomSeasonalRate> seasonalRateOpt = seasonalRatesByRoomType
+                        .getOrDefault(room.getRoomType(), List.of())
+                        .stream()
+                        .filter(rate -> !stayDate.isBefore(rate.getStartDate())
+                                && !stayDate.isAfter(rate.getEndDate()))
+                        .findFirst();
 
                 double dailyRoomPrice;
                 double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
@@ -677,7 +834,6 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
         validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
-        promotion.setUsedCount(promotion.getUsedCount() + 1);
 
         return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
     }
@@ -802,6 +958,13 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public BookingResponseForHotel toBookingForHotelResponse(Booking booking) {
+        return toBookingForHotelResponse(booking, BigDecimal.ZERO, null);
+    }
+
+    private BookingResponseForHotel toBookingForHotelResponse(
+            Booking booking,
+            BigDecimal refundedAmount,
+            BookingCancellation cancellation) {
         if (booking == null) {
             return null;
         }
@@ -862,7 +1025,10 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
                 .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
-                .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
+                .createdAt(booking.getCreatedAt())
+                .cancellationReason(cancellation == null ? null : cancellation.getReason())
+                .cancelledAt(cancellation == null ? null : cancellation.getCancelledAt())
+                .roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 // map phan khuyen mai
                 .promotionId(booking.getPromotion() != null ? booking.getPromotion().getId() : null)
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
@@ -871,6 +1037,10 @@ public class BookingServiceImpl implements BookingService {
                 .applyAt(booking.getApplyAt() != null ? booking.getApplyAt() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
+                .collectedAmount(order == null
+                        ? BigDecimal.ZERO
+                        : (order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount()).add(refundedAmount))
+                .refundedAmount(refundedAmount)
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai
                 .finalAmount(order != null ? order.getTotalAmount() : null) // tien tong hoa don
                 // lam ro phan tien giam gia cho phong / dich vu / ca phong va dich vu
@@ -892,9 +1062,28 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingResponseForHotel> getBookingsByHotel(Long hotelId) {
         // Gọi repository lấy danh sách booking theo hotelId
         List<Booking> bookings = bookingRepository.findAllByHotelId(hotelId);
+        Map<String, BigDecimal> refundedAmounts = paymentRepository
+                .findRefundTotalsByHotelId(hotelId, CashFlowType.REFUND)
+                .stream()
+                .collect(Collectors.toMap(
+                        PaymentRepository.OrderRefundTotalProjection::getOrderId,
+                        PaymentRepository.OrderRefundTotalProjection::getRefundedAmount));
+        Map<String, BookingCancellation> cancellationsByBooking = bookingCancellationRepository
+                .findAllByBookingHotelId(hotelId)
+                .stream()
+                .collect(Collectors.toMap(
+                        cancellation -> cancellation.getBooking().getId(),
+                        cancellation -> cancellation));
 
         // Chuyển đổi sang danh sách BookingResponse
-        return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
+        return bookings.stream()
+                .map(booking -> toBookingForHotelResponse(
+                        booking,
+                        booking.getOrder() == null
+                                ? BigDecimal.ZERO
+                                : refundedAmounts.getOrDefault(booking.getOrder().getId(), BigDecimal.ZERO),
+                        cancellationsByBooking.get(booking.getId())))
+                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -906,7 +1095,7 @@ public class BookingServiceImpl implements BookingService {
         LocalDateTime endDateTime = endDate.atTime(LocalTime.MAX);
         LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
 
-        List<BookingDetail> activeDetails = bookingDetailRepository.findActiveBookingsByDateRange(
+        List<BookingDetail> activeDetails = bookingDetailRepository.findCalendarBookingsByDateRange(
                 hotelId, startDateTime, endDateTime, fiveMinutesAgo
         );
 
@@ -931,13 +1120,8 @@ public class BookingServiceImpl implements BookingService {
                     })
                     .map(detail -> {
                         // 1. Ưu tiên lấy mốc thời gian thực tế nếu có, nếu chưa có thì dùng giờ dự kiến
-                        LocalDateTime effectiveCheckIn = detail.getActualCheckInTime() != null
-                                ? detail.getActualCheckInTime()
-                                : detail.getCheckinTime();
-
-                        LocalDateTime effectiveCheckOut = detail.getActualCheckOutTime() != null
-                                ? detail.getActualCheckOutTime()
-                                : detail.getCheckoutTime();
+                        LocalDateTime effectiveCheckIn = detail.getCheckinTime();
+                        LocalDateTime effectiveCheckOut = detail.getCheckoutTime();
 
                         // 2. Tính toán danh sách ngày bị chiếm (occupiedDates) dựa trên mốc thực tế này
                         List<LocalDate> dates = new ArrayList<>();

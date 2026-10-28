@@ -63,6 +63,10 @@ public class CheckoutRefundService {
     @Transactional
     public CheckoutRefundResponse approve(String refundId, CheckoutRefundReviewRequest request, Account account) {
         CheckoutRefund refund = getRefundForAccount(refundId, account);
+        if (refund.getRefundMethod() != PaymentType.BANK) {
+            throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_STATUS);
+        }
+        requireManagerForBankRefund(account);
         if (refund.getStatus() != CheckoutRefundStatus.PENDING) {
             throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_STATUS);
         }
@@ -89,6 +93,9 @@ public class CheckoutRefundService {
             CheckoutRefundReviewRequest request,
             Account account) {
         CheckoutRefund refund = getRefundForAccount(refundId, account);
+        if (refund.getRefundMethod() == PaymentType.BANK) {
+            requireManagerForBankRefund(account);
+        }
         boolean cashRefundPending = refund.getRefundMethod() == PaymentType.CASH
                 && refund.getStatus() == CheckoutRefundStatus.PENDING;
         if (!cashRefundPending && refund.getStatus() != CheckoutRefundStatus.APPROVED) {
@@ -157,6 +164,16 @@ public class CheckoutRefundService {
     private boolean isSuperAdmin(Account account) {
         return account.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+    }
+
+    private void requireManagerForBankRefund(Account account) {
+        boolean isManager = account.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_MANAGER".equals(authority.getAuthority())
+                        || "ROLE_ADMIN".equals(authority.getAuthority())
+                        || "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+        if (!isManager) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
     }
 
     private boolean hasBankDetails(CheckoutRefundReviewRequest request) {

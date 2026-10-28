@@ -37,10 +37,52 @@ public class BookingSocketEmitter {
     public void emitRoomMatrixUpdate(Long hotelId) {
         if (hotelId != null) {
             String roomName = "hotel_" + hotelId;
-            socketIOServer.getRoomOperations(roomName)
-                    .sendEvent("room_matrix_updated", "Lịch tổng phòng vừa được làm mới do có booking mới!");
-            log.info("🏢 [Booking Socket] Đã gửi 'room_matrix_updated' tới room chi nhánh: {}", roomName);
+            Runnable emit = () -> {
+                try {
+                    socketIOServer.getRoomOperations(roomName)
+                            .sendEvent("room_matrix_updated", "Lịch tổng phòng vừa được làm mới do có booking mới!");
+                    log.info("🏢 [Booking Socket] Đã gửi 'room_matrix_updated' tới room chi nhánh: {}", roomName);
+                } catch (RuntimeException exception) {
+                    log.error("Không thể gửi cập nhật lịch phòng tới chi nhánh {}", roomName, exception);
+                }
+            };
+
+            if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+                emit.run();
+                return;
+            }
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
         }
+    }
+
+    public void emitHousekeepingTaskUpdate(Long hotelId) {
+        if (hotelId == null) return;
+
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations("hotel_" + hotelId)
+                        .sendEvent("housekeeping_task_updated", Map.of("hotelId", hotelId));
+                log.info("Emitted housekeeping_task_updated for hotel {}", hotelId);
+            } catch (RuntimeException exception) {
+                log.error("Could not emit housekeeping task update for hotel {}", hotelId, exception);
+            }
+        };
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            emit.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                emit.run();
+            }
+        });
     }
 
     public void emitBookingStateUpdated(Long hotelId, String bookingId, String action) {
@@ -95,7 +137,7 @@ public class BookingSocketEmitter {
                 : BigDecimal.ZERO;
         String formattedAmount = formatAmount(totalAmount);
 
-        notificationService.createAndPublish(
+        notificationService.createAndPublishInCurrentTransaction(
                 hotelId,
                 NotificationType.BOOKING_CREATED,
                 "Booking mới",
@@ -108,15 +150,27 @@ public class BookingSocketEmitter {
         );
 
         String roomName = "hotel_" + hotelId;
-        socketIOServer.getRoomOperations(roomName)
-                .sendEvent("new_booking_notification", bookingData);
-        socketIOServer.getRoomOperations("super_admin_accounts")
-                .sendEvent(
-                        "new_booking_notification",
-                        Map.of("hotelId", hotelId, "data", bookingData)
-                );
-
-        log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations(roomName)
+                        .sendEvent("new_booking_notification", bookingData);
+                socketIOServer.getRoomOperations("super_admin_accounts")
+                        .sendEvent("new_booking_notification", Map.of("hotelId", hotelId, "data", bookingData));
+                log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+            } catch (RuntimeException exception) {
+                log.error("Không thể gửi thông báo booking mới {} tới chi nhánh {}", booking.getId(), hotelId, exception);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
+        } else {
+            emit.run();
+        }
     }
 
     public void emitPaymentReceived(Order order, BigDecimal amount, PaymentType paymentType) {
@@ -136,22 +190,51 @@ public class BookingSocketEmitter {
         String formattedAmount = formatAmount(amount != null ? amount : BigDecimal.ZERO);
         String paymentMethod = switch (paymentType != null ? paymentType : PaymentType.CASH) {
             case CASH -> "Tiền mặt";
-            case BANK -> "Chuyển khoản";
+            case BANK -> "Chuyển khoản (VietQR)";
             case EWALLET -> "Ví điện tử";
         };
 
-        notificationService.createAndPublish(
+        boolean isOnline = booking.getBookingChannel() == iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel.ONLINE;
+        String title = isOnline ? "Đặt phòng & Thanh toán thành công" : "Đã nhận thanh toán booking";
+        String description = "Mã booking: #" + booking.getId()
+                + " | Khách hàng: " + customerName
+                + " | SĐT: " + customerPhone
+                + " | Số tiền thanh toán: " + formattedAmount + "đ"
+                + " | Phương thức: " + paymentMethod + ".";
+
+        notificationService.createAndPublishInCurrentTransaction(
                 hotelId,
                 NotificationType.PAYMENT_RECEIVED,
-                "Đã nhận thanh toán booking",
-                "Mã booking: #" + booking.getId()
-                        + " | Khách hàng: " + customerName
-                        + " | SĐT: " + customerPhone
-                        + " | Số tiền thanh toán: " + formattedAmount + "đ"
-                        + " | Phương thức: " + paymentMethod + ".",
+                title,
+                description,
                 "BOOKING",
                 booking.getId()
         );
+
+        Map<String, Object> paymentData = Map.of(
+                "action", "PAYMENT_RECEIVED",
+                "bookingId", booking.getId(),
+                "customerName", customerName,
+                "customerPhone", customerPhone,
+                "amount", (amount != null ? amount : BigDecimal.ZERO).doubleValue(),
+                "paymentMethod", paymentMethod
+        );
+        socketIOServer.getRoomOperations("hotel_" + hotelId)
+                .sendEvent("new_booking_notification", paymentData);
+        socketIOServer.getRoomOperations("super_admin_accounts")
+                .sendEvent("new_booking_notification", Map.of("hotelId", hotelId, "data", paymentData));
+
+        if (customer != null) {
+            emitCustomerBookingStatus(
+                    customer,
+                    booking,
+                    NotificationType.PAYMENT_RECEIVED,
+                    "Đặt phòng & Thanh toán thành công",
+                    "Mã booking: #" + booking.getId()
+                            + " | Quý khách đã thanh toán thành công " + formattedAmount + "đ qua " + paymentMethod + ".");
+        }
+
+        emitRoomMatrixUpdate(hotelId);
     }
 
     public void emitBookingUpdated(
@@ -358,4 +441,5 @@ public class BookingSocketEmitter {
     ) {
 
     }
-}
+
+    }

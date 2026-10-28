@@ -52,6 +52,16 @@ public class RoomSocketEmitter {
     }
 
     public void emitRoomStatusUpdated(Long hotelId, String roomId, String roomNumber, RoomStatus roomStatus) {
+        emitRoomStatusUpdated(hotelId, roomId, roomNumber, roomStatus, null);
+    }
+
+    public void emitRoomStatusUpdated(
+            Long hotelId,
+            String roomId,
+            String roomNumber,
+            RoomStatus roomStatus,
+            String updateReason
+    ) {
         if (hotelId == null) return;
 
         Map<String, Object> roomData = new LinkedHashMap<>();
@@ -60,7 +70,7 @@ public class RoomSocketEmitter {
         roomData.put("roomStatus", roomStatus);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("hotelId", hotelId);
-        payload.put("action", "STATUS_UPDATED");
+        payload.put("action", updateReason == null ? "STATUS_UPDATED" : updateReason);
         payload.put("data", roomData);
         payload.put("occurredAt", Instant.now().toString());
 

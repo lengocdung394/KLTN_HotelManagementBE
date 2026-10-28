@@ -23,12 +23,16 @@ public class BookingResponseForHotel {
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
     LocalDateTime createdAt;
+    String cancellationReason;
+    LocalDateTime cancelledAt;
 
     String promotionId; // khuyen mai cua khach hang
     String customerPromotionId; // khuyen mai cua chi nhanh
     LocalDateTime applyAt;
     // Tiền đã thanh toán
     BigDecimal  paidAmount;
+    BigDecimal collectedAmount;
+    BigDecimal refundedAmount;
     BigDecimal  remainingAmount;
     BigDecimal surchargeTotalAmount; // tien phu thu
     // Lam ro phan tien giam giá

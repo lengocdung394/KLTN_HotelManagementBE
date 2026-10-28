@@ -83,7 +83,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 || !account.getHotelId().equals(booking.getHotel().getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
         }
-        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+        if (booking.getBookingStatus() != null && booking.getBookingStatus().isCancelled()) {
             throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
         }
 
@@ -409,7 +409,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     return new AppException(ErrorCode.BOOKING_NOT_FOUND);
                 });
 
-        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+        if (booking.getBookingStatus() != null && booking.getBookingStatus().isCancelled()) {
             log.warn("Attempted to modify an already cancelled booking ID: {}", bookingId);
             throw new AppException(ErrorCode.BOOKING_ALREADY_CANCELLED);
         }

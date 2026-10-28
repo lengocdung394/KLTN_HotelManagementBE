@@ -7,6 +7,7 @@ public record PromotionUsageReportResponse(
         String promotionName,
         String promotionCode,
         long usageCount,
+        long userCount,
         BigDecimal savings
 ) {
 }

@@ -30,10 +30,12 @@ public class Booking {
     @Column(name = "booking_id")
     String id;
 
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     Customer customer;
 
+    @EqualsAndHashCode.Exclude
     @ManyToOne
     @JoinColumn(name = "employee_id")
     Employee employee;
@@ -43,10 +45,12 @@ public class Booking {
     BookingChannel bookingChannel;
 
     @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @Builder.Default
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingDetail> bookingDetails = new ArrayList<>();
 
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_promotion_id")
     CustomerPromotion customerPromotion;
@@ -61,10 +65,12 @@ public class Booking {
     @Column(name = "apply_at")
     LocalDateTime applyAt;     // Thời điểm nhân viên bấm áp dụng mã
 
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     Promotion promotion;
     // Thêm liên kết tới Chi nhánh/Khách sạn
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "hotel_id", nullable = false)
     Hotel hotel; // Hoặc Branch branch; tùy theo tên entity của bạn
@@ -72,6 +78,8 @@ public class Booking {
     //
     @OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "order_id", referencedColumnName = "order_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private Order order;
 
     // ma booking thay doi

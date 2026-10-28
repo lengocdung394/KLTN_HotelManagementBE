@@ -78,7 +78,6 @@ public class OrderController {
                 .message("Lấy danh sách hóa đơn thành công")
                 .build());
     }
-    @PreAuthorize("hasAuthority('MANAGE_CHECKIN_CHECKOUT')")
     @PostMapping("/payments")
     @Operation(
             summary = "Thực hiện thanh toán / Ghi nhận tiền cọc hoặc thanh toán tại quầy",

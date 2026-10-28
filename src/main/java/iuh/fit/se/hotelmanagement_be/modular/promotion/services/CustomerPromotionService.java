@@ -8,5 +8,7 @@ import java.util.List;
 
 public interface CustomerPromotionService {
     List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(String customerId);
+    List<PromotionGetListByCustomerResponse> getMySavedPromotions();
     CustomerPromotionResponse claimPromotion(ClaimPromotionRequest request);
+    void unsavePromotion(String promotionOrCustomerPromoId);
 }

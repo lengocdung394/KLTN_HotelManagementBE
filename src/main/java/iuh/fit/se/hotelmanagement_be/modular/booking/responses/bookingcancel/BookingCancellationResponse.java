@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutState;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -31,10 +32,10 @@ public class BookingCancellationResponse {
     private long hoursBeforeCheckIn;
     private String refundPolicy;
     private String refundEmail;
-    private String bankName;
-    private String bankCode;
-    private String bankAccountName;
-    private String bankAccountNumber;
+    private boolean hasRefundBankDetails;
+    private String payoutReference;
+    private PayOSPayoutState payoutState;
+    private String payoutError;
     private String reviewNote;
     private String refundReference;
     private LocalDateTime requestedAt;

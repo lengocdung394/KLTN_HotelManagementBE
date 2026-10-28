@@ -16,7 +16,7 @@ import java.util.List;
 public class HousekeepingTaskController {
     private final HousekeepingTaskService housekeepingTaskService;
 
-    @PreAuthorize("hasAuthority('ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<HousekeepingTaskResponse>>> getMyTasks() {
         return ResponseEntity.ok(ApiResponse.<List<HousekeepingTaskResponse>>builder()
@@ -24,7 +24,7 @@ public class HousekeepingTaskController {
                 .result(housekeepingTaskService.getMyTasks()).build());
     }
 
-    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @GetMapping("/management")
     public ResponseEntity<ApiResponse<List<HousekeepingTaskResponse>>> getHotelTasks() {
         return ResponseEntity.ok(ApiResponse.<List<HousekeepingTaskResponse>>builder()
@@ -32,7 +32,7 @@ public class HousekeepingTaskController {
                 .result(housekeepingTaskService.getHotelTasks()).build());
     }
 
-    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @PutMapping("/{taskId}/assign")
     public ResponseEntity<ApiResponse<HousekeepingTaskResponse>> assignTask(
             @PathVariable String taskId,
@@ -43,7 +43,7 @@ public class HousekeepingTaskController {
                 .result(housekeepingTaskService.assignTask(taskId, employeeId)).build());
     }
 
-    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @PostMapping("/{taskId}/management-complete")
     public ResponseEntity<ApiResponse<HousekeepingTaskResponse>> completeTaskByManager(@PathVariable String taskId) {
         return ResponseEntity.ok(ApiResponse.<HousekeepingTaskResponse>builder()
@@ -51,7 +51,7 @@ public class HousekeepingTaskController {
                 .result(housekeepingTaskService.completeTaskByManager(taskId)).build());
     }
 
-    @PreAuthorize("hasAuthority('ROLE_EMPLOYEE')")
+    @PreAuthorize("hasAnyAuthority('ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     @PostMapping("/{taskId}/complete")
     public ResponseEntity<ApiResponse<HousekeepingTaskResponse>> completeTask(@PathVariable String taskId) {
         return ResponseEntity.ok(ApiResponse.<HousekeepingTaskResponse>builder()

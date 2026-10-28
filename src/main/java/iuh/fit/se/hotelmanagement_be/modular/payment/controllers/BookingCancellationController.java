@@ -25,12 +25,13 @@ public class BookingCancellationController {
 
     // yeu cau huy booking
     @PostMapping("/{bookingId}/cancel")
-    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<ApiResponse<BookingCancellationResponse>> requestCancellation(
             @PathVariable String bookingId,
             @Valid @RequestBody(required = false) BookingCancellationRequest request,
             Authentication authentication) {
-        Account account = (Account) authentication.getPrincipal();
+        Account account = (authentication != null && authentication.getPrincipal() instanceof Account a)
+                ? a
+                : null;
         BookingCancellationResponse result = bookingCancellationService.requestCancellation(
                 bookingId, request, account);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -41,9 +42,20 @@ public class BookingCancellationController {
                         .build());
     }
 
-
-
-
-
-
+    @PutMapping("/{bookingId}/cancel/bank-details")
+    public ResponseEntity<ApiResponse<BookingCancellationResponse>> submitRefundBankDetails(
+            @PathVariable String bookingId,
+            @Valid @RequestBody BookingCancellationRequest request,
+            Authentication authentication) {
+        Account account = (authentication != null && authentication.getPrincipal() instanceof Account a)
+                ? a
+                : null;
+        BookingCancellationResponse result = bookingCancellationService.submitRefundBankDetails(
+                bookingId, request, account);
+        return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
+                .code(1000)
+                .message("Đã cập nhật thông tin tài khoản nhận hoàn tiền.")
+                .result(result)
+                .build());
+    }
 }

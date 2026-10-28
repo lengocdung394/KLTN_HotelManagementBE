@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
@@ -57,6 +58,8 @@ public class Order {
     List<Long> paymentOrderCodes;
 
     @OneToOne(mappedBy = "order")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     Booking booking;
 
     //MỚI THÊM: Thêm field này để Hibernate tạo cột dưới Database
@@ -64,6 +67,8 @@ public class Order {
 
     BigDecimal surchargeTotalAmount; // Tổng tiền phụ thu (check-in sớm, check-out muộn, làm hỏng đồ...)
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     List<PaymentTransaction> paymentTransactions;
 
@@ -96,6 +101,9 @@ public class Order {
 
 
     public BigDecimal getRemainingAmount() {
+        if (this.orderStatus == OrderStatusType.CANCELLED) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal total = getTotalAmount(); // Hàm này giờ sẽ lấy từ field totalAmount ra rất nhanh
         BigDecimal paid = paidAmount != null ? paidAmount : BigDecimal.ZERO;
 
@@ -116,27 +124,22 @@ public class Order {
     }
 
     public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
-        addPaymentSuccess(amountPaid, paymentType, paymentLinkId, null, null, null, null);
-    }
+        Booking currentBooking = this.booking;
+        String customerName = currentBooking != null && currentBooking.getCustomer() != null
+                ? currentBooking.getCustomer().getFullName()
+                : "Khách hàng";
+        String bookingId = currentBooking != null ? currentBooking.getId() : "N/A";
+        String transactionNote = "PayOS Webhook Ref: " + paymentLinkId
+                + " | Tên khách hàng: " + customerName
+                + " | Mã booking: " + bookingId
+                + " | Số tiền thanh toán: " + amountPaid.toPlainString();
 
-    public void addPaymentSuccess(
-            BigDecimal amountPaid,
-            PaymentType paymentType,
-            String paymentLinkId,
-            String counterAccountName,
-            String counterAccountNumber,
-            String counterAccountBankId,
-            String counterAccountBankName) {
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .amount(amountPaid)
                 .transactionDate(LocalDateTime.now())
                 .paymentType(paymentType)
                 .cashFlowType(CashFlowType.RECEIPT)
-                .note("PayOS Webhook Ref: " + paymentLinkId)
-                .counterAccountName(counterAccountName)
-                .counterAccountNumber(counterAccountNumber)
-                .counterAccountBankId(counterAccountBankId)
-                .counterAccountBankName(counterAccountBankName)
+                .note(transactionNote)
                 .order(this)
                 .build();
 

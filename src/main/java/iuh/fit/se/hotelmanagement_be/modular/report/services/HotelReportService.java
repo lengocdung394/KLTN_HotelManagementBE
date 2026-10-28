@@ -8,6 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.DailyServiceRevenueResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.BookingCancellationReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.HotelReportResponse;
@@ -38,6 +39,7 @@ public class HotelReportService {
     private final OrderRepository orderRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final RoomRepository roomRepository;
+    private final UserPromotionUsageRepository userPromotionUsageRepository;
 
     public HotelReportResponse getHotelReport(Long hotelId, LocalDate startDate, LocalDate endDate) {
         LocalDateTime start = startDate.atStartOfDay();
@@ -52,7 +54,7 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        BookingStatus.CANCELLED,
+                        BookingStatus.cancelledStatuses(),
                         BookingStatusType.CANCELLED
                 )) {
             if (row.getRoomType() != null) {
@@ -90,7 +92,7 @@ public class HotelReportService {
                         start,
                         endExclusive,
                         BookingStatusType.CANCELLED,
-                        BookingStatus.CANCELLED
+                        BookingStatus.cancelledStatuses()
                 );
         BigDecimal serviceRevenue = BigDecimal.ZERO;
         long serviceUsageCount = 0;
@@ -105,14 +107,16 @@ public class HotelReportService {
             dailyServiceRevenue.add(new DailyServiceRevenueResponse(row.getRevenueDate(), revenue, usageCount));
         }
 
-        List<BookingRepository.PromotionReportProjection> promotionRows =
-                bookingRepository.getPromotionReport(hotelId, start, endExclusive, BookingStatus.CANCELLED);
+        List<UserPromotionUsageRepository.PromotionUsageReportProjection> promotionRows =
+                userPromotionUsageRepository.getPromotionReport(
+                        hotelId, start, endExclusive, BookingStatus.cancelledStatuses());
         List<PromotionUsageReportResponse> promotions = promotionRows.stream()
                 .map(row -> new PromotionUsageReportResponse(
                         row.getPromotionId(),
                         row.getPromotionName(),
                         row.getPromotionCode(),
                         row.getUsageCount() == null ? 0 : row.getUsageCount(),
+                        row.getUserCount() == null ? 0 : row.getUserCount(),
                         row.getSavings() == null ? BigDecimal.ZERO : row.getSavings()
                 ))
                 .toList();
@@ -124,7 +128,7 @@ public class HotelReportService {
         List<BookingCancellationRepository.CancellationReportProjection> cancellationRows =
                 bookingCancellationRepository.getCancellationReport(
                         hotelId,
-                        BookingStatus.CANCELLED,
+                        BookingStatus.cancelledStatuses(),
                         start,
                         endExclusive
                 );

@@ -13,11 +13,13 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
@@ -29,7 +31,9 @@ import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.CustomerPromotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionDiscountType;
@@ -78,10 +82,12 @@ public class BookingServiceImpl implements BookingService {
     HotelRepository hotelRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
+    BookingCancellationRepository bookingCancellationRepository;
     BookingSocketEmitter bookingSocketEmitter;
     PromotionUsageService promotionUsageService;
     EmailService emailService;
     AccountRepository accountRepository;
+    PaymentRepository paymentRepository;
 
 
     /**
@@ -216,7 +222,10 @@ public class BookingServiceImpl implements BookingService {
         );
 
         // Sửa lại cú pháp log chuẩn SLF4J
-        log.info("Nhan vien Tao booking: {}", order);
+        log.info("Nhan vien Tao booking: orderId={}, bookingId={}, promotionId={}",
+                order.getId(),
+                savedBooking.getId(),
+                savedBooking.getPromotion() != null ? savedBooking.getPromotion().getId() : null);
 
         // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
         if (hotelId != null) {
@@ -513,10 +522,34 @@ public class BookingServiceImpl implements BookingService {
         if (detailRequests == null || detailRequests.isEmpty()) {
             throw new AppException(ErrorCode.BOOKING_DETAILS_REQUIRED);
         }
-        // === 4. BẮN SOCKET THÔNG BÁO REALTIME CHI NHÁNH & SUPER ADMIN ===
+        Long targetHotelId = booking.getHotel() != null ? booking.getHotel().getId() : null;
+        Map<iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType, List<RoomSeasonalRate>> seasonalRatesByRoomType = new HashMap<>();
+        if (targetHotelId != null) {
+            List<BookingDetailCreateRequest> datedDetails = detailRequests.stream()
+                    .filter(detail -> detail != null
+                            && detail.getCheckInTime() != null
+                            && detail.getCheckOutTime() != null
+                            && detail.getCheckOutTime().isAfter(detail.getCheckInTime()))
+                    .toList();
+            if (!datedDetails.isEmpty()) {
+                LocalDate firstStayDate = datedDetails.stream()
+                        .map(detail -> detail.getCheckInTime().toLocalDate())
+                        .min(LocalDate::compareTo)
+                        .orElseThrow();
+                LocalDate lastStayDate = datedDetails.stream()
+                        .map(detail -> detail.getCheckOutTime().toLocalDate())
+                        .max(LocalDate::compareTo)
+                        .orElseThrow()
+                        .minusDays(1);
+                roomSeasonalRateRepository.findRatesByBranchAndDateRange(targetHotelId, firstStayDate, lastStayDate)
+                        .forEach(rate -> seasonalRatesByRoomType
+                                .computeIfAbsent(rate.getRoomType(), ignored -> new ArrayList<>())
+                                .add(rate));
+            }
+        }
+        Map<iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType, BranchRoomPolicy> policiesByRoomType = new HashMap<>();
 
         return detailRequests.stream().map(detailReq -> {
-            Long targetHotelId = booking.getHotel() != null ? booking.getHotel().getId() : null;
             String targetRoomId = detailReq.getRoomId();
 
             Room room = null;
@@ -580,7 +613,13 @@ public class BookingServiceImpl implements BookingService {
             }
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
-            BranchRoomPolicy policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+            BranchRoomPolicy policy = policiesByRoomType.get(room.getRoomType());
+            if (policy == null) {
+                policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());
+                if (policy != null) {
+                    policiesByRoomType.put(room.getRoomType(), policy);
+                }
+            }
 
             if (policy == null) {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
@@ -628,7 +667,13 @@ public class BookingServiceImpl implements BookingService {
             LocalDate currentDate = checkInDate;
 
             while (currentDate.isBefore(checkOutDate)) {
-                Optional<RoomSeasonalRate> seasonalRateOpt = roomSeasonalRateRepository.findActiveRateByDate(hotelId, room.getRoomType(), currentDate);
+                LocalDate stayDate = currentDate;
+                Optional<RoomSeasonalRate> seasonalRateOpt = seasonalRatesByRoomType
+                        .getOrDefault(room.getRoomType(), List.of())
+                        .stream()
+                        .filter(rate -> !stayDate.isBefore(rate.getStartDate())
+                                && !stayDate.isAfter(rate.getEndDate()))
+                        .findFirst();
 
                 double dailyRoomPrice;
                 double amenitiesPrice = room.getTotalAmenitiesPrice() != null ? room.getTotalAmenitiesPrice() : 0.0;
@@ -789,7 +834,6 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
         validatePromotionRules(promotion, currentTotalAmount, now, roomTotal, serviceTotal);
-        promotion.setUsedCount(promotion.getUsedCount() + 1);
 
         return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
     }
@@ -914,6 +958,13 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     public BookingResponseForHotel toBookingForHotelResponse(Booking booking) {
+        return toBookingForHotelResponse(booking, BigDecimal.ZERO, null);
+    }
+
+    private BookingResponseForHotel toBookingForHotelResponse(
+            Booking booking,
+            BigDecimal refundedAmount,
+            BookingCancellation cancellation) {
         if (booking == null) {
             return null;
         }
@@ -974,7 +1025,10 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
                 .cccd(booking.getCustomer() != null ? booking.getCustomer().getCccd() : null)
                 .bookingStatus(booking.getBookingStatus()).bookingChannel(booking.getBookingChannel())
-                .createdAt(booking.getCreatedAt()).roomTotal(order != null ? order.getRoomTotalAmount() : null)
+                .createdAt(booking.getCreatedAt())
+                .cancellationReason(cancellation == null ? null : cancellation.getReason())
+                .cancelledAt(cancellation == null ? null : cancellation.getCancelledAt())
+                .roomTotal(order != null ? order.getRoomTotalAmount() : null)
                 // map phan khuyen mai
                 .promotionId(booking.getPromotion() != null ? booking.getPromotion().getId() : null)
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
@@ -983,6 +1037,10 @@ public class BookingServiceImpl implements BookingService {
                 .applyAt(booking.getApplyAt() != null ? booking.getApplyAt() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
                 .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
+                .collectedAmount(order == null
+                        ? BigDecimal.ZERO
+                        : (order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount()).add(refundedAmount))
+                .refundedAmount(refundedAmount)
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai
                 .finalAmount(order != null ? order.getTotalAmount() : null) // tien tong hoa don
                 // lam ro phan tien giam gia cho phong / dich vu / ca phong va dich vu
@@ -1004,9 +1062,28 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingResponseForHotel> getBookingsByHotel(Long hotelId) {
         // Gọi repository lấy danh sách booking theo hotelId
         List<Booking> bookings = bookingRepository.findAllByHotelId(hotelId);
+        Map<String, BigDecimal> refundedAmounts = paymentRepository
+                .findRefundTotalsByHotelId(hotelId, CashFlowType.REFUND)
+                .stream()
+                .collect(Collectors.toMap(
+                        PaymentRepository.OrderRefundTotalProjection::getOrderId,
+                        PaymentRepository.OrderRefundTotalProjection::getRefundedAmount));
+        Map<String, BookingCancellation> cancellationsByBooking = bookingCancellationRepository
+                .findAllByBookingHotelId(hotelId)
+                .stream()
+                .collect(Collectors.toMap(
+                        cancellation -> cancellation.getBooking().getId(),
+                        cancellation -> cancellation));
 
         // Chuyển đổi sang danh sách BookingResponse
-        return bookings.stream().map(this::toBookingForHotelResponse).collect(Collectors.toList());
+        return bookings.stream()
+                .map(booking -> toBookingForHotelResponse(
+                        booking,
+                        booking.getOrder() == null
+                                ? BigDecimal.ZERO
+                                : refundedAmounts.getOrDefault(booking.getOrder().getId(), BigDecimal.ZERO),
+                        cancellationsByBooking.get(booking.getId())))
+                .collect(Collectors.toList());
     }
 
     @Transactional

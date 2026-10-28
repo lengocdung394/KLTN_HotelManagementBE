@@ -5,6 +5,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCance
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationReviewRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.BookingCancellationResponse;
+import iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel.RefundBankDetailsResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.BookingCancellationService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
@@ -68,7 +69,21 @@ public class BookingCancellationManagementController {
                 .build());
     }
 
-    // Xác nhận đã hoàn tiền: Chỉ Quản lý / Admin
+    // Gửi payout qua PayOS sau khi nhân viên đã duyệt thông tin hoàn tiền
+    @PostMapping("/{cancellationId}/payout")
+    @PreAuthorize("hasRole('MANAGER') or hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingCancellationResponse>> requestPayout(
+            @PathVariable String cancellationId,
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
+                .code(1000)
+                .message("Đã gửi hoặc cập nhật trạng thái payout từ PayOS.")
+                .result(bookingCancellationService.requestPayout(cancellationId, account))
+                .build());
+    }
+
+    // Tương thích API cũ; thao tác này hiện khởi chạy payout PayOS, không tự ghi nhận hoàn tất.
     @PatchMapping("/{cancellationId}/confirm-refund")
     @PreAuthorize("hasRole('MANAGER') or hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BookingCancellationResponse>> confirmRefund(
@@ -78,8 +93,20 @@ public class BookingCancellationManagementController {
         Account account = (Account) authentication.getPrincipal();
         return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
                 .code(1000)
-                .message("Đã ghi nhận chuyển khoản hoàn tiền.")
+                .message("Đã gửi hoặc cập nhật trạng thái payout từ PayOS.")
                 .result(bookingCancellationService.confirmRefund(cancellationId, request, account))
+                .build());
+    }
+
+    @GetMapping("/{cancellationId}/bank-details")
+    @PreAuthorize("hasRole('MANAGER') or hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<RefundBankDetailsResponse>> getRefundBankDetails(
+            @PathVariable String cancellationId,
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        return ResponseEntity.ok(ApiResponse.<RefundBankDetailsResponse>builder()
+                .code(1000)
+                .result(bookingCancellationService.getRefundBankDetails(cancellationId, account))
                 .build());
     }
 

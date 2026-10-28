@@ -137,7 +137,7 @@ public class BookingSocketEmitter {
                 : BigDecimal.ZERO;
         String formattedAmount = formatAmount(totalAmount);
 
-        notificationService.createAndPublish(
+        notificationService.createAndPublishInCurrentTransaction(
                 hotelId,
                 NotificationType.BOOKING_CREATED,
                 "Booking mới",
@@ -150,15 +150,27 @@ public class BookingSocketEmitter {
         );
 
         String roomName = "hotel_" + hotelId;
-        socketIOServer.getRoomOperations(roomName)
-                .sendEvent("new_booking_notification", bookingData);
-        socketIOServer.getRoomOperations("super_admin_accounts")
-                .sendEvent(
-                        "new_booking_notification",
-                        Map.of("hotelId", hotelId, "data", bookingData)
-                );
-
-        log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+        Runnable emit = () -> {
+            try {
+                socketIOServer.getRoomOperations(roomName)
+                        .sendEvent("new_booking_notification", bookingData);
+                socketIOServer.getRoomOperations("super_admin_accounts")
+                        .sendEvent("new_booking_notification", Map.of("hotelId", hotelId, "data", bookingData));
+                log.info("Đã gửi thông báo booking mới tới room {} và super_admin_accounts", roomName);
+            } catch (RuntimeException exception) {
+                log.error("Không thể gửi thông báo booking mới {} tới chi nhánh {}", booking.getId(), hotelId, exception);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emit.run();
+                }
+            });
+        } else {
+            emit.run();
+        }
     }
 
     public void emitPaymentReceived(Order order, BigDecimal amount, PaymentType paymentType) {
@@ -190,7 +202,7 @@ public class BookingSocketEmitter {
                 + " | Số tiền thanh toán: " + formattedAmount + "đ"
                 + " | Phương thức: " + paymentMethod + ".";
 
-        notificationService.createAndPublish(
+        notificationService.createAndPublishInCurrentTransaction(
                 hotelId,
                 NotificationType.PAYMENT_RECEIVED,
                 title,

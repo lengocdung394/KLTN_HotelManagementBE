@@ -99,6 +99,8 @@ public class Promotion {
     @Column(name = "updated_at")
     LocalDateTime updatedAt;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "promotion", cascade = CascadeType.ALL, orphanRemoval = true)
     List<CustomerPromotion> customerPromotions;
 

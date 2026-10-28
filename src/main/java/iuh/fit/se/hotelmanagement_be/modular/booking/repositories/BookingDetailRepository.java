@@ -26,6 +26,10 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
                             iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.IN_HOUSE,
                             iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING
                         )
+                        AND bd.status NOT IN (
+                            iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT,
+                            iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED
+                        )
                         AND bd.checkinTime < :checkoutTime 
                         AND bd.checkoutTime > :checkinTime
                   )
@@ -40,10 +44,18 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             SELECT bd FROM BookingDetail bd
             JOIN bd.booking b
             WHERE b.hotel.id = :hotelId
-              AND b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED
+              AND b.bookingStatus NOT IN (
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED_BY_CUSTOMER,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED_BY_STAFF,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CANCELLED_PAYMENT_TIMEOUT
+              )
               AND (b.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING
                    OR b.createdAt >= :fiveMinutesAgo)
-              AND bd.status <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED
+              AND bd.status NOT IN (
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT
+              )
               AND bd.checkinTime <= :endDate
               AND bd.checkoutTime >= :startDate
             """)

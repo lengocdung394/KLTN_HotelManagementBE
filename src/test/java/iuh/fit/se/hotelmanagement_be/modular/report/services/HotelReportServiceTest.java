@@ -8,6 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomTypeBookingReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
@@ -30,6 +31,7 @@ class HotelReportServiceTest {
     private OrderRepository orderRepository;
     private PaymentTransactionRepository paymentTransactionRepository;
     private RoomRepository roomRepository;
+    private UserPromotionUsageRepository userPromotionUsageRepository;
     private HotelReportService service;
 
     @BeforeEach
@@ -39,12 +41,14 @@ class HotelReportServiceTest {
         orderRepository = mock(OrderRepository.class);
         paymentTransactionRepository = mock(PaymentTransactionRepository.class);
         roomRepository = mock(RoomRepository.class);
+        userPromotionUsageRepository = mock(UserPromotionUsageRepository.class);
         service = new HotelReportService(
                 bookingRepository,
                 bookingCancellationRepository,
                 orderRepository,
                 paymentTransactionRepository,
-                roomRepository
+                roomRepository,
+                userPromotionUsageRepository
         );
     }
 
@@ -69,7 +73,7 @@ class HotelReportServiceTest {
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatus.CANCELLED,
+                BookingStatus.cancelledStatuses(),
                 BookingStatusType.CANCELLED
         )).thenReturn(List.of(standardRoomBookings, familyRoomBookings));
         PaymentTransactionRepository.CashFlowReportProjection cashFlow =
@@ -95,21 +99,22 @@ class HotelReportServiceTest {
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
                 BookingStatusType.CANCELLED,
-                BookingStatus.CANCELLED
+                BookingStatus.cancelledStatuses()
         )).thenReturn(List.of(revenueRow));
 
-        BookingRepository.PromotionReportProjection promotionRow =
-                mock(BookingRepository.PromotionReportProjection.class);
+        UserPromotionUsageRepository.PromotionUsageReportProjection promotionRow =
+                mock(UserPromotionUsageRepository.PromotionUsageReportProjection.class);
         when(promotionRow.getPromotionId()).thenReturn("PROMO-1");
         when(promotionRow.getPromotionName()).thenReturn("Ưu đãi tháng 10");
         when(promotionRow.getPromotionCode()).thenReturn("OCT10");
         when(promotionRow.getUsageCount()).thenReturn(3L);
+        when(promotionRow.getUserCount()).thenReturn(2L);
         when(promotionRow.getSavings()).thenReturn(new BigDecimal("50000"));
-        when(bookingRepository.getPromotionReport(
+        when(userPromotionUsageRepository.getPromotionReport(
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatus.CANCELLED
+                BookingStatus.cancelledStatuses()
         )).thenReturn(List.of(promotionRow));
 
         BookingCancellationRepository.CancellationReportProjection onlineCancellation =
@@ -125,7 +130,7 @@ class HotelReportServiceTest {
         when(offlineCancellation.getCancelledAt()).thenReturn(startDate.atTime(11, 30));
         when(bookingCancellationRepository.getCancellationReport(
                 7L,
-                BookingStatus.CANCELLED,
+                BookingStatus.cancelledStatuses(),
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay()
         )).thenReturn(List.of(onlineCancellation, offlineCancellation));
@@ -158,6 +163,8 @@ class HotelReportServiceTest {
         assertEquals(1, report.dailyServiceRevenue().size());
         assertEquals(3, report.promotionUsageCount());
         assertEquals(new BigDecimal("50000"), report.promotionSavings());
+        assertEquals(3, report.promotions().get(0).usageCount());
+        assertEquals(2, report.promotions().get(0).userCount());
         assertEquals(2, report.cancelledBookingCount());
         assertEquals(1, report.onlineCancelledBookingCount());
         assertEquals(1, report.offlineCancelledBookingCount());

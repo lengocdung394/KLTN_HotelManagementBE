@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 
@@ -26,6 +27,8 @@ public class PaymentTransaction {
     @Column(name = "payment_transaction_id")
     Long id;
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     Order order;
 
@@ -39,18 +42,6 @@ public class PaymentTransaction {
 
     String note;
     LocalDateTime transactionDate;
-
-    @Column(length = 120)
-    String counterAccountName;
-
-    @Column(length = 50)
-    String counterAccountNumber;
-
-    @Column(length = 30)
-    String counterAccountBankId;
-
-    @Column(length = 120)
-    String counterAccountBankName;
 
     @Column(name = "created_at")
     LocalDateTime createdAt;

@@ -2,9 +2,12 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+
+import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -17,6 +20,15 @@ public class BookingCancellationRequest {
 
     BookingCancellationRefundMethod refundMethod;
     Boolean cashRefundConfirmed;
+    @DecimalMin("0.00")
+    BigDecimal confirmedRefundAmount;
+    @DecimalMin("0.00")
+    BigDecimal confirmedRoomRefundAmount;
+    @DecimalMin("0.00")
+    BigDecimal confirmedServiceRefundAmount;
+    @DecimalMin("0.00")
+    BigDecimal confirmedRoomPenaltyAmount;
+    String confirmedRefundPolicy;
 
     @Size(max = 120)
     String bankName;

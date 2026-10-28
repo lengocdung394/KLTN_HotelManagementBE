@@ -13,8 +13,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
+import java.util.Collection;
 
-public interface BookingCancellationRepository extends JpaRepository<BookingCancellation, Long> {
+public interface BookingCancellationRepository extends JpaRepository<BookingCancellation, String> {
     interface CancellationReportProjection {
         String getBookingId();
         BookingChannel getBookingChannel();
@@ -30,19 +31,34 @@ public interface BookingCancellationRepository extends JpaRepository<BookingCanc
             FROM Booking booking
             LEFT JOIN BookingCancellation cancellation ON cancellation.booking = booking
             WHERE booking.hotel.id = :hotelId
-              AND booking.bookingStatus = :cancelledStatus
+              AND booking.bookingStatus IN :cancelledStatuses
               AND COALESCE(cancellation.cancelledAt, cancellation.requestedAt, booking.createdAt) >= :start
               AND COALESCE(cancellation.cancelledAt, cancellation.requestedAt, booking.createdAt) < :end
             ORDER BY COALESCE(cancellation.cancelledAt, cancellation.requestedAt, booking.createdAt) DESC
             """)
     List<CancellationReportProjection> getCancellationReport(
             @Param("hotelId") Long hotelId,
-            @Param("cancelledStatus") BookingStatus cancelledStatus,
+            @Param("cancelledStatuses") List<BookingStatus> cancelledStatuses,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
 
     Optional<BookingCancellation> findByBookingId(String bookingId);
+
+    @Query("""
+            select cancellation from BookingCancellation cancellation
+            where cancellation.status in :statuses
+              and cancellation.bankDetailsUpdatedAt <= :expiration
+            """)
+    List<BookingCancellation> findExpiredBankDetails(
+            @Param("statuses") Collection<BookingCancellationStatus> statuses,
+            @Param("expiration") LocalDateTime expiration);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<BookingCancellation> findAllByStatus(BookingCancellationStatus status);
+
+    @Query("select cancellation from BookingCancellation cancellation where cancellation.booking.hotel.id = :hotelId")
+    List<BookingCancellation> findAllByBookingHotelId(@Param("hotelId") Long hotelId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select cancellation from BookingCancellation cancellation where cancellation.booking.id = :bookingId")

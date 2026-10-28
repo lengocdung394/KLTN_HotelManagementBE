@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -106,6 +107,7 @@ public class EmailService {
         return null;
     }
 
+    @Async("emailTaskExecutor")
     public void sendBookingCreatedEmail(
             String email,
             String customerName,
@@ -125,9 +127,14 @@ public class EmailService {
                 .append("Tổng tiền tạm tính: ").append(formatAmount(totalAmount)).append("\n\n")
                 .append("Trân trọng,\n").append(hotelName)
                 .toString());
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("Không gửi được email xác nhận booking {}: {}", bookingId, exception.getMessage(), exception);
+        }
     }
 
+    @Async("emailTaskExecutor")
     public void sendPaymentReceivedEmail(
             String email,
             String customerName,
@@ -160,7 +167,11 @@ public class EmailService {
         }
         body.append("\nTrân trọng,\n").append(hotelName);
         message.setText(body.toString());
-        mailSender.send(message);
+        try {
+            mailSender.send(message);
+        } catch (RuntimeException exception) {
+            log.error("Không gửi được email xác nhận thanh toán cho booking {}: {}", bookingId, exception.getMessage(), exception);
+        }
     }
 
     public void sendCheckoutInvoiceEmail(

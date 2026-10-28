@@ -23,6 +23,7 @@ import jakarta.transaction.Transactional;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -174,19 +175,32 @@ public class EmployeeServiceImpl implements EmployeeService {
         Set<String> updaterRoles = currentAccount.getRoles().stream()
                 .map(Role::getCode)
                 .collect(Collectors.toSet());
-        if (!updaterRoles.contains("ROLE_MANAGER") && !updaterRoles.contains("ROLE_ADMIN")) {
-            throw new RuntimeException("Quyền hạn bị từ chối: Chỉ Quản lý chi nhánh hoặc Admin chi nhánh được cập nhật nhân viên!");
+        boolean isBranchAdmin = updaterRoles.contains("ROLE_ADMIN");
+        boolean isManager = updaterRoles.contains("ROLE_MANAGER");
+        if (!isManager && !isBranchAdmin) {
+            throw new AccessDeniedException("Chỉ Quản lý chi nhánh hoặc Admin chi nhánh được cập nhật nhân viên.");
         }
 
         Employee emp = employeeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên có ID: " + id));
         Long currentHotelId = currentAccount.getHotelId();
         if (currentHotelId == null || emp.getHotel() == null || !currentHotelId.equals(emp.getHotel().getId())) {
-            throw new RuntimeException("Quyền hạn bị từ chối: Bạn chỉ được cập nhật nhân viên thuộc chi nhánh của mình!");
+            throw new AccessDeniedException("Bạn chỉ được cập nhật nhân sự thuộc chi nhánh của mình.");
         }
-        if (emp.getAccount() == null || emp.getAccount().getRoles().stream()
-                .noneMatch(role -> "ROLE_EMPLOYEE".equals(role.getCode()))) {
-            throw new RuntimeException("Chỉ có thể cập nhật tài khoản nhân viên cấp dưới.");
+        Set<String> targetRoles = emp.getAccount() == null
+                ? Set.of()
+                : emp.getAccount().getRoles().stream()
+                        .map(Role::getCode)
+                        .collect(Collectors.toSet());
+        if (targetRoles.contains("ROLE_ADMIN")) {
+            throw new AccessDeniedException("Không thể cập nhật tài khoản Admin chi nhánh.");
+        }
+        if (targetRoles.contains("ROLE_MANAGER")) {
+            if (!isBranchAdmin) {
+                throw new AccessDeniedException("Chỉ Admin chi nhánh được cập nhật tài khoản Quản lý.");
+            }
+        } else if (!targetRoles.contains("ROLE_EMPLOYEE")) {
+            throw new AccessDeniedException("Chỉ có thể cập nhật tài khoản nhân sự thuộc chi nhánh.");
         }
 
         // Kiểm tra trùng SĐT nếu thay đổi
@@ -211,7 +225,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (dto.getAddress() != null) {
             emp.setAddress(dto.getAddress());
         }
-        if (dto.getPosition() != null && !dto.getPosition().isBlank()) {
+        if (targetRoles.contains("ROLE_EMPLOYEE") && dto.getPosition() != null && !dto.getPosition().isBlank()) {
             emp.setPosition(dto.getPosition());
         }
         if (dto.getEmail() != null) {

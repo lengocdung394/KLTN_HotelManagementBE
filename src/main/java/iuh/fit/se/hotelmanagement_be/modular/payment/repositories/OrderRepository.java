@@ -39,7 +39,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
               AND service.used = true
               AND (service.cancelled = false OR service.cancelled IS NULL)
               AND (detail.status IS NULL OR detail.status <> :cancelledRoomStatus)
-              AND (booking.bookingStatus IS NULL OR booking.bookingStatus <> :cancelledBookingStatus)
+              AND (booking.bookingStatus IS NULL OR booking.bookingStatus NOT IN :cancelledBookingStatuses)
             GROUP BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
             ORDER BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
             """)
@@ -48,7 +48,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             @Param("cancelledRoomStatus") BookingStatusType cancelledRoomStatus,
-            @Param("cancelledBookingStatus") BookingStatus cancelledBookingStatus
+            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses
     );
 
     @Query("SELECT COUNT(o) > 0 FROM Order o JOIN o.paymentOrderCodes c WHERE c = :paymentOrderCode")

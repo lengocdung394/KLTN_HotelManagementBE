@@ -3,8 +3,8 @@ package iuh.fit.se.hotelmanagement_be.modular.promotion.services.impl;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
-import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
@@ -14,6 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionScope;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.enums.PromotionStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ChangeStatusRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.CreatePromotionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.PromotionQuoteRequest;
@@ -53,7 +54,7 @@ import java.util.stream.Collectors;
 public class PromotionServiceImpl implements PromotionService {
 
     PromotionRepository promotionRepository;
-    BookingRepository bookingRepository;
+    UserPromotionUsageRepository userPromotionUsageRepository;
     HotelRepository hotelRepository;
     BookingService bookingService;
     CloudinaryService cloudinaryService;
@@ -217,8 +218,10 @@ public class PromotionServiceImpl implements PromotionService {
 
         return new PromotionSummaryResponse(
                 promotionRepository.countCurrentlyActiveForSummary(hotelId, PromotionStatus.ACTIVE, now),
-                bookingRepository.countPromotionUsagesForPeriod(hotelId, monthStart, nextMonthStart),
-                bookingRepository.sumPromotionSavingsForPeriod(hotelId, monthStart, nextMonthStart),
+                userPromotionUsageRepository.countPromotionUsagesForPeriod(
+                        hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses()),
+                userPromotionUsageRepository.sumPromotionSavingsForPeriod(
+                        hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses()),
                 promotionRepository.countExpiringSoonForSummary(hotelId, PromotionStatus.ACTIVE, now, now.plusDays(7))
         );
     }

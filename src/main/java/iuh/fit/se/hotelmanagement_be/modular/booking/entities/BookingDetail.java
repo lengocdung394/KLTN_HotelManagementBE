@@ -29,18 +29,22 @@ public class BookingDetail {
     LocalDateTime checkoutTime;
 
     @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "booking_id", nullable = false)
     Booking booking;
 
 
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "bookingDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingServiceDetail> bookingServiceDetails;
 
     @Builder.Default
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "bookingDetail", cascade = CascadeType.ALL, orphanRemoval = true)
     List<BookingNightlyPrice> nightlyPrices = new ArrayList<>();
 
+    @EqualsAndHashCode.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
     Room room;

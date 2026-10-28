@@ -138,9 +138,10 @@ public class SocketIOConfig {
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
-            } else {
-                server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
             }
+            // Super Admin va toan bo nhan vien truc deu nhan duoc tin nhan
+            server.getRoomOperations("super_admin_accounts").sendEvent("customer_staff_chat_message", data);
+            server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
             client.sendEvent("customer_staff_chat_ack", data);
         });
 
@@ -173,11 +174,15 @@ public class SocketIOConfig {
             Object customerId = data.get("customerId");
             if (customerId != null && !customerId.toString().trim().isEmpty()) {
                 server.getRoomOperations("user_" + customerId).sendEvent("staff_customer_chat_reply", data);
+                server.getRoomOperations(customerId.toString()).sendEvent("staff_customer_chat_reply", data);
             }
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("staff_customer_chat_reply", data);
             }
+            // Dong bo tin nhan nhan vien tra loi toi Super Admin va cac tab truc
+            server.getRoomOperations("super_admin_accounts").sendEvent("staff_customer_chat_reply", data);
+            server.getBroadcastOperations().sendEvent("staff_customer_chat_reply", data);
         });
 
         log.info("SocketIO Server started with customer-staff chat listeners");

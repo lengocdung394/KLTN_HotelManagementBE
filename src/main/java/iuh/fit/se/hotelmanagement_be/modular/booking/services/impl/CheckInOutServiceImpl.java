@@ -589,6 +589,8 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         BigDecimal totalSurcharge = BigDecimal.ZERO;
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
+                totalSurcharge = totalSurcharge.add(
+                        detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO);
                 continue;
             }
 

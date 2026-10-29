@@ -13,12 +13,14 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingCancellationPolicyCalculator;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -63,6 +65,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
     BookingRepository bookingRepository;
+    BookingDetailRepository bookingDetailRepository;
     EmployeeRepository employeeRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
@@ -259,6 +262,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.warn("Attempted to update a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_UPDATE_CANCELLED_ROOM);
             }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                log.warn("Attempted to modify non-pending BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
 
             Room originalRoom = targetDetail.getRoom();
             Integer originalAdults = targetDetail.getNumAdults();
@@ -274,6 +281,12 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             log.error("New Room not found with ID: {}", req.getNewRoomId());
                             return new AppException(ErrorCode.ROOM_NOT_FOUND);
                         });
+                if (newRoom.getFloor() == null
+                        || newRoom.getFloor().getBuilding() == null
+                        || newRoom.getFloor().getBuilding().getHotel() == null
+                        || !hotelId.equals(newRoom.getFloor().getBuilding().getHotel().getId())) {
+                    throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+                }
                 if (newRoom.getRoomStatus() == RoomStatus.MAINTENANCE
                         || newRoom.getRoomStatus() == RoomStatus.CLEANING) {
                     throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
@@ -287,6 +300,13 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (checkInToUse == null || checkOutToUse == null
                     || !checkOutToUse.toLocalDate().isAfter(checkInToUse.toLocalDate())) {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
+            }
+            if (bookingDetailRepository.existsOverlappingActiveBooking(
+                    targetDetail.getRoom().getId(),
+                    checkInToUse,
+                    checkOutToUse,
+                    targetDetail.getId())) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_OCCUPIED_OR_BOOKED);
             }
 
             targetDetail.setCheckinTime(checkInToUse);
@@ -468,6 +488,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
                 detail.setTotalPrice(0.0);
+                totalSurcharge = totalSurcharge.add(
+                        detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO);
                 continue;
             }
 
@@ -599,15 +621,24 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.debug("BookingDetail ID: {} is already cancelled. Skipping.", detailId);
                 continue;
             }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                log.warn("Attempted to cancel non-pending BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
             if (targetDetail.getBookingServiceDetails() != null && targetDetail.getBookingServiceDetails().stream()
                     .anyMatch(service -> Boolean.TRUE.equals(service.getUsed())
                             && !Boolean.TRUE.equals(service.getCancelled()))) {
                 throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
             }
 
+            LocalDateTime cancelledAt = LocalDateTime.now();
+            BigDecimal cancellationPenalty = calculateRoomCancellationPenalty(booking, targetDetail, cancelledAt);
             targetDetail.setStatus(BookingStatusType.CANCELLED);
-            targetDetail.setCancelledAt(LocalDateTime.now());
+            targetDetail.setCancelledAt(cancelledAt);
             targetDetail.setCancelledBy(operatorName);
+            targetDetail.setOtherSurcharges(
+                    (targetDetail.getOtherSurcharges() != null ? targetDetail.getOtherSurcharges() : BigDecimal.ZERO)
+                            .add(cancellationPenalty));
 
             if (targetDetail.getRoomSubTotal() != null) {
                 roomPriceReduced = roomPriceReduced.subtract(BigDecimal.valueOf(targetDetail.getRoomSubTotal()));
@@ -627,6 +658,60 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         log.info("Total room price reduced from cancellations: {}", roomPriceReduced);
         return roomPriceReduced;
+    }
+
+    private BigDecimal calculateRoomCancellationPenalty(
+            Booking booking,
+            BookingDetail detail,
+            LocalDateTime cancelledAt) {
+        if (booking.getOrder() == null || detail.getCheckinTime() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal roomPenaltyRate = BookingCancellationPolicyCalculator
+                .calculate(detail.getCheckinTime(), cancelledAt)
+                .roomPenaltyRate();
+        if (roomPenaltyRate.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        Order order = booking.getOrder();
+        BigDecimal roomGross = zeroIfNull(order.getRoomTotalAmount());
+        BigDecimal serviceGross = zeroIfNull(order.getServiceTotalAmount());
+        BigDecimal coreGross = roomGross.add(serviceGross);
+        if (roomGross.signum() <= 0 || coreGross.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalDiscount = zeroIfNull(order.getDiscountAmountTotal());
+        BigDecimal totalRoomDiscountShare = totalDiscount.multiply(roomGross)
+                .divide(coreGross, 2, RoundingMode.HALF_UP);
+        BigDecimal roomNet = roomGross
+                .subtract(zeroIfNull(order.getDiscountRoomAmount()))
+                .subtract(totalRoomDiscountShare)
+                .max(BigDecimal.ZERO);
+        BigDecimal serviceNet = serviceGross
+                .subtract(zeroIfNull(order.getDiscountServiceAmount()))
+                .subtract(totalDiscount.subtract(totalRoomDiscountShare))
+                .max(BigDecimal.ZERO);
+        BigDecimal payable = roomNet.add(serviceNet).add(zeroIfNull(order.getSurchargeTotalAmount()));
+        if (payable.signum() <= 0 || roomNet.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal paid = zeroIfNull(order.getPaidAmount()).min(payable);
+        BigDecimal paidRoom = paid.multiply(roomNet).divide(payable, 2, RoundingMode.HALF_UP);
+        BigDecimal cancelledRoomShare = BigDecimal.valueOf(
+                        detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0)
+                .divide(roomGross, 8, RoundingMode.HALF_UP)
+                .min(BigDecimal.ONE);
+        return paidRoom.multiply(cancelledRoomShare)
+                .multiply(roomPenaltyRate)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount.max(BigDecimal.ZERO);
     }
 
     // Ham them dich vu cho phongf
@@ -652,6 +737,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
                 log.warn("Attempted to add services to a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM);
+            }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
             }
 
             if (req.getServices() == null || req.getServices().isEmpty()) {
@@ -744,6 +832,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
                 continue;
             }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
             if (request.getServiceDetailIds() == null || request.getServiceDetailIds().isEmpty()) {
                 continue;
             }
@@ -797,6 +888,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
                 log.warn("Attempted to update service quantity in a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM);
+            }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
             }
 
             if (updateReq.getServices() == null || updateReq.getServices().isEmpty()) {

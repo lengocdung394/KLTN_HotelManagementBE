@@ -13,6 +13,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCance
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingCancellationPolicyCalculator;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutState;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
@@ -44,7 +45,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -974,16 +974,8 @@ public class BookingCancellationService {
                 .filter(date -> date != null)
                 .min(Comparator.naturalOrder())
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
-        Duration timeUntilCheckIn = Duration.between(now, checkIn);
-        long secondsBeforeCheckIn = timeUntilCheckIn.getSeconds();
-        long hoursBeforeCheckIn = Math.max(0, timeUntilCheckIn.toHours());
-        if (secondsBeforeCheckIn >= Duration.ofHours(72).getSeconds()) {
-            return new CancellationPolicy(BigDecimal.ZERO, "CANCEL_AT_LEAST_72_HOURS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
-        }
-        if (secondsBeforeCheckIn >= Duration.ofHours(24).getSeconds()) {
-            return new CancellationPolicy(new BigDecimal("0.50"), "CANCEL_24_TO_72_HOURS_BEFORE_CHECK_IN", hoursBeforeCheckIn);
-        }
-        return new CancellationPolicy(BigDecimal.ONE, "CANCEL_WITHIN_24_HOURS_OR_NO_SHOW", hoursBeforeCheckIn);
+        BookingCancellationPolicyCalculator.Policy policy = BookingCancellationPolicyCalculator.calculate(checkIn, now);
+        return new CancellationPolicy(policy.roomPenaltyRate(), policy.name(), policy.hoursBeforeCheckIn());
     }
 
     private BookingCancellation getCancellationForUpdate(String cancellationId) {

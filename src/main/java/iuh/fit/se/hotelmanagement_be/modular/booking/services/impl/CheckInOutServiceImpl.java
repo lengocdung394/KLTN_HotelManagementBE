@@ -556,7 +556,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                 .append("Các phòng:\n");
         booking.getBookingDetails().forEach(detail -> invoice
                 .append("- Phòng ")
-                .append(detail.getRoom() != null ? detail.getRoom().getId() : "N/A")
+                .append(detail.getRoom() != null ? detail.getRoom().getRoomNumber() : "N/A")
                 .append(" | Tiền phòng: ").append(detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0)
                 .append(" VND | Dịch vụ: ").append(detail.getServiceSubTotal() != null ? detail.getServiceSubTotal() : 0)
                 .append(" VND | Phụ thu: ")

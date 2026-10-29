@@ -30,6 +30,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.responses.WebhookResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.PaymentService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -385,6 +386,10 @@ public class PaymentServiceImpl implements PaymentService {
         }
         log.info("[Webhook] Đã gọi orderRepository.save(order.id={})", order.getId());
         bookingSocketEmitter.emitPaymentReceived(order, BigDecimal.valueOf(amountPaidOnGateway), xacDinhPaymentType);
+        if (booking != null && booking.getHotel() != null) {
+            bookingSocketEmitter.emitBookingStateUpdated(
+                    booking.getHotel().getId(), booking.getId(), "PAYMENT_RECEIVED");
+        }
         sendPaymentEmailAfterCommit(
                 order,
                 BigDecimal.valueOf(amountPaidOnGateway),
@@ -498,6 +503,10 @@ public class PaymentServiceImpl implements PaymentService {
 
         orderRepository.save(order);
         bookingSocketEmitter.emitPaymentReceived(order, remainingAmount, PaymentType.CASH);
+        if (order.getBooking() != null && order.getBooking().getHotel() != null) {
+            bookingSocketEmitter.emitBookingStateUpdated(
+                    order.getBooking().getHotel().getId(), order.getBooking().getId(), "PAYMENT_RECEIVED");
+        }
         sendPaymentEmailAfterCommit(
                 order,
                 remainingAmount,
@@ -640,6 +649,10 @@ public class PaymentServiceImpl implements PaymentService {
                                 bookingRepository.save(booking);
                             }
                             orderRepository.save(order);
+                            if (booking != null && booking.getHotel() != null) {
+                                bookingSocketEmitter.emitBookingStateUpdated(
+                                        booking.getHotel().getId(), booking.getId(), "PAYMENT_RECEIVED");
+                            }
 
                             return Map.of(
                                     "isPaid", fullyPaid,
@@ -753,33 +766,49 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         for (Long orderCode : order.getPaymentOrderCodes()) {
-            PaymentLink link = payOS.paymentRequests().get(orderCode);
-            if (link == null) {
-                continue;
-            }
-            PaymentLinkStatus status = link.getStatus();
-            if (status == PaymentLinkStatus.PAID || status == PaymentLinkStatus.UNDERPAID) {
-                String paymentLinkId = link.getId();
-                long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0
-                        ? link.getAmountPaid()
-                        : status == PaymentLinkStatus.PAID ? link.getAmount() : 0;
-                long amountToRecord = Math.max(0, amountPaid - recordedPaymentAmountForLink(order, paymentLinkId));
-                if (amountToRecord > 0) {
-                    order.addPaymentSuccess(
-                            BigDecimal.valueOf(amountToRecord),
-                            PaymentType.BANK,
-                            paymentLinkId);
-                    order.setPaymentStatus(order.getRemainingAmount().signum() == 0
-                            ? PaymentStatus.PAID
-                            : PaymentStatus.PARTIAL);
+            try {
+                PaymentLink link = payOS.paymentRequests().get(orderCode);
+                if (link == null) {
+                    continue;
                 }
-            }
-            if (status == PaymentLinkStatus.PENDING || status == PaymentLinkStatus.UNDERPAID
-                    || status == PaymentLinkStatus.PROCESSING) {
-                payOS.paymentRequests().cancel(orderCode, "Booking cancellation requested");
+                PaymentLinkStatus status = link.getStatus();
+                if (status == PaymentLinkStatus.PAID || status == PaymentLinkStatus.UNDERPAID) {
+                    String paymentLinkId = link.getId();
+                    long amountPaid = link.getAmountPaid() != null && link.getAmountPaid() > 0
+                            ? link.getAmountPaid()
+                            : status == PaymentLinkStatus.PAID ? link.getAmount() : 0;
+                    long amountToRecord = Math.max(0, amountPaid - recordedPaymentAmountForLink(order, paymentLinkId));
+                    if (amountToRecord > 0) {
+                        order.addPaymentSuccess(
+                                BigDecimal.valueOf(amountToRecord),
+                                PaymentType.BANK,
+                                paymentLinkId);
+                        order.setPaymentStatus(order.getRemainingAmount().signum() == 0
+                                ? PaymentStatus.PAID
+                                : PaymentStatus.PARTIAL);
+                    }
+                }
+                if (status == PaymentLinkStatus.PENDING || status == PaymentLinkStatus.UNDERPAID
+                        || status == PaymentLinkStatus.PROCESSING) {
+                    payOS.paymentRequests().cancel(orderCode, "Booking cancellation requested");
+                }
+            } catch (RuntimeException exception) {
+                log.error("Failed to reconcile or cancel PayOS orderCode={} for booking {}; booking expiry will continue",
+                        orderCode, bookingId, exception);
             }
         }
         orderRepository.save(order);
+    }
+
+    @Override
+    @Async("emailTaskExecutor")
+    @Transactional
+    public void cancelOutstandingPaymentLinksAsync(String bookingId) {
+        try {
+            cancelOutstandingPaymentLinks(bookingId);
+        } catch (RuntimeException exception) {
+            log.error("Failed to cancel outstanding PayOS links asynchronously for booking {}", bookingId, exception);
+        }
     }
 
 }

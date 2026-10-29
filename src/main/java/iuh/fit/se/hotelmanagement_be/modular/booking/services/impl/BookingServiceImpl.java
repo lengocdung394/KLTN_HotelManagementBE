@@ -171,8 +171,8 @@ public class BookingServiceImpl implements BookingService {
                             + " | SĐT: " + customer.getPhone()
                             + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
 
-            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         }
+        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ==========================================
 
         return toBookingResponse(savedBooking);
@@ -252,16 +252,41 @@ public class BookingServiceImpl implements BookingService {
     private void sendBookingCreatedEmailAfterCommit(Booking booking, Customer customer, Hotel hotel) {
         String email = emailService.getCustomerEmail(customer);
 
-        String bookingDetails = booking.getBookingDetails().stream()
-                .map(detail -> "Phòng " + (detail.getRoom() != null ? detail.getRoom().getId() : "N/A")
-                        + " | " + detail.getCheckinTime() + " - " + detail.getCheckoutTime())
-                .collect(Collectors.joining("\n"));
+        List<EmailService.BookingRoomEmailDetail> bookingDetails = booking.getBookingDetails().stream()
+                .map(detail -> new EmailService.BookingRoomEmailDetail(
+                        detail.getRoom() != null ? detail.getRoom().getRoomNumber() : null,
+                        detail.getCheckinTime(),
+                        detail.getCheckoutTime(),
+                        detail.getBookingServiceDetails() == null
+                                ? List.of()
+                                : detail.getBookingServiceDetails().stream()
+                                .filter(service -> !Boolean.TRUE.equals(service.getCancelled()))
+                                .map(service -> new EmailService.BookingServiceEmailDetail(
+                                        service.getName() != null
+                                                ? service.getName()
+                                                : service.getService() != null ? service.getService().getName() : null,
+                                        service.getQuantity(),
+                                        service.getPrice() != null
+                                                ? BigDecimal.valueOf(service.getPrice())
+                                                : BigDecimal.ZERO))
+                                .toList()))
+                .toList();
         String customerName = customer.getFullName();
         String bookingId = booking.getId();
         String hotelName = hotel.getName();
         BigDecimal totalAmount = booking.getOrder() != null
                 ? booking.getOrder().getTotalAmount()
                 : BigDecimal.ZERO;
+        var customerPromotion = booking.getCustomerPromotion();
+        var promotion = customerPromotion != null ? customerPromotion.getPromotion() : booking.getPromotion();
+        String promotionName = promotion != null ? promotion.getName() : null;
+        String promotionCode = customerPromotion != null
+                ? customerPromotion.getUniqueCode()
+                : promotion != null ? promotion.getCode() : null;
+        BigDecimal promotionDiscount = booking.getApplyAmount() != null
+                ? booking.getApplyAmount()
+                : BigDecimal.ZERO;
+        boolean paymentDueWithinFiveMinutes = booking.getBookingStatus() == BookingStatus.PENDING;
 
         emailService.sendAfterCommit("booking " + bookingId, () ->
                 emailService.sendBookingCreatedEmail(
@@ -270,34 +295,39 @@ public class BookingServiceImpl implements BookingService {
                         bookingId,
                         hotelName,
                         bookingDetails,
-                        totalAmount
+                        totalAmount,
+                        promotionName,
+                        promotionCode,
+                        promotionDiscount,
+                        paymentDueWithinFiveMinutes
                 ));
     }
 
     private void ensureCustomerEmail(Customer customer, BookingCreateRequest request) {
-        if (emailService.getCustomerEmail(customer) != null) {
-            return;
-        }
-
-        String email = request.getCustomerEmail();
-        if (email != null && !email.isBlank()) {
-            customer.setEmail(email.trim());
+        String requestedEmail = request.getCustomerEmail();
+        if (requestedEmail != null && !requestedEmail.isBlank()) {
+            customer.setEmail(requestedEmail.trim());
             customerRepository.save(customer);
             return;
         }
 
-        if (customer.getAccount() != null && customer.getAccount().getEmail() != null && !customer.getAccount().getEmail().isBlank()) {
-            customer.setEmail(customer.getAccount().getEmail().trim());
+        String customerEmail = emailService.getCustomerEmail(customer);
+        if (customerEmail != null && !isFallbackCustomerEmail(customerEmail)) {
+            return;
+        }
+
+        String accountEmail = customer.getAccount() != null ? customer.getAccount().getEmail() : null;
+        if (accountEmail != null && !accountEmail.isBlank() && !isFallbackCustomerEmail(accountEmail)) {
+            customer.setEmail(accountEmail.trim());
             customerRepository.save(customer);
             return;
         }
 
-        // Tự động gắn email fallback từ SĐT hoặc ID để luồng đặt phòng không bị gián đoạn
-        String fallbackEmail = customer.getPhone() != null && !customer.getPhone().isBlank()
-                ? customer.getPhone() + "@guest.senviet.vn"
-                : "khachhang." + customer.getId() + "@guest.senviet.vn";
-        customer.setEmail(fallbackEmail);
-        customerRepository.save(customer);
+        throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
+    }
+
+    private boolean isFallbackCustomerEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT).endsWith("@guest.senviet.vn");
     }
 
     private Order calculateAndBuildOrder(String customerId, BookingCreateRequest request, List<BookingDetail> details, Booking booking) {

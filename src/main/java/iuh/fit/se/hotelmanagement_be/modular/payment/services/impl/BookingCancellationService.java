@@ -783,16 +783,9 @@ public class BookingCancellationService {
             return;
         }
 
-        if (booking.getOrder() != null
-                && Boolean.TRUE.equals(paymentService.checkOrderStatus(booking.getOrder().getId()).get("isPaid"))) {
-            booking.setBookingStatus(BookingStatus.CONFIRMED);
-            bookingRepository.save(booking);
-            return;
-        }
-
-        paymentService.cancelOutstandingPaymentLinks(bookingId);
-        if (booking.getOrder() != null && booking.getOrder().getPaidAmount() != null
-                && booking.getOrder().getPaidAmount().compareTo(booking.getOrder().getTotalAmount()) >= 0) {
+        Order order = booking.getOrder();
+        if (order != null && order.getPaidAmount() != null
+                && order.getPaidAmount().compareTo(order.getTotalAmount()) >= 0) {
             booking.setBookingStatus(BookingStatus.CONFIRMED);
             bookingRepository.save(booking);
             return;
@@ -825,6 +818,8 @@ public class BookingCancellationService {
         }
         cancellationRepository.save(cancellation);
         notifyCancellation(booking, "Quá thời gian chờ thanh toán");
+        afterCommit("PayOS payment-link cancellation", bookingId,
+                () -> paymentService.cancelOutstandingPaymentLinksAsync(bookingId));
     }
 
     @Transactional

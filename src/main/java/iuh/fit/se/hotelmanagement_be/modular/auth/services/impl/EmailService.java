@@ -13,14 +13,40 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Service
 public class EmailService {
     public record BookingServiceEmailDetail(String name, int quantity, BigDecimal unitPrice) {}
+
+    public record CheckoutInvoiceServiceDetail(String name, int quantity, BigDecimal lineTotal) {}
+
+    public record CheckoutInvoiceRoomDetail(
+            String roomNumber,
+            LocalDateTime checkIn,
+            LocalDateTime checkOut,
+            boolean cancelled,
+            BigDecimal roomAmount,
+            List<CheckoutInvoiceServiceDetail> services,
+            BigDecimal surchargeAmount,
+            BigDecimal totalAmount) {}
+
+    public record CheckoutInvoiceDetails(
+            String orderId,
+            LocalDateTime checkoutTime,
+            List<CheckoutInvoiceRoomDetail> rooms,
+            BigDecimal roomTotal,
+            BigDecimal serviceTotal,
+            BigDecimal surchargeTotal,
+            BigDecimal discountTotal,
+            BigDecimal totalAmount,
+            BigDecimal paidAmount,
+            BigDecimal remainingAmount) {}
 
     public record BookingRoomEmailDetail(
             String roomNumber,
@@ -252,21 +278,19 @@ public class EmailService {
             String customerName,
             String bookingId,
             String hotelName,
-            String invoiceDetails) {
+            CheckoutInvoiceDetails invoiceDetails) {
         String subject = "Hóa đơn checkout booking " + bookingId;
-        String plain = new StringBuilder()
+        StringBuilder plain = new StringBuilder()
                 .append("Kính gửi ").append(greeting(customerName)).append(",\n\n")
                 .append("Booking ").append(bookingId).append(" đã checkout hoàn tất.\n")
-                .append("Khách sạn: ").append(hotelName).append("\n\n")
-                .append("HÓA ĐƠN THANH TOÁN\n")
-                .append(invoiceDetails).append("\n\n")
-                .append("Trân trọng,\n").append(hotelName)
-                .toString();
+                .append("Khách sạn: ").append(hotelName).append("\n\n");
+        appendCheckoutInvoicePlain(plain, invoiceDetails);
+        plain.append("\nTrân trọng,\n").append(hotelName);
         String content = paragraph("Kính gửi " + greeting(customerName) + ", booking " + bookingId + " đã checkout hoàn tất.")
                 + detailRow("Khách sạn", hotelName, false)
-                + section("Hóa đơn thanh toán", htmlLines(invoiceDetails));
+                + checkoutInvoiceHtml(invoiceDetails);
         sendBrandedEmail(email, subject, "HÓA ĐƠN CHECKOUT", "Cảm ơn quý khách đã lưu trú",
-                plain, hotelName, content);
+                plain.toString(), hotelName, content);
     }
 
     public void sendAfterCommit(String reference, Runnable emailAction) {
@@ -393,6 +417,144 @@ public class EmailService {
 
     private String formatAmount(BigDecimal amount) {
         return (amount != null ? amount : BigDecimal.ZERO).toPlainString() + " VND";
+    }
+
+    private String formatCheckoutAmount(BigDecimal amount) {
+        NumberFormat formatter = NumberFormat.getNumberInstance(Locale.forLanguageTag("vi-VN"));
+        formatter.setMinimumFractionDigits(0);
+        formatter.setMaximumFractionDigits(2);
+        return formatter.format(amount != null ? amount : BigDecimal.ZERO) + " ₫";
+    }
+
+    private void appendCheckoutInvoicePlain(StringBuilder plain, CheckoutInvoiceDetails invoice) {
+        plain.append("HÓA ĐƠN THANH TOÁN\n");
+        if (invoice.orderId() != null && !invoice.orderId().isBlank()) {
+            plain.append("Mã hóa đơn: ").append(invoice.orderId()).append("\n");
+        }
+        plain.append("Ngày checkout: ").append(formatBookingDateTime(invoice.checkoutTime())).append("\n\n")
+                .append("CHI TIẾT PHÒNG\n");
+        for (CheckoutInvoiceRoomDetail room : invoice.rooms()) {
+            plain.append("Phòng ").append(valueOrDash(room.roomNumber()));
+            if (room.cancelled()) {
+                plain.append(" (Đã hủy)");
+            }
+            plain.append(" | ").append(formatBookingDateTime(room.checkIn()))
+                    .append(" - ").append(formatBookingDateTime(room.checkOut())).append("\n")
+                    .append("  Tiền phòng: ").append(formatCheckoutAmount(room.roomAmount())).append("\n");
+            if (room.services() != null) {
+                for (CheckoutInvoiceServiceDetail service : room.services()) {
+                    plain.append("  - ").append(valueOrDash(service.name()))
+                            .append(" x").append(service.quantity())
+                            .append(": ").append(formatCheckoutAmount(service.lineTotal())).append("\n");
+                }
+            }
+            plain.append("  Phụ thu: ").append(formatCheckoutAmount(room.surchargeAmount())).append("\n")
+                    .append("  Thành tiền phòng: ").append(formatCheckoutAmount(room.totalAmount())).append("\n");
+        }
+        plain.append("\nTỔNG KẾT THANH TOÁN\n")
+                .append("Tiền phòng: ").append(formatCheckoutAmount(invoice.roomTotal())).append("\n")
+                .append("Tiền dịch vụ: ").append(formatCheckoutAmount(invoice.serviceTotal())).append("\n")
+                .append("Phụ thu: ").append(formatCheckoutAmount(invoice.surchargeTotal())).append("\n")
+                .append("Giảm giá: -").append(formatCheckoutAmount(invoice.discountTotal())).append("\n")
+                .append("Tổng hóa đơn: ").append(formatCheckoutAmount(invoice.totalAmount())).append("\n")
+                .append("Đã thanh toán: ").append(formatCheckoutAmount(invoice.paidAmount())).append("\n")
+                .append("Còn phải thanh toán: ").append(formatCheckoutAmount(invoice.remainingAmount())).append("\n");
+        BigDecimal surplus = zeroIfNull(invoice.paidAmount()).subtract(zeroIfNull(invoice.totalAmount())).max(BigDecimal.ZERO);
+        if (surplus.signum() > 0) {
+            plain.append("Tiền thanh toán dư: ").append(formatCheckoutAmount(surplus)).append("\n")
+                    .append("Khoản dư sẽ được xử lý hoàn theo phương thức đã xác nhận tại quầy.\n");
+        }
+    }
+
+    private String checkoutInvoiceHtml(CheckoutInvoiceDetails invoice) {
+        StringBuilder content = new StringBuilder()
+                .append("<div style=\"margin-top:20px;padding:16px;border:1px solid #e2e8f0;border-radius:10px;background:#ffffff\">")
+                .append("<div style=\"color:#0f172a;font-size:16px;font-weight:700\">Hóa đơn thanh toán</div>")
+                .append("<div style=\"margin-top:5px;color:#64748b;font-size:12px;line-height:1.6\">");
+        if (invoice.orderId() != null && !invoice.orderId().isBlank()) {
+            content.append("Mã hóa đơn: ").append(escapeHtml(invoice.orderId())).append(" &nbsp;·&nbsp; ");
+        }
+        content.append("Ngày checkout: ").append(escapeHtml(formatBookingDateTime(invoice.checkoutTime())))
+                .append("</div>")
+                .append("<div style=\"margin-top:16px;color:#334155;font-size:13px;font-weight:700\">Chi tiết phòng</div>")
+                .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;table-layout:fixed;border-collapse:collapse\">")
+                .append("<thead><tr>")
+                .append(invoiceTableHeader("Phòng / thời gian", "30%"))
+                .append(invoiceTableHeader("Chi tiết dịch vụ", "28%"))
+                .append(invoiceTableHeader("Tiền phòng", "14%"))
+                .append(invoiceTableHeader("Phụ thu", "12%"))
+                .append(invoiceTableHeader("Thành tiền", "16%"))
+                .append("</tr></thead><tbody>");
+        for (CheckoutInvoiceRoomDetail room : invoice.rooms()) {
+            content.append("<tr><td style=\"padding:10px 4px;border-bottom:1px solid #e2e8f0;color:#334155;font-size:12px;line-height:1.6;vertical-align:top;word-break:break-word\"><strong>Phòng ")
+                    .append(escapeHtml(valueOrDash(room.roomNumber()))).append("</strong>");
+            if (room.cancelled()) {
+                content.append("<br><span style=\"color:#b91c1c\">Đã hủy</span>");
+            }
+            content.append("<br>").append(escapeHtml(formatBookingDateTime(room.checkIn())))
+                    .append("<br>").append(escapeHtml(formatBookingDateTime(room.checkOut())))
+                    .append("</td><td style=\"padding:10px 4px;border-bottom:1px solid #e2e8f0;color:#475569;font-size:12px;line-height:1.6;vertical-align:top;word-break:break-word\">");
+            if (room.services() == null || room.services().isEmpty()) {
+                content.append("—");
+            } else {
+                for (int i = 0; i < room.services().size(); i++) {
+                    CheckoutInvoiceServiceDetail service = room.services().get(i);
+                    if (i > 0) content.append("<br>");
+                    content.append(escapeHtml(valueOrDash(service.name())))
+                            .append(" × ").append(service.quantity())
+                            .append("<br>").append(escapeHtml(formatCheckoutAmount(service.lineTotal())));
+                }
+            }
+            content.append("</td>")
+                    .append(invoiceTableCell(formatCheckoutAmount(room.roomAmount())))
+                    .append(invoiceTableCell(formatCheckoutAmount(room.surchargeAmount())))
+                    .append(invoiceTableCell(formatCheckoutAmount(room.totalAmount()), true))
+                    .append("</tr>");
+        }
+        content.append("</tbody></table></div>")
+                .append("<div style=\"margin-top:16px;padding:16px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff\">")
+                .append("<div style=\"margin-bottom:8px;color:#1e3a8a;font-size:14px;font-weight:700\">Tổng kết thanh toán</div>")
+                .append(invoiceSummaryRow("Tiền phòng", formatCheckoutAmount(invoice.roomTotal()), false))
+                .append(invoiceSummaryRow("Tiền dịch vụ", formatCheckoutAmount(invoice.serviceTotal()), false))
+                .append(invoiceSummaryRow("Phụ thu", formatCheckoutAmount(invoice.surchargeTotal()), false))
+                .append(invoiceSummaryRow("Giảm giá", "-" + formatCheckoutAmount(invoice.discountTotal()), false))
+                .append(invoiceSummaryRow("Tổng hóa đơn", formatCheckoutAmount(invoice.totalAmount()), true))
+                .append(invoiceSummaryRow("Đã thanh toán", formatCheckoutAmount(invoice.paidAmount()), false))
+                .append(invoiceSummaryRow("Còn phải thanh toán", formatCheckoutAmount(invoice.remainingAmount()), true));
+        BigDecimal surplus = zeroIfNull(invoice.paidAmount()).subtract(zeroIfNull(invoice.totalAmount())).max(BigDecimal.ZERO);
+        if (surplus.signum() > 0) {
+            content.append(invoiceSummaryRow("Tiền thanh toán dư", formatCheckoutAmount(surplus), true))
+                    .append("<div style=\"margin-top:8px;color:#475569;font-size:12px;line-height:1.6\">Khoản dư sẽ được xử lý hoàn theo phương thức đã xác nhận tại quầy.</div>");
+        }
+        return content.append("</div>").toString();
+    }
+
+    private String invoiceTableHeader(String label, String width) {
+        return "<th align=\"left\" width=\"" + width + "\" style=\"padding:8px 4px;border-bottom:1px solid #cbd5e1;color:#64748b;font-size:10px;font-weight:700\">"
+                + escapeHtml(label) + "</th>";
+    }
+
+    private String invoiceTableCell(String value) {
+        return invoiceTableCell(value, false);
+    }
+
+    private String invoiceTableCell(String value, boolean emphasized) {
+        return "<td align=\"right\" style=\"padding:10px 4px;border-bottom:1px solid #e2e8f0;color:"
+                + (emphasized ? "#1d4ed8" : "#334155") + ";font-size:11px;font-weight:"
+                + (emphasized ? "700" : "500") + ";vertical-align:top;word-break:break-word\">"
+                + escapeHtml(value) + "</td>";
+    }
+
+    private String invoiceSummaryRow(String label, String value, boolean emphasized) {
+        return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border-bottom:1px solid #dbeafe\"><tr>"
+                + "<td style=\"padding:7px 0;color:" + (emphasized ? "#1e3a8a" : "#475569")
+                + ";font-size:12px;font-weight:" + (emphasized ? "700" : "400") + "\">" + escapeHtml(label) + "</td>"
+                + "<td align=\"right\" style=\"padding:7px 0;color:" + (emphasized ? "#1d4ed8" : "#334155")
+                + ";font-size:12px;font-weight:" + (emphasized ? "700" : "500") + "\">" + escapeHtml(value) + "</td></tr></table>";
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     private void sendBrandedEmail(

@@ -562,9 +562,6 @@ public class BookingServiceImpl implements BookingService {
             if (room == null && targetRoomId != null && !targetRoomId.isBlank()) {
                 room = roomRepository.findById(targetRoomId)
                         .or(() -> roomRepository.findFirstByRoomNumber(targetRoomId))
-                        .or(() -> roomRepository.findAll().stream()
-                                .filter(r -> r.getId().endsWith(targetRoomId) || r.getRoomNumber().equals(targetRoomId))
-                                .findFirst())
                         .orElse(null);
             }
 
@@ -576,35 +573,17 @@ public class BookingServiceImpl implements BookingService {
                 }
             }
 
-            // Kiểm tra phòng có bị trùng lịch đặt không, nếu trùng thì tự động tìm phòng khác cùng loại còn trống
+            // Never replace a requested room silently; report conflicts against the requested room.
             if (room != null) {
+                LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
                 long overlapping = bookingDetailRepository.countOverlappingBookings(
                         room.getId(),
                         detailReq.getCheckInTime(),
-                        detailReq.getCheckOutTime()
+                        detailReq.getCheckOutTime(),
+                        fiveMinutesAgo
                 );
                 if (overlapping > 0) {
-                    var targetType = room.getRoomType();
-                    Long hId = targetHotelId != null ? targetHotelId : room.getFloor().getBuilding().getHotel().getId();
-                    List<Room> available = bookingDetailRepository.findAvailableRooms(
-                            hId,
-                            detailReq.getCheckInTime(),
-                            detailReq.getCheckOutTime()
-                    );
-                    room = available.stream()
-                            .filter(r -> r.getRoomType() == targetType)
-                            .findFirst()
-                            .or(() -> available.stream().findFirst())
-                            .orElse(null);
-                }
-            } else if (targetHotelId != null) {
-                List<Room> available = bookingDetailRepository.findAvailableRooms(
-                        targetHotelId,
-                        detailReq.getCheckInTime(),
-                        detailReq.getCheckOutTime()
-                );
-                if (!available.isEmpty()) {
-                    room = available.get(0);
+                    throw new AppException(ErrorCode.ROOM_ALREADY_BOOKED);
                 }
             }
 
@@ -651,7 +630,8 @@ public class BookingServiceImpl implements BookingService {
             long overlappingCount = bookingDetailRepository.countOverlappingBookings(
                     roomCheck.getId(),
                     detailReq.getCheckInTime(),
-                    detailReq.getCheckOutTime()
+                    detailReq.getCheckOutTime(),
+                    LocalDateTime.now().minusMinutes(5)
             );
 
             if (overlappingCount > 0) {

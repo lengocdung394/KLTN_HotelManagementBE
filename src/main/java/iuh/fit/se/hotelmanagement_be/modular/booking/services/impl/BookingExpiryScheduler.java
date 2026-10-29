@@ -20,7 +20,7 @@ public class BookingExpiryScheduler {
     private final BookingRepository bookingRepository;
     private final BookingCancellationService bookingCancellationService;
 
-    @Scheduled(fixedRate = 60000) // mỗi 1 phút
+    @Scheduled(fixedRate = 5000)
     public void releaseExpiredPendingBookings() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
 

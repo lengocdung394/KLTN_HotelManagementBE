@@ -18,8 +18,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.math.BigDecimal;
 import java.text.NumberFormat;
-import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -407,39 +405,6 @@ public class BookingSocketEmitter {
 
             log.info("[Checkout late!!!!!]");
         }
-    }
-
-    // Trong BookingSocketEmitter.java
-    public void emitRoomTemporarilyLocked(Long hotelId, String roomId, String userId) {
-        socketIOServer.getRoomOperations("hotel_" + hotelId)
-                .sendEvent("room_locked_event", Map.of(
-                        "roomId", roomId,
-                        "status", "LOCKED",
-                        "message", "Phòng này đang có người thao tác chọn"
-
-
-                ));
-    }
-
-    void emitRoomTemporarilyLocked(
-            Long hotelId,
-            String roomId,
-            LocalDate checkIn,
-            LocalDate checkOut,
-            String lockToken,
-            Instant expiresAt
-    ) {
-
-    }
-
-    void emitRoomTemporarilyUnlocked(
-            Long hotelId,
-            String roomId,
-            LocalDate checkIn,
-            LocalDate checkOut,
-            String lockToken
-    ) {
-
     }
 
     }

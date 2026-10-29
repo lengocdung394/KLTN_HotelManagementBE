@@ -783,10 +783,23 @@ public class BookingCancellationService {
             return;
         }
 
+        if (booking.getOrder() != null
+                && Boolean.TRUE.equals(paymentService.checkOrderStatus(booking.getOrder().getId()).get("isPaid"))) {
+            booking.setBookingStatus(BookingStatus.CONFIRMED);
+            bookingRepository.save(booking);
+            return;
+        }
+
         paymentService.cancelOutstandingPaymentLinks(bookingId);
+        if (booking.getOrder() != null && booking.getOrder().getPaidAmount() != null
+                && booking.getOrder().getPaidAmount().compareTo(booking.getOrder().getTotalAmount()) >= 0) {
+            booking.setBookingStatus(BookingStatus.CONFIRMED);
+            bookingRepository.save(booking);
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         CancellationPolicy policy = cancellationPolicy(booking, now);
-        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), BigDecimal.ZERO);
         RefundBankDetails bankDetails = resolveRefundBankDetails(null);
         cancelBooking(booking, "SYSTEM:PAYMENT_TIMEOUT", now, BookingStatus.CANCELLED_PAYMENT_TIMEOUT);
         BookingCancellation cancellation = BookingCancellation.builder()
@@ -803,7 +816,7 @@ public class BookingCancellationService {
                 .serviceRefundAmount(breakdown.serviceRefund())
                 .roomPenaltyAmount(breakdown.roomPenalty())
                 .hoursBeforeCheckIn(policy.hoursBeforeCheckIn())
-                .refundPolicy(policy.name())
+                .refundPolicy("FULL_REFUND_PAYMENT_TIMEOUT")
                 .refundMethod(BookingCancellationRefundMethod.BANK)
                 .cancelledAt(now)
                 .build();

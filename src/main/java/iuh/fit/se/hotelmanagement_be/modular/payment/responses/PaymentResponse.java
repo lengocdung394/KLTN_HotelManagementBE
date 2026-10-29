@@ -16,4 +16,5 @@ public class PaymentResponse {
     String description;
     String customerName;
     String orderId;
+    Long expiredAt;
 }

@@ -43,8 +43,7 @@ public class PaymentController {
     @Operation(summary = "Nhận Webhook từ PayOS khi khách thanh toán thành công")
     @PostMapping("/webhook/payos")
     public ResponseEntity<WebhookResponse> handlePayOSWebhook(@RequestBody Map<String, Object> webhookBody) {
-        // Log RAW payload trước tiên - quan trọng nhất để biết PayOS thực sự gửi gì
-        log.info("[Webhook] Raw payload nhận từ PayOS: {}", webhookBody);
+        log.info("[Webhook] PayOS webhook received");
 
         try {
             JsonNode jsonNode = objectMapper.valueToTree(webhookBody);

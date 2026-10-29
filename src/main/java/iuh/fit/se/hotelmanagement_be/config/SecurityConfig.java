@@ -57,7 +57,6 @@ public class SecurityConfig {
                         .requestMatchers("/superAdmin/**").permitAll()
                         .requestMatchers("/role_permissions/**").permitAll()
                         .requestMatchers("/super-admin/accounts/**").permitAll()
-                        .requestMatchers("/rooms/temporary-locks/**").permitAll()
                         .requestMatchers("/live-chat/**").permitAll()
                         .requestMatchers("/notifications/**").permitAll()
                         .requestMatchers("/management-bookings/cancellations/**").permitAll()

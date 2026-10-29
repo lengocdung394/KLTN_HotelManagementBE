@@ -783,10 +783,16 @@ public class BookingCancellationService {
             return;
         }
 
-        paymentService.cancelOutstandingPaymentLinks(bookingId);
+        Order order = booking.getOrder();
+        if (order != null && order.getPaidAmount() != null
+                && order.getPaidAmount().compareTo(order.getTotalAmount()) >= 0) {
+            booking.setBookingStatus(BookingStatus.CONFIRMED);
+            bookingRepository.save(booking);
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         CancellationPolicy policy = cancellationPolicy(booking, now);
-        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), BigDecimal.ZERO);
         RefundBankDetails bankDetails = resolveRefundBankDetails(null);
         cancelBooking(booking, "SYSTEM:PAYMENT_TIMEOUT", now, BookingStatus.CANCELLED_PAYMENT_TIMEOUT);
         BookingCancellation cancellation = BookingCancellation.builder()
@@ -803,7 +809,7 @@ public class BookingCancellationService {
                 .serviceRefundAmount(breakdown.serviceRefund())
                 .roomPenaltyAmount(breakdown.roomPenalty())
                 .hoursBeforeCheckIn(policy.hoursBeforeCheckIn())
-                .refundPolicy(policy.name())
+                .refundPolicy("FULL_REFUND_PAYMENT_TIMEOUT")
                 .refundMethod(BookingCancellationRefundMethod.BANK)
                 .cancelledAt(now)
                 .build();
@@ -812,6 +818,8 @@ public class BookingCancellationService {
         }
         cancellationRepository.save(cancellation);
         notifyCancellation(booking, "Quá thời gian chờ thanh toán");
+        afterCommit("PayOS payment-link cancellation", bookingId,
+                () -> paymentService.cancelOutstandingPaymentLinksAsync(bookingId));
     }
 
     @Transactional

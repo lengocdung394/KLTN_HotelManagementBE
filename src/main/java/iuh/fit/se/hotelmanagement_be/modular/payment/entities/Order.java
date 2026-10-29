@@ -124,12 +124,23 @@ public class Order {
     }
 
     public void addPaymentSuccess(BigDecimal amountPaid, PaymentType paymentType, String paymentLinkId) {
+        addPaymentSuccess(amountPaid, paymentType, paymentLinkId, null);
+    }
+
+    public void addPaymentSuccess(
+            BigDecimal amountPaid,
+            PaymentType paymentType,
+            String paymentLinkId,
+            String payOSReference) {
         Booking currentBooking = this.booking;
         String customerName = currentBooking != null && currentBooking.getCustomer() != null
                 ? currentBooking.getCustomer().getFullName()
                 : "Khách hàng";
         String bookingId = currentBooking != null ? currentBooking.getId() : "N/A";
         String transactionNote = "PayOS Webhook Ref: " + paymentLinkId
+                + (payOSReference == null || payOSReference.isBlank()
+                ? ""
+                : " | PayOS Transaction Ref: " + payOSReference)
                 + " | Tên khách hàng: " + customerName
                 + " | Mã booking: " + bookingId
                 + " | Số tiền thanh toán: " + amountPaid.toPlainString();

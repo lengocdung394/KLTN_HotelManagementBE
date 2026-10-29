@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.repositories;
 
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +16,8 @@ import java.util.List;
 public interface PaymentTransactionRepository extends JpaRepository<PaymentTransaction, Long> {
     interface CashFlowReportProjection {
         BigDecimal getCashReceived();
+        BigDecimal getCashReceivedCash();
+        BigDecimal getCashReceivedBank();
         BigDecimal getCashRefunded();
         BigDecimal getCashChangeReturned();
     }
@@ -22,6 +25,12 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     @Query("""
             SELECT COALESCE(SUM(CASE WHEN pt.cashFlowType = :receiptType THEN pt.amount END), 0)
                        AS cashReceived,
+                   COALESCE(SUM(CASE WHEN pt.cashFlowType = :receiptType
+                                      AND pt.paymentType = :cashPaymentType THEN pt.amount END), 0)
+                       AS cashReceivedCash,
+                   COALESCE(SUM(CASE WHEN pt.cashFlowType = :receiptType
+                                      AND pt.paymentType = :bankPaymentType THEN pt.amount END), 0)
+                       AS cashReceivedBank,
                    COALESCE(SUM(CASE WHEN pt.cashFlowType = :refundType THEN pt.amount END), 0)
                        AS cashRefunded,
                    COALESCE(SUM(CASE WHEN pt.cashFlowType = :changeType THEN pt.amount END), 0)
@@ -38,7 +47,9 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
             @Param("end") LocalDateTime end,
             @Param("receiptType") CashFlowType receiptType,
             @Param("refundType") CashFlowType refundType,
-            @Param("changeType") CashFlowType changeType
+            @Param("changeType") CashFlowType changeType,
+            @Param("cashPaymentType") PaymentType cashPaymentType,
+            @Param("bankPaymentType") PaymentType bankPaymentType
     );
 
     @Query("SELECT pt FROM PaymentTransaction pt WHERE pt.order.id = :orderId ORDER BY pt.id DESC")

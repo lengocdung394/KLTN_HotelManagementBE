@@ -6,6 +6,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChann
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
@@ -79,6 +80,8 @@ class HotelReportServiceTest {
         PaymentTransactionRepository.CashFlowReportProjection cashFlow =
                 mock(PaymentTransactionRepository.CashFlowReportProjection.class);
         when(cashFlow.getCashReceived()).thenReturn(new BigDecimal("500000"));
+        when(cashFlow.getCashReceivedCash()).thenReturn(new BigDecimal("200000"));
+        when(cashFlow.getCashReceivedBank()).thenReturn(new BigDecimal("300000"));
         when(cashFlow.getCashRefunded()).thenReturn(new BigDecimal("75000"));
         when(cashFlow.getCashChangeReturned()).thenReturn(new BigDecimal("25000"));
         when(paymentTransactionRepository.getCashFlowReport(
@@ -87,7 +90,9 @@ class HotelReportServiceTest {
                 endDate.plusDays(1).atStartOfDay(),
                 CashFlowType.RECEIPT,
                 CashFlowType.REFUND,
-                CashFlowType.CHANGE
+                CashFlowType.CHANGE,
+                PaymentType.CASH,
+                PaymentType.BANK
         )).thenReturn(cashFlow);
         OrderRepository.DailyServiceRevenueProjection revenueRow =
                 mock(OrderRepository.DailyServiceRevenueProjection.class);
@@ -156,6 +161,8 @@ class HotelReportServiceTest {
                 new RoomTypeBookingReportResponse("FAMILY", 1)
         ), report.roomTypeBookings());
         assertEquals(new BigDecimal("500000"), report.cashReceived());
+        assertEquals(new BigDecimal("200000"), report.cashReceivedCash());
+        assertEquals(new BigDecimal("300000"), report.cashReceivedBank());
         assertEquals(new BigDecimal("75000"), report.cashRefunded());
         assertEquals(new BigDecimal("25000"), report.cashChangeReturned());
         assertEquals(new BigDecimal("400000"), report.netCashReceived());

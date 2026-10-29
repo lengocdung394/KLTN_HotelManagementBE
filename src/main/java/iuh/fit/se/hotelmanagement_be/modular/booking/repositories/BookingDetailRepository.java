@@ -30,6 +30,8 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
                             iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT,
                             iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED
                         )
+                        AND (bd.booking.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING
+                             OR bd.booking.createdAt >= :fiveMinutesAgo)
                         AND bd.checkinTime < :checkoutTime 
                         AND bd.checkoutTime > :checkinTime
                   )
@@ -37,7 +39,8 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
     List<Room> findAvailableRooms(
             @Param("hotelId") Long hotelId,
             @Param("checkinTime") LocalDateTime checkinTime,
-            @Param("checkoutTime") LocalDateTime checkoutTime
+            @Param("checkoutTime") LocalDateTime checkoutTime,
+            @Param("fiveMinutesAgo") LocalDateTime fiveMinutesAgo
     );
 
     @Query("""
@@ -75,12 +78,27 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
             "AND bd.checkoutTime > :effectiveCheckIn")
     boolean existsOverlappingActiveBooking(String roomId, LocalDateTime effectiveCheckIn, LocalDateTime checkoutTime, String currentDetailId);
     boolean existsByRoom_IdAndStatus(String roomId, BookingStatusType status);
-    @Query("SELECT COUNT(bd) FROM BookingDetail bd WHERE bd.room.id = :roomId " +
-            "AND bd.status IN ('PENDING', 'CHECKED_IN') " +
-            "AND bd.checkinTime < :checkOut AND bd.checkoutTime > :checkIn")
+    @Query("""
+            SELECT COUNT(bd) FROM BookingDetail bd
+            WHERE bd.room.id = :roomId
+              AND bd.status NOT IN (
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED
+              )
+              AND bd.booking.bookingStatus IN (
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.CONFIRMED,
+                  iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.IN_HOUSE
+              )
+              AND (bd.booking.bookingStatus <> iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus.PENDING
+                   OR bd.booking.createdAt >= :fiveMinutesAgo)
+              AND bd.checkinTime < :checkOut
+              AND bd.checkoutTime > :checkIn
+            """)
     long countOverlappingBookings(@Param("roomId") String roomId,
                                   @Param("checkIn") LocalDateTime checkIn,
-                                  @Param("checkOut") LocalDateTime checkOut);
+                                  @Param("checkOut") LocalDateTime checkOut,
+                                  @Param("fiveMinutesAgo") LocalDateTime fiveMinutesAgo);
     // Thêm hàm này vào repository của bạn
     List<BookingDetail> findByStatusAndCheckoutTimeBefore(BookingStatusType status, LocalDateTime time);
 }

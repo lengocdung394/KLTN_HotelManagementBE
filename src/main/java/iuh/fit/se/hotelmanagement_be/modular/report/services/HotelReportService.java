@@ -6,6 +6,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChann
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
@@ -74,11 +75,19 @@ public class HotelReportService {
                         endExclusive,
                         CashFlowType.RECEIPT,
                         CashFlowType.REFUND,
-                        CashFlowType.CHANGE
+                        CashFlowType.CHANGE,
+                        PaymentType.CASH,
+                        PaymentType.BANK
                 );
         BigDecimal cashReceived = cashFlow.getCashReceived() == null
                 ? BigDecimal.ZERO
                 : cashFlow.getCashReceived();
+        BigDecimal cashReceivedCash = cashFlow.getCashReceivedCash() == null
+                ? BigDecimal.ZERO
+                : cashFlow.getCashReceivedCash();
+        BigDecimal cashReceivedBank = cashFlow.getCashReceivedBank() == null
+                ? BigDecimal.ZERO
+                : cashFlow.getCashReceivedBank();
         BigDecimal cashRefunded = cashFlow.getCashRefunded() == null
                 ? BigDecimal.ZERO
                 : cashFlow.getCashRefunded();
@@ -175,6 +184,8 @@ public class HotelReportService {
                 endDate,
                 totalBookingCount,
                 cashReceived,
+                cashReceivedCash,
+                cashReceivedBank,
                 cashRefunded,
                 cashChangeReturned,
                 cashReceived.subtract(cashRefunded).subtract(cashChangeReturned),

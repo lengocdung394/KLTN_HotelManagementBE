@@ -35,6 +35,7 @@ import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomSeasonalRateRepository;
 import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceRepository;
+import jakarta.persistence.EntityManager;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -73,6 +74,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     CustomerPromotionRepository customerPromotionRepository;
     PromotionUsageService promotionUsageService;
     BookingSocketEmitter bookingSocketEmitter;
+    EntityManager entityManager;
 
     @Override
     @Transactional
@@ -327,6 +329,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
             if (roomChanged) {
                 nightlyPrices.clear();
+                entityManager.flush();
                 calculateNightlyPrices(
                         hotelId, roomToUse, newCheckInDate, newCheckOutDate,
                         targetDetail.getNumAdults(), targetDetail.getNumChildren(), policy

@@ -9,6 +9,8 @@ public record HotelReportResponse(
         LocalDate endDate,
         long totalBookingCount,
         BigDecimal cashReceived,
+        BigDecimal cashReceivedCash,
+        BigDecimal cashReceivedBank,
         BigDecimal cashRefunded,
         BigDecimal cashChangeReturned,
         BigDecimal netCashReceived,

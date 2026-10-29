@@ -15,21 +15,21 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface BookingService {
-    // Tao booking cho khách hang
+    // Tao booking cho khaÌch hang
     BookingResponse createCustomerBooking(BookingCreateRequest request);
 
-    // Nhân viên tạo booking tại quầy
+    // NhÃ¢n viÃªn taÌ£o booking taÌ£i quÃ¢Ì€y
     BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request);
 
-    // Hàm chuyển đổi dữ liệu
+    // HaÌ€m chuyÃªÌ‰n Ä‘Ã´Ì‰i dÆ°Ìƒ liÃªÌ£u
     BookingResponse toBookingResponse(Booking booking);
 
-    // Tiến hành tạo chi tiết của booking
+    // TiÃªÌn haÌ€nh taÌ£o chi tiÃªÌt cuÌ‰a booking
     List<BookingDetail> processBookingDetails(Booking booking, List<BookingDetailCreateRequest> detailRequests);
 
     CheckoutSummaryResponse getCheckoutSummary(String bookingId);
 
-    // Hàm chuyen đổi và Lay danh sach booking cua khách sạn
+    // HaÌ€m chuyen Ä‘Ã´Ì‰i vaÌ€ Lay danh sach booking cua khaÌch saÌ£n
     BookingResponseForHotel toBookingForHotelResponse(Booking booking);
 
     List<BookingResponseForHotel> getBookingsByHotel(Long hotelId);
@@ -47,4 +47,6 @@ public interface BookingService {
     BigDecimal calculateTotalRoomPrice(List<BookingDetail> details);
 
     BigDecimal calculateTotalServicePrice(List<BookingDetail> bookingDetails);
+
+    List<BookingResponse> getMyBookings(iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account account);
 }

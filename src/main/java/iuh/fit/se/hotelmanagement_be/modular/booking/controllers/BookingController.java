@@ -26,7 +26,7 @@ import java.util.List;
 @RequestMapping("/bookings")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
+@Tag(name = "Booking", description = "APIs liÃªn quan Ä‘áº¿n Ä‘ÄƒÌ£t phoÌ€ng")
 public class BookingController {
 
     BookingService bookingService;
@@ -38,10 +38,10 @@ public class BookingController {
     }
 
     /**
-     * Endpoint 1: Khách hàng tự đặt phòng trực tuyến (Online)
+     * Endpoint 1: KhÃ¡ch hÃ ng tá»± Ä‘áº·t phÃ²ng trá»±c tuyáº¿n (Online)
      */
     @PostMapping("/customer")
-    @Operation(summary = "Khách hàng tự đặt phòng trực tuyến (Online)")
+    @Operation(summary = "KhÃ¡ch hÃ ng tá»± Ä‘áº·t phÃ²ng trá»±c tuyáº¿n (Online)")
     public ResponseEntity<BookingResponse> createCustomerBooking(@RequestBody @Valid BookingCreateRequest request) {
         BookingResponse response = bookingService.createCustomerBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -49,33 +49,46 @@ public class BookingController {
 
     @PreAuthorize("hasAuthority('CREATE_BOOKING')")
     @PostMapping("/counter")
-    @Operation(summary = "Nhân viên hỗ trợ đặt phòng tại quầy")
+    @Operation(summary = "NhÃ¢n viÃªn há»— trá»£ Ä‘áº·t phÃ²ng táº¡i quáº§y")
     public ResponseEntity<BookingResponse> createCounterBooking(
             @RequestBody @Valid BookingCreateRequest request,
             Authentication authentication
     ) {
-        // 1. Lấy thông tin tài khoản đang đăng nhập từ token
+        // 1. Láº¥y thÃ´ng tin tÃ i khoáº£n Ä‘ang Ä‘Äƒng nháº­p tá»« token
         Account account = (Account) authentication.getPrincipal();
 
-        // 2. Lấy mã nhân viên và mã khách sạn trực tiếp ngầm từ token
+        // 2. Láº¥y mÃ£ nhÃ¢n viÃªn vÃ  mÃ£ khÃ¡ch sáº¡n trá»±c tiáº¿p ngáº§m tá»« token
         String employeeId = account.getEmployeeId();
         Long hotelId = account.getHotelId();
 
-        // 3. Truyền xuống service
+        // 3. Truyá»n xuá»‘ng service
         BookingResponse response = bookingService.createCounterBooking(employeeId, hotelId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
 
     /**
-     * Endpoint 4: Lấy thông tin tổng quan lúc Checkout (Xem khách còn nợ bao nhiêu tiền dịch vụ)
+     * Endpoint 4: Láº¥y thÃ´ng tin tá»•ng quan lÃºc Checkout (Xem khÃ¡ch cÃ²n ná»£ bao nhiÃªu tiá»n dá»‹ch vá»¥)
      */
     @GetMapping("/{bookingId}/checkout-summary")
-    @Operation(summary = "Lấy thông tin tổng quan hóa đơn lúc Checkout (Đối soát tiền còn thiếu)")
+    @Operation(summary = "Láº¥y thÃ´ng tin tá»•ng quan hÃ³a Ä‘Æ¡n lÃºc Checkout (Äá»‘i soÃ¡t tiá»n cÃ²n thiáº¿u)")
     public ResponseEntity<CheckoutSummaryResponse> getCheckoutSummary(@PathVariable String bookingId) {
         return ResponseEntity.ok(bookingService.getCheckoutSummary(bookingId));
     }
 
 
 
+
+    @Operation(summary = "Lấy danh sách các đơn đặt phòng của khách hàng đang đăng nhập")
+    @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+    @GetMapping("/my")
+    public ResponseEntity<iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse<List<BookingResponse>>> getMyBookings(org.springframework.security.core.Authentication authentication) {
+        iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account account = (authentication != null && authentication.getPrincipal() instanceof iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account a) ? a : null;
+        List<BookingResponse> responses = bookingService.getMyBookings(account);
+        return ResponseEntity.ok(iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse.<List<BookingResponse>>builder()
+                .code(1000)
+                .message("Lấy danh sách đơn đặt phòng thành công")
+                .result(responses)
+                .build());
+    }
 }

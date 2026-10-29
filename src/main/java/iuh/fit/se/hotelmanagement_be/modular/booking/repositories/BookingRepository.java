@@ -55,7 +55,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             @Param("end") LocalDateTime end
     );
 
-    // Lọc danh sách booking theo khách sạn (hotelId) thông qua chuỗi quan hệ phòng -> tầng -> tòa nhà -> khách sạn
+    // Lá»c danh sÃ¡ch booking theo khÃ¡ch sáº¡n (hotelId) thÃ´ng qua chuá»—i quan há»‡ phÃ²ng -> táº§ng -> tÃ²a nhÃ  -> khÃ¡ch sáº¡n
     @Query("""
                 SELECT DISTINCT b FROM Booking b
                 JOIN b.bookingDetails bd
@@ -79,4 +79,12 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     @Query("select booking from Booking booking where booking.id = :bookingId")
     Optional<Booking> findByIdForUpdate(@Param("bookingId") String bookingId);
 
+
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            WHERE (:customerId IS NOT NULL AND b.customer.id = :customerId)
+               OR (:email IS NOT NULL AND b.customer.email IS NOT NULL AND LOWER(b.customer.email) = LOWER(:email))
+            ORDER BY b.createdAt DESC
+            """)
+    List<Booking> findByCustomerIdOrEmail(@Param("customerId") String customerId, @Param("email") String email);
 }

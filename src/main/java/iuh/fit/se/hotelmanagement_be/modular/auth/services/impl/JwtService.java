@@ -8,6 +8,7 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,9 @@ import java.util.stream.Collectors;
 @Service
 public class JwtService {
     private static final String SECRET_KEY = "404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971";
-    private static final long EXPIRATION_TIME = 86400000L * 30; // 30 ngày
+
+    @Value("${application.security.jwt.expiration:86400000}")
+    private long expirationTime;
 
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
@@ -75,7 +78,7 @@ public class JwtService {
                 .setClaims(extraClaims)
                 .setSubject(account.getEmail())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -92,12 +95,14 @@ public class JwtService {
     // 2. Kiểm tra Token có hợp lệ không
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return username != null && username.equals(userDetails.getUsername());
+        return username != null
+                && username.equals(userDetails.getUsername())
+                && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {
         Date exp = extractExpiration(token);
-        return exp != null && exp.before(new Date());
+        return exp == null || !exp.after(new Date());
     }
 
     private Date extractExpiration(String token) {

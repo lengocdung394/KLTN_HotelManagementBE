@@ -251,6 +251,11 @@ public class BookingServiceImpl implements BookingService {
 
     private void sendBookingCreatedEmailAfterCommit(Booking booking, Customer customer, Hotel hotel) {
         String email = emailService.getCustomerEmail(customer);
+        if (email == null || email.isBlank()) {
+            log.info("Skipping booking confirmation email because no customer email is available, bookingId={}",
+                    booking.getId());
+            return;
+        }
 
         List<EmailService.BookingRoomEmailDetail> bookingDetails = booking.getBookingDetails().stream()
                 .map(detail -> new EmailService.BookingRoomEmailDetail(
@@ -323,7 +328,6 @@ public class BookingServiceImpl implements BookingService {
             return;
         }
 
-        throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
     }
 
     private boolean isFallbackCustomerEmail(String email) {

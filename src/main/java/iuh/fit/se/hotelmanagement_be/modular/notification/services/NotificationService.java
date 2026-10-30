@@ -200,6 +200,8 @@ public class NotificationService {
                 if (recipientAccountId != null) {
                     socketIOServer.getRoomOperations(recipientAccountId)
                             .sendEvent("notification_created", payload);
+                    socketIOServer.getRoomOperations("user_" + recipientAccountId)
+                            .sendEvent("notification_created", payload);
                 }
             } catch (RuntimeException exception) {
                 log.error("Could not emit persisted notification {}", saved.getId(), exception);

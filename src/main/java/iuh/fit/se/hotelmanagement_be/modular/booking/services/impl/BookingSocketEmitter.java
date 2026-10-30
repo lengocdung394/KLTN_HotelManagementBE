@@ -9,6 +9,8 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
+import iuh.fit.se.hotelmanagement_be.modular.notification.entities.Notification;
+import iuh.fit.se.hotelmanagement_be.modular.notification.responses.NotificationSocketPayload;
 import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -380,11 +382,13 @@ public class BookingSocketEmitter {
             String roomName = "user_" + customer.getId();
             socketIOServer.getRoomOperations(roomName)
                     .sendEvent("customer_booking_updated", booking);
+            socketIOServer.getRoomOperations(customer.getId())
+                    .sendEvent("customer_booking_updated", booking);
             log.info("👤 [Booking Socket] Đã gửi trạng thái tới user room: {}", roomName);
 
             if (customer.getAccount() != null && customer.getAccount().getId() != null) {
                 Long hotelId = booking.getHotel() == null ? null : booking.getHotel().getId();
-                notificationService.createAndPublishToCustomer(
+                Notification notification = notificationService.createAndPublishToCustomer(
                         customer.getAccount().getId(),
                         hotelId,
                         notificationType,
@@ -392,6 +396,24 @@ public class BookingSocketEmitter {
                         description,
                         "BOOKING",
                         booking.getId());
+
+                if (notification != null) {
+                    NotificationSocketPayload payload = new NotificationSocketPayload(
+                            notification.getId(),
+                            hotelId,
+                            notificationType,
+                            title,
+                            description,
+                            "BOOKING",
+                            booking.getId(),
+                            notification.getCreatedAt() != null ? notification.getCreatedAt().toString() : java.time.LocalDateTime.now().toString()
+                    );
+                    socketIOServer.getRoomOperations(roomName).sendEvent("notification_created", payload);
+                    socketIOServer.getRoomOperations(customer.getId()).sendEvent("notification_created", payload);
+                    if (customer.getEmail() != null) {
+                        socketIOServer.getRoomOperations(customer.getEmail()).sendEvent("notification_created", payload);
+                    }
+                }
             }
         }
     }

@@ -171,8 +171,8 @@ public class BookingServiceImpl implements BookingService {
                             + " | SÄT: " + customer.getPhone()
                             + " | Tá»•ng tiá»n booking: " + savedBooking.getOrder().getTotalAmount() + "Ä‘.");
 
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         }
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ==========================================
 
         return toBookingResponse(savedBooking);
@@ -228,7 +228,7 @@ public class BookingServiceImpl implements BookingService {
                 savedBooking.getPromotion() != null ? savedBooking.getPromotion().getId() : null);
 
         // === 5. Báº®N SOCKET THÃ”NG BÃO REALTIME CHO CHI NHÃNH ===
-        if (hotelId != null) {
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED && hotelId != null) {
             bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
             Map<String, Object> bookingData = new LinkedHashMap<>();
             bookingData.put("bookingId", savedBooking.getId());
@@ -241,9 +241,10 @@ public class BookingServiceImpl implements BookingService {
                     savedBooking,
                     bookingData
             );
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
+        } else if (hotelId != null) {
+            bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
         }
-
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ====================================================
 
         return toBookingResponse(savedBooking);

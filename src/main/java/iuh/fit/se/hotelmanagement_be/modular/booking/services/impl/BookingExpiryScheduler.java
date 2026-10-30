@@ -45,9 +45,13 @@ public class BookingExpiryScheduler {
                         continue;
                     }
                     if ("UNAVAILABLE".equals(paymentStatus.get("gatewayStatus"))) {
-                        log.warn("Deferring expiry because PayOS status could not be verified: bookingId={}, orderId={}",
-                                booking.getId(), booking.getOrder().getId());
-                        continue;
+                        if (booking.getCreatedAt() != null && booking.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(10))) {
+                            log.warn("Force releasing expired pending booking after 10m timeout even though PayOS status was UNAVAILABLE: bookingId={}", booking.getId());
+                        } else {
+                            log.warn("Deferring expiry because PayOS status could not be verified: bookingId={}, orderId={}",
+                                    booking.getId(), booking.getOrder().getId());
+                            continue;
+                        }
                     }
                 }
                 bookingCancellationService.expirePendingBooking(booking.getId());

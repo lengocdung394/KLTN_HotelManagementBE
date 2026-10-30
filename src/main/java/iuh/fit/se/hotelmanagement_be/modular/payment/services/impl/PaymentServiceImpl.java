@@ -670,8 +670,14 @@ public class PaymentServiceImpl implements PaymentService {
 
                     }
                 } catch (Exception e) {
-                    verificationUnavailable = true;
-                    log.warn("[CheckPayOS] Tra cứu orderCode={} trên PayOS gặp lỗi: {}", orderCode, e.getMessage());
+                    String errorMsg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+                    if (errorMsg.contains("không tồn tại") || errorMsg.contains("not found") || errorMsg.contains("231")) {
+                        log.info("[CheckPayOS] orderCode={} không tồn tại trên PayOS (chưa tạo hoặc đã huỷ)", orderCode);
+                        gatewayStatus = "NOT_FOUND";
+                    } else {
+                        verificationUnavailable = true;
+                        log.warn("[CheckPayOS] Tra cứu orderCode={} trên PayOS gặp lỗi: {}", orderCode, e.getMessage());
+                    }
                 }
             }
         }

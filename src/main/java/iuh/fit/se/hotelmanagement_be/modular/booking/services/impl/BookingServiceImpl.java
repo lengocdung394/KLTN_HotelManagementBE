@@ -143,7 +143,7 @@ public class BookingServiceImpl implements BookingService {
         Long hotelId = hotel.getId();
         String customerId = customer.getId();
 
-        // BÃ¡o cho nhÃ¢n viÃªn chi nhÃ¡nh cáº­p nháº­t lá»‹ch phÃ²ng & hiá»‡n thÃ´ng bÃ¡o Ä‘Æ¡n má»›i
+        // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
         // CHá»ˆ báº¯n thÃ´ng bÃ¡o Ä‘Æ¡n má»›i tá»›i nhÃ¢n viÃªn vÃ  email khi booking ÄÃƒ ÄÆ¯á»¢C XÃC NHáº¬N / THANH TOÃN THÃ€NH CÃ”NG
@@ -161,16 +161,16 @@ public class BookingServiceImpl implements BookingService {
                     bookingData
             );
             // BÃ¡o vá» cho khÃ¡ch hÃ ng tráº¡ng thÃ¡i Ä‘Æ¡n hÃ ng
+            // Báo về cho khách hàng trạng thái đơn hàng
             bookingSocketEmitter.emitCustomerBookingStatus(
                     customer,
                     savedBooking,
                     NotificationType.BOOKING_CREATED,
-                    "Äáº·t phÃ²ng thÃ nh cÃ´ng",
-                    "MÃ£ booking: #" + savedBooking.getId()
-                            + " | KhÃ¡ch hÃ ng: " + customer.getFullName()
-                            + " | SÄT: " + customer.getPhone()
-                            + " | Tá»•ng tiá»n booking: " + savedBooking.getOrder().getTotalAmount() + "Ä‘.");
-
+                    "Đặt phòng thành công",
+                    "Mã booking: #" + savedBooking.getId()
+                            + " | Khách hàng: " + customer.getFullName()
+                            + " | SĐT: " + customer.getPhone()
+                            + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
             sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         }
         // ==========================================
@@ -755,7 +755,7 @@ public class BookingServiceImpl implements BookingService {
                 sd.setIsPaid(true);
             }
         }
-        log("ÄaÌƒ cÃ¢Ì£p nhÃ¢Ì£t xong nhung dich vu da duoc tinh tien");
+        log("Đã cập nhật xong những dịch vụ đã được tính tiền");
     }
 
     // Ham nay sÆ°Ì‰ duÌ£ng khi checkout tiÌnh tiÃªÌ€n phÃ¢Ì€n diÌ£ch vuÌ£ chÆ°a Ä‘Æ°Æ¡Ì£c tiÌnh tiÃªÌ€n
@@ -963,7 +963,7 @@ public class BookingServiceImpl implements BookingService {
 
 
     /**
-     * 3. NGHIá»†P Vá»¤ THÃŠM Dá»ŠCH Vá»¤ VÃ€O PHÃ’NG (Room Charge - TÃ­nh tiá»n ná»‘t lÃºc Checkout)
+     * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - TÃ­nh tiá»n ná»‘t lÃºc Checkout)
      */
 
 
@@ -1055,8 +1055,8 @@ public class BookingServiceImpl implements BookingService {
                 .remainingAmount(order != null ? order.getRemainingAmount() : null) // so tien con lai
                 .finalAmount(order != null ? order.getTotalAmount() : null) // tien tong hoa don
                 // lam ro phan tien giam gia cho phong / dich vu / ca phong va dich vu
-                .discountRoomAmount(order != null ? order.getDiscountRoomAmount() : null)     // Giáº£m giÃ¡ phÃ²ng
-                .discountServiceAmount(order != null ? order.getDiscountServiceAmount() : null) // Giáº£m giÃ¡ dá»‹ch vá»¥
+                .discountRoomAmount(order != null ? order.getDiscountRoomAmount() : null)     // Giảm giá phòng
+                .discountServiceAmount(order != null ? order.getDiscountServiceAmount() : null) // Giảm giá dịch vụ
                 .discountAmountTotal(order != null ? order.getDiscountAmountTotal() : null)
                 .estimatedDiscountAmount(booking.getApplyAmount() != null
                         ? booking.getApplyAmount()
@@ -1149,7 +1149,7 @@ public class BookingServiceImpl implements BookingService {
                                 .bookingId(detail.getBooking() != null ? detail.getBooking().getId() : null)
                                 .customerName(detail.getBooking() != null && detail.getBooking().getCustomer() != null
                                         ? detail.getBooking().getCustomer().getFullName()
-                                        : "KhÃ¡ch táº¡i quáº§y")
+                                        : "Khách tại quầy")
                                 .checkinTime(effectiveCheckIn)   // Tráº£ vá» giá» thá»±c táº¿ lÃªn matrix
                                 .checkoutTime(effectiveCheckOut) // Tráº£ vá» giá» thá»±c táº¿ lÃªn matrix
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)

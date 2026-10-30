@@ -18,7 +18,7 @@ public interface BookingService {
     // Tao booking cho khaÌch hang
     BookingResponse createCustomerBooking(BookingCreateRequest request);
 
-    // NhÃ¢n viÃªn taÌ£o booking taÌ£i quÃ¢Ì€y
+    // Nhân viên tạo booking tại quầy
     BookingResponse createCounterBooking(String employeeId, Long hotelId, BookingCreateRequest request);
 
     // HaÌ€m chuyÃªÌ‰n Ä‘Ã´Ì‰i dÆ°Ìƒ liÃªÌ£u

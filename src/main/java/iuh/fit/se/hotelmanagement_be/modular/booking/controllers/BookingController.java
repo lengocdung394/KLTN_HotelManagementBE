@@ -26,7 +26,7 @@ import java.util.List;
 @RequestMapping("/bookings")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Tag(name = "Booking", description = "APIs liÃªn quan Ä‘áº¿n Ä‘ÄƒÌ£t phoÌ€ng")
+@Tag(name = "Booking", description = "APIs liên quan đến đặt phòng")
 public class BookingController {
 
     BookingService bookingService;
@@ -47,10 +47,10 @@ public class BookingController {
     }
 
     /**
-     * Endpoint 1: KhÃ¡ch hÃ ng tá»± Ä‘áº·t phÃ²ng trá»±c tuyáº¿n (Online)
+     * Endpoint 1: Khách hàng tự đặt phòng trực tuyến (Online)
      */
     @PostMapping("/customer")
-    @Operation(summary = "KhÃ¡ch hÃ ng tá»± Ä‘áº·t phÃ²ng trá»±c tuyáº¿n (Online)")
+    @Operation(summary = "Khách hàng tự đặt phòng trực tuyến (Online)")
     public ResponseEntity<BookingResponse> createCustomerBooking(@RequestBody @Valid BookingCreateRequest request) {
         BookingResponse response = bookingService.createCustomerBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -58,7 +58,7 @@ public class BookingController {
 
     @PreAuthorize("hasAuthority('CREATE_BOOKING')")
     @PostMapping("/counter")
-    @Operation(summary = "NhÃ¢n viÃªn há»— trá»£ Ä‘áº·t phÃ²ng táº¡i quáº§y")
+    @Operation(summary = "Nhân viên hỗ trợ đặt phòng tại quầy")
     public ResponseEntity<BookingResponse> createCounterBooking(
             @RequestBody @Valid BookingCreateRequest request,
             Authentication authentication
@@ -66,7 +66,7 @@ public class BookingController {
         // 1. Láº¥y thÃ´ng tin tÃ i khoáº£n Ä‘ang Ä‘Äƒng nháº­p tá»« token
         Account account = (Account) authentication.getPrincipal();
 
-        // 2. Láº¥y mÃ£ nhÃ¢n viÃªn vÃ  mÃ£ khÃ¡ch sáº¡n trá»±c tiáº¿p ngáº§m tá»« token
+        // 2. Lấy mã nhân viên và mã khách sạn trực tiếp ngầm từ token
         String employeeId = account.getEmployeeId();
         Long hotelId = account.getHotelId();
 
@@ -80,7 +80,7 @@ public class BookingController {
      * Endpoint 4: Láº¥y thÃ´ng tin tá»•ng quan lÃºc Checkout (Xem khÃ¡ch cÃ²n ná»£ bao nhiÃªu tiá»n dá»‹ch vá»¥)
      */
     @GetMapping("/{bookingId}/checkout-summary")
-    @Operation(summary = "Láº¥y thÃ´ng tin tá»•ng quan hÃ³a Ä‘Æ¡n lÃºc Checkout (Äá»‘i soÃ¡t tiá»n cÃ²n thiáº¿u)")
+    @Operation(summary = "Lấy thông tin tổng quan hóa đơn lúc Checkout (Đối soát tiền còn thiếu)")
     public ResponseEntity<CheckoutSummaryResponse> getCheckoutSummary(@PathVariable String bookingId) {
         return ResponseEntity.ok(bookingService.getCheckoutSummary(bookingId));
     }

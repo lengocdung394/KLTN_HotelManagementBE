@@ -56,6 +56,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -645,6 +646,11 @@ public class BookingServiceImpl implements BookingService {
             // 2. XÃ¡c Ä‘á»‹nh ngÃ y check-in, check-out vÃ  sá»‘ Ä‘Ãªm
             LocalDate checkInDate = detailReq.getCheckInTime().toLocalDate();
             LocalDate checkOutDate = detailReq.getCheckOutTime().toLocalDate();
+
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+            if (checkInDate.isBefore(today)) {
+                throw new AppException(ErrorCode.INVALID_BOOKING_DATE, "Ngày nhận phòng không thể ở trong quá khứ (trước ngày hiện tại: " + today + ")");
+            }
 
             if (!checkOutDate.isAfter(checkInDate)) {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);

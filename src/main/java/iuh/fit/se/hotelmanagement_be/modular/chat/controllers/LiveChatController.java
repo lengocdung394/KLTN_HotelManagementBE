@@ -26,9 +26,10 @@ public class LiveChatController {
     @GetMapping("/messages")
     @Operation(summary = "Lấy lịch sử tin nhắn của khách hàng", description = "Truy xuất danh sách tin nhắn theo customerId để khôi phục khi F5 hoặc đổi thiết bị")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
-            @RequestParam String customerId
+            @RequestParam String customerId,
+            @RequestParam(required = false) Long hotelId
     ) {
-        List<ChatMessageResponse> messages = liveChatService.getMessagesByCustomerId(customerId);
+        List<ChatMessageResponse> messages = liveChatService.getMessagesByCustomerId(customerId, hotelId);
         return ResponseEntity.ok(ApiResponse.<List<ChatMessageResponse>>builder()
                 .code(1000)
                 .message("Lấy lịch sử tin nhắn thành công")

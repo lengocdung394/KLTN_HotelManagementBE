@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,21 +53,41 @@ public class LiveChatServiceImpl implements LiveChatService {
         }
 
         final String finalCustomerId = customerId;
-        ChatSession session = sessionRepository
-                .findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(finalCustomerId, ChatSessionStatus.OPEN)
-                .orElseGet(() -> sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
-                        .map(s -> {
-                            s.setStatus(ChatSessionStatus.OPEN);
-                            return s;
-                        })
-                        .orElseGet(() -> ChatSession.builder()
-                                .customerId(finalCustomerId)
-                                .customerName(customerName)
-                                .customerPhone(customerPhone)
-                                .hotelId(hotelId)
-                                .branchName(branchName)
-                                .status(ChatSessionStatus.OPEN)
-                                .build()));
+        final Long finalHotelId = hotelId;
+        ChatSession session;
+        if (finalHotelId != null) {
+            session = sessionRepository
+                    .findFirstByCustomerIdAndHotelIdAndStatusOrderByUpdatedAtDesc(finalCustomerId, finalHotelId, ChatSessionStatus.OPEN)
+                    .orElseGet(() -> sessionRepository.findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(finalCustomerId, finalHotelId)
+                            .map(s -> {
+                                s.setStatus(ChatSessionStatus.OPEN);
+                                return s;
+                            })
+                            .orElseGet(() -> ChatSession.builder()
+                                    .customerId(finalCustomerId)
+                                    .customerName(customerName)
+                                    .customerPhone(customerPhone)
+                                    .hotelId(finalHotelId)
+                                    .branchName(branchName)
+                                    .status(ChatSessionStatus.OPEN)
+                                    .build()));
+        } else {
+            session = sessionRepository
+                    .findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(finalCustomerId, ChatSessionStatus.OPEN)
+                    .orElseGet(() -> sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
+                            .map(s -> {
+                                s.setStatus(ChatSessionStatus.OPEN);
+                                return s;
+                            })
+                            .orElseGet(() -> ChatSession.builder()
+                                    .customerId(finalCustomerId)
+                                    .customerName(customerName)
+                                    .customerPhone(customerPhone)
+                                    .hotelId(null)
+                                    .branchName(branchName)
+                                    .status(ChatSessionStatus.OPEN)
+                                    .build()));
+        }
 
         if (customerName != null && !customerName.isBlank()) session.setCustomerName(customerName);
         if (customerPhone != null && !customerPhone.isBlank()) session.setCustomerPhone(customerPhone);
@@ -114,15 +135,29 @@ public class LiveChatServiceImpl implements LiveChatService {
         }
 
         final String finalCustomerId = customerId;
-        ChatSession session = sessionRepository
-                .findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
-                .orElseGet(() -> ChatSession.builder()
-                        .customerId(finalCustomerId)
-                        .customerName("Khách hàng")
-                        .hotelId(hotelId)
-                        .branchName(branchName)
-                        .status(ChatSessionStatus.OPEN)
-                        .build());
+        final Long finalHotelId = hotelId;
+        ChatSession session;
+        if (finalHotelId != null) {
+            session = sessionRepository
+                    .findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(finalCustomerId, finalHotelId)
+                    .orElseGet(() -> ChatSession.builder()
+                            .customerId(finalCustomerId)
+                            .customerName("Khách hàng")
+                            .hotelId(finalHotelId)
+                            .branchName(branchName)
+                            .status(ChatSessionStatus.OPEN)
+                            .build());
+        } else {
+            session = sessionRepository
+                    .findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
+                    .orElseGet(() -> ChatSession.builder()
+                            .customerId(finalCustomerId)
+                            .customerName("Khách hàng")
+                            .hotelId(null)
+                            .branchName(branchName)
+                            .status(ChatSessionStatus.OPEN)
+                            .build());
+        }
 
         session.setLastMessage(message);
         session.setLastMessageAt(LocalDateTime.now());
@@ -147,9 +182,19 @@ public class LiveChatServiceImpl implements LiveChatService {
     @Override
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessagesByCustomerId(String customerId) {
+        return getMessagesByCustomerId(customerId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> getMessagesByCustomerId(String customerId, Long hotelId) {
         if (customerId == null || customerId.isBlank()) return Collections.emptyList();
 
-        return sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(customerId)
+        Optional<ChatSession> sessionOpt = (hotelId != null)
+                ? sessionRepository.findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(customerId, hotelId)
+                : sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(customerId);
+
+        return sessionOpt
                 .map(session -> messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId())
                         .stream()
                         .map(this::toMessageResponse)

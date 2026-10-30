@@ -138,10 +138,12 @@ public class SocketIOConfig {
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
+            } else {
+                // Chỉ broadcast tới toàn bộ chi nhánh nếu khách chat với Tổng đài CSKH (không chọn chi nhánh cụ thể)
+                server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
             }
-            // Super Admin va toan bo nhan vien truc deu nhan duoc tin nhan
+            // Super Admin luôn nhận được tin nhắn từ mọi chi nhánh
             server.getRoomOperations("super_admin_accounts").sendEvent("customer_staff_chat_message", data);
-            server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
             client.sendEvent("customer_staff_chat_ack", data);
         });
 
@@ -179,10 +181,11 @@ public class SocketIOConfig {
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("staff_customer_chat_reply", data);
+            } else {
+                server.getBroadcastOperations().sendEvent("staff_customer_chat_reply", data);
             }
-            // Dong bo tin nhan nhan vien tra loi toi Super Admin va cac tab truc
+            // Đồng bộ tin nhắn nhân viên trả lời tới Super Admin
             server.getRoomOperations("super_admin_accounts").sendEvent("staff_customer_chat_reply", data);
-            server.getBroadcastOperations().sendEvent("staff_customer_chat_reply", data);
         });
 
         log.info("SocketIO Server started with customer-staff chat listeners");

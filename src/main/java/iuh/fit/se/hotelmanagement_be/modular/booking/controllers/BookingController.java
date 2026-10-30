@@ -31,10 +31,19 @@ public class BookingController {
 
     BookingService bookingService;
     iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository roomRepository;
+    iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService roomService;
 
     @GetMapping("/available-rooms")
-    public ResponseEntity<?> getAvailableRooms() {
-        return ResponseEntity.ok(roomRepository.findAll());
+    public ResponseEntity<?> getAvailableRooms(@RequestParam(required = false) Long hotelId) {
+        if (hotelId != null) {
+            return ResponseEntity.ok(roomService.getRoomsByHotelId(hotelId));
+        }
+        return ResponseEntity.ok(roomRepository.findAll().stream().map(r -> java.util.Map.of(
+                "roomId", r.getId() != null ? r.getId() : "",
+                "roomType", r.getRoomType() != null ? r.getRoomType().name() : "",
+                "roomStatus", r.getRoomStatus() != null ? r.getRoomStatus().name() : "",
+                "basePrice", r.getBasePrice() != null ? r.getBasePrice() : 0.0
+        )).toList());
     }
 
     /**

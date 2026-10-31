@@ -29,8 +29,6 @@ public class SocketIOConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        // Đổi chuỗi bên dưới thành đúng cái Secret Key ký JWT trong file application.yml/properties của ông
-        // Hoặc tạm thời để một chuỗi bất kỳ dài trên 32 ký tự để test
         String secretKey = "404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971";
         byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
         SecretKeySpec originalKey = new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256");
@@ -44,7 +42,6 @@ public class SocketIOConfig {
 
         config.setHostname("0.0.0.0");
         config.setPort(8085);
-//        config.setOrigin("https://tobochat-next.vercel.app");
         config.setOrigin("*");
         config.setJsonSupport(new com.corundumstudio.socketio.protocol.JacksonJsonSupport(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
 
@@ -151,14 +148,10 @@ public class SocketIOConfig {
                 log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
             }
 
+            // Chỉ gửi tin nhắn khách hàng tới đúng room của chi nhánh đó (không gửi cho Super Admin)
             if (hotelId != null) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
-            } else {
-                // Chỉ broadcast tới toàn bộ chi nhánh nếu khách chat với Tổng đài CSKH (không chọn chi nhánh cụ thể)
-                server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
             }
-            // Super Admin luôn nhận được tin nhắn từ mọi chi nhánh
-            server.getRoomOperations("super_admin_accounts").sendEvent("customer_staff_chat_message", data);
             client.sendEvent("customer_staff_chat_ack", data);
         });
 
@@ -196,11 +189,7 @@ public class SocketIOConfig {
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("staff_customer_chat_reply", data);
-            } else {
-                server.getBroadcastOperations().sendEvent("staff_customer_chat_reply", data);
             }
-            // Đồng bộ tin nhắn nhân viên trả lời tới Super Admin
-            server.getRoomOperations("super_admin_accounts").sendEvent("staff_customer_chat_reply", data);
         });
 
         log.info("SocketIO Server started with customer-staff chat listeners");

@@ -112,19 +112,35 @@ public class SocketIOConfig {
         server.addEventListener("customer_send_staff_chat", java.util.Map.class, (client, data, ackSender) -> {
             log.info("📩 [SocketIO] Khách hàng gửi tin nhắn tới nhân viên: {}", data);
 
+            Long hotelId = null;
+            if (data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+
+            String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
+            if (hotelId == null && branchName != null) {
+                String lowerBranch = branchName.toLowerCase();
+                if (lowerBranch.contains("sài gòn") || lowerBranch.contains("sai gon")) hotelId = 1L;
+                else if (lowerBranch.contains("hà nội") || lowerBranch.contains("ha noi")) hotelId = 2L;
+                else if (lowerBranch.contains("đà nẵng") || lowerBranch.contains("da nang")) hotelId = 3L;
+                else if (lowerBranch.contains("nha trang")) hotelId = 4L;
+                else if (lowerBranch.contains("đà lạt") || lowerBranch.contains("da lat")) hotelId = 5L;
+                else if (lowerBranch.contains("gò công") || lowerBranch.contains("go cong")) hotelId = 6L;
+                else if (lowerBranch.contains("an nhơn") || lowerBranch.contains("an nhon")) hotelId = 7L;
+
+                if (hotelId != null) {
+                    data.put("hotelId", hotelId);
+                }
+            }
+
             try {
                 String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
                 String customerName = data.get("customerName") != null ? data.get("customerName").toString() : null;
                 String customerPhone = data.get("customerPhone") != null ? data.get("customerPhone").toString() : null;
-                String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
                 String message = data.get("message") != null ? data.get("message").toString() : null;
                 String msgId = data.get("msgId") != null ? data.get("msgId").toString() : null;
-                Long hotelId = null;
-                if (data.get("hotelId") != null) {
-                    try {
-                        hotelId = Long.parseLong(data.get("hotelId").toString());
-                    } catch (NumberFormatException ignored) {}
-                }
 
                 if (message != null && !message.trim().isEmpty()) {
                     liveChatService.saveCustomerMessage(
@@ -135,8 +151,7 @@ public class SocketIOConfig {
                 log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
             }
 
-            Object hotelId = data.get("hotelId");
-            if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
+            if (hotelId != null) {
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
             } else {
                 // Chỉ broadcast tới toàn bộ chi nhánh nếu khách chat với Tổng đài CSKH (không chọn chi nhánh cụ thể)

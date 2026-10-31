@@ -43,7 +43,7 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
 
         // Resolve Promotion Code to ID if present
         String actualPromoId = null;
-        if (request.getPromoCode() != null && !request.getPromoCode().isEmpty()) {
+        if (request.getPromoCode() != null && !request.getPromoCode().isEmpty() && !"DEMO2K".equalsIgnoreCase(request.getPromoCode().trim())) {
             actualPromoId = promotionRepository.findByCodeAndDeletedFalse(request.getPromoCode())
                     .map(iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion::getId)
                     .orElse(request.getPromoCode()); // Fallback to raw value if not found, let BookingService handle the error
@@ -138,8 +138,9 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
         );
         
         // HACK: IF DEMO2K, SET TOTAL AMOUNT TO 2000
-        if ("DEMO2K".equalsIgnoreCase(request.getPromoCode())) {
+        if (request.getPromoCode() != null && "DEMO2K".equalsIgnoreCase(request.getPromoCode().trim())) {
             order.setTotalAmount(BigDecimal.valueOf(2000));
+            order.setRemainingAmount(BigDecimal.valueOf(2000));
             order.setDiscountAmountTotal(order.getRoomTotalAmount().add(order.getServiceTotalAmount()).subtract(BigDecimal.valueOf(2000)));
         }
 

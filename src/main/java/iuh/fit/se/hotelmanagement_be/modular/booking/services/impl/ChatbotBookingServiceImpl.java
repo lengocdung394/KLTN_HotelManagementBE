@@ -144,11 +144,7 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
             order.setDiscountAmountTotal(order.getRoomTotalAmount().add(order.getServiceTotalAmount()).subtract(BigDecimal.valueOf(2000)));
         }
 
-        Long orderCode = (System.currentTimeMillis() * 1000) % 1000000000L;
-        if (order.getPaymentOrderCodes() == null) {
-            order.setPaymentOrderCodes(new ArrayList<>());
-        }
-        order.getPaymentOrderCodes().add(orderCode);
+        Long orderCode = 100000L + (long) (Math.random() * 900000L);
         orderRepository.save(order);
 
         return ChatbotBookingResponse.builder()

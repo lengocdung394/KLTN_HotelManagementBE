@@ -163,6 +163,7 @@ public class PaymentServiceImpl implements PaymentService {
             amountToPay = request.getAmount();
             // Đồng bộ số tiền thanh toán thực tế với Order (bao gồm VAT, phụ thu từ Web)
             order.setTotalAmount(BigDecimal.valueOf(amountToPay));
+            order.setRemainingAmount(BigDecimal.valueOf(amountToPay));
             // Cho phép tạo QR thanh toán mới nếu đơn trước đó từng bị đóng hoặc đang test
             if (order.getOrderStatus() != OrderStatusType.OPEN || (order.getPaidAmount() != null && order.getPaidAmount().compareTo(BigDecimal.ZERO) > 0)) {
                 order.setPaidAmount(BigDecimal.ZERO);
@@ -611,6 +612,8 @@ public class PaymentServiceImpl implements PaymentService {
             boolean bookingCancelled = booking != null && booking.getBookingStatus().isCancelled();
             return Map.of(
                     "isPaid", true,
+                    "orderId", order.getId(),
+                    "bookingId", booking == null ? "" : booking.getId(),
                     "status", order.getOrderStatus().name(),
                     "paidAmount", order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO,
                     "bookingStatus", booking == null ? "" : booking.getBookingStatus().name(),
@@ -666,6 +669,8 @@ public class PaymentServiceImpl implements PaymentService {
 
                             return Map.of(
                                     "isPaid", fullyPaid,
+                                    "orderId", order.getId(),
+                                    "bookingId", booking == null ? "" : booking.getId(),
                                     "status", fullyPaid ? "PAID" : "PARTIAL",
                                     "paymentStatus", fullyPaid ? "PAID" : "PARTIAL",
                                     "paidAmount", order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO,
@@ -692,9 +697,14 @@ public class PaymentServiceImpl implements PaymentService {
             }
         }
 
+        Booking currentBooking = order.getBooking();
+        boolean isBookingCancelled = currentBooking != null && currentBooking.getBookingStatus() != null && currentBooking.getBookingStatus().isCancelled();
         return Map.of(
                 "isPaid", false,
-                "status", order.getOrderStatus() != null ? order.getOrderStatus().name() : "OPEN",
+                "orderId", order.getId(),
+                "bookingId", currentBooking == null ? "" : currentBooking.getId(),
+                "bookingStatus", currentBooking == null || currentBooking.getBookingStatus() == null ? "" : currentBooking.getBookingStatus().name(),
+                "status", isBookingCancelled ? "CANCELLED" : (order.getOrderStatus() != null ? order.getOrderStatus().name() : "OPEN"),
                 "paymentStatus", order.getPaymentStatus() == null ? "UNPAID" : order.getPaymentStatus().name(),
                 "gatewayStatus", verificationUnavailable ? "UNAVAILABLE" : gatewayStatus,
                 "paidAmount", order.getPaidAmount() != null ? order.getPaidAmount() : BigDecimal.ZERO,

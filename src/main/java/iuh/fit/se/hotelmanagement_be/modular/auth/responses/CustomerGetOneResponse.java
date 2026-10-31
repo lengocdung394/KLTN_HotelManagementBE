@@ -5,6 +5,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -19,5 +20,8 @@ public class CustomerGetOneResponse {
     String cccd;
     LoyaltyTier loyaltyTier;      // Ví dụ: BRONZE, SILVER, GOLD, PLATINUM
     BigDecimal totalSpent;            // Tổng tiền đã chi tiêu
+    BigDecimal totalRoomAmount;
     int totalBookings;            // Tổng số lần đặt phòng
+    int cancelledBookings;
+    LocalDateTime latestBookingAt;
 }

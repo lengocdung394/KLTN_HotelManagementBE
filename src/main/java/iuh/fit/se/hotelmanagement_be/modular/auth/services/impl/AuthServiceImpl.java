@@ -329,12 +329,31 @@ public class AuthServiceImpl implements AuthService {
         log.debug("Đang map dữ liệu cho khách hàng ID: {}", customer.getId());
 
         int totalBookings = (customer.getBookings() != null) ? customer.getBookings().size() : 0;
+        int cancelledBookings = customer.getBookings() == null
+                ? 0
+                : (int) customer.getBookings().stream()
+                .filter(booking -> booking.getBookingStatus() != null
+                        && booking.getBookingStatus().isCancelled())
+                .count();
+        LocalDateTime latestBookingAt = customer.getBookings() == null
+                ? null
+                : customer.getBookings().stream()
+                .map(Booking::getCreatedAt)
+                .filter(createdAt -> createdAt != null)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
         BigDecimal totalSpent = BigDecimal.ZERO;
+        BigDecimal totalRoomAmount = BigDecimal.ZERO;
 
         if (customer.getBookings() != null) {
             for (Booking booking : customer.getBookings()) {
-                if (booking.getOrder() != null && booking.getOrder().getTotalAmount() != null) {
-                    totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
+                if (booking.getOrder() != null) {
+                    if (booking.getOrder().getTotalAmount() != null) {
+                        totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
+                    }
+                    if (booking.getOrder().getRoomTotalAmount() != null) {
+                        totalRoomAmount = totalRoomAmount.add(booking.getOrder().getRoomTotalAmount());
+                    }
                 }
             }
         }
@@ -347,7 +366,10 @@ public class AuthServiceImpl implements AuthService {
                 .cccd(customer.getCccd())
                 .loyaltyTier(customer.getLoyaltyTier())
                 .totalSpent(totalSpent)
+                .totalRoomAmount(totalRoomAmount)
                 .totalBookings(totalBookings)
+                .cancelledBookings(cancelledBookings)
+                .latestBookingAt(latestBookingAt)
                 .build();
     }
 }

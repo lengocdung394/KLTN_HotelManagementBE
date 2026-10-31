@@ -314,6 +314,12 @@ public class CustomerServiceImpl implements CustomerService {
         java.math.BigDecimal spent = saved.getTotalSpent() != null
                 ? java.math.BigDecimal.valueOf(saved.getTotalSpent())
                 : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal roomAmount = saved.getBookings() == null
+                ? java.math.BigDecimal.ZERO
+                : saved.getBookings().stream()
+                .filter(booking -> booking.getOrder() != null && booking.getOrder().getRoomTotalAmount() != null)
+                .map(booking -> booking.getOrder().getRoomTotalAmount())
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
         return iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse.builder()
                 .id(saved.getId())
@@ -323,7 +329,14 @@ public class CustomerServiceImpl implements CustomerService {
                 .cccd(saved.getCccd())
                 .loyaltyTier(saved.getLoyaltyTier())
                 .totalSpent(spent)
+                .totalRoomAmount(roomAmount)
                 .totalBookings(saved.getTotalBookings())
+                .cancelledBookings(saved.getBookings() == null
+                        ? 0
+                        : (int) saved.getBookings().stream()
+                        .filter(booking -> booking.getBookingStatus() != null
+                                && booking.getBookingStatus().isCancelled())
+                        .count())
                 .build();
     }
 }

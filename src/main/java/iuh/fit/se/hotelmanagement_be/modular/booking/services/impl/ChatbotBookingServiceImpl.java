@@ -86,13 +86,34 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
 
         // 3. Build BookingDetailCreateRequest for each room
         List<BookingDetailCreateRequest> details = new ArrayList<>();
-        for (String roomId : request.getRoomIds()) {
+        int roomCount = Math.max(1, request.getRoomIds().size());
+        int totalAdults = (request.getNumAdults() != null && request.getNumAdults() > 0)
+                ? request.getNumAdults()
+                : (2 * roomCount);
+        int totalChildren = (request.getNumChildren() != null && request.getNumChildren() > 0)
+                ? request.getNumChildren()
+                : 0;
+
+        int baseAdults = totalAdults / roomCount;
+        int remAdults = totalAdults % roomCount;
+
+        int baseChildren = totalChildren / roomCount;
+        int remChildren = totalChildren % roomCount;
+
+        for (int i = 0; i < request.getRoomIds().size(); i++) {
+            String roomId = request.getRoomIds().get(i);
+            int roomAdults = baseAdults + (i < remAdults ? 1 : 0);
+            int roomChildren = baseChildren + (i < remChildren ? 1 : 0);
+            if (roomAdults == 0 && totalAdults > 0) {
+                roomAdults = 1;
+            }
+
             details.add(BookingDetailCreateRequest.builder()
                     .roomId(roomId)
                     .checkInTime(request.getCheckInTime())
                     .checkOutTime(request.getCheckOutTime())
-                    .numAdults(request.getNumAdults() != null ? request.getNumAdults() : 2)
-                    .numChildren(request.getNumChildren() != null ? request.getNumChildren() : 0)
+                    .numAdults(roomAdults)
+                    .numChildren(roomChildren)
                     .numInfants(0)
                     .serviceRequests(serviceRequests)
                     .build());

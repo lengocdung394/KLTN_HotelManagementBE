@@ -59,4 +59,17 @@ public class LiveChatController {
                 .message("Đã đóng phiên chat thành công")
                 .build());
     }
+
+    @PatchMapping("/sessions/mark-read")
+    @Operation(summary = "Đánh dấu cuộc trò chuyện đã đọc", description = "Đánh dấu tất cả tin nhắn của khách hàng này là đã đọc")
+    public ResponseEntity<ApiResponse<Void>> markCustomerAsRead(
+            @RequestParam String customerId,
+            @RequestParam(required = false) Long hotelId
+    ) {
+        liveChatService.markMessagesAsRead(customerId, hotelId);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(1000)
+                .message("Đã đánh dấu đã đọc thành công")
+                .build());
+    }
 }

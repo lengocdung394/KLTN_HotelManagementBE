@@ -33,4 +33,6 @@ public interface LiveChatService {
     List<ChatSessionResponse> getAllSessions(Long hotelId);
 
     void closeSession(Long sessionId);
+
+    void markMessagesAsRead(String customerId, Long hotelId);
 }

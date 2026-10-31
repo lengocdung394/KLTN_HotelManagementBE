@@ -215,6 +215,10 @@ public class LiveChatServiceImpl implements LiveChatService {
                     .map(this::toMessageResponse)
                     .collect(Collectors.toList());
 
+            long unread = msgs.stream()
+                    .filter(m -> m.getSenderType() == ChatSenderType.CUSTOMER && Boolean.FALSE.equals(m.getIsRead()))
+                    .count();
+
             return ChatSessionResponse.builder()
                     .id(s.getId())
                     .customerId(s.getCustomerId())
@@ -226,6 +230,7 @@ public class LiveChatServiceImpl implements LiveChatService {
                     .lastMessage(s.getLastMessage())
                     .lastMessageAt(s.getLastMessageAt())
                     .createdAt(s.getCreatedAt())
+                    .unreadCount((int) unread)
                     .messages(msgs)
                     .build();
         }).collect(Collectors.toList());
@@ -237,6 +242,30 @@ public class LiveChatServiceImpl implements LiveChatService {
         sessionRepository.findById(sessionId).ifPresent(s -> {
             s.setStatus(ChatSessionStatus.CLOSED);
             sessionRepository.save(s);
+        });
+    }
+
+    @Override
+    @Transactional
+    public void markMessagesAsRead(String customerId, Long hotelId) {
+        if (customerId == null || customerId.isBlank()) return;
+        Optional<ChatSession> sessionOpt = (hotelId != null)
+                ? sessionRepository.findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(customerId, hotelId)
+                : sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(customerId);
+
+        sessionOpt.ifPresent(session -> {
+            List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+            boolean changed = false;
+            for (ChatMessage m : messages) {
+                if (m.getSenderType() == ChatSenderType.CUSTOMER && Boolean.FALSE.equals(m.getIsRead())) {
+                    m.setIsRead(true);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                messageRepository.saveAll(messages);
+                log.info("Marked messages as read in DB for customerId={}, hotelId={}, sessionId={}", customerId, hotelId, session.getId());
+            }
         });
     }
 

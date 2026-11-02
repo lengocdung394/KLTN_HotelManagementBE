@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel;
 
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -14,4 +15,7 @@ public class BookingCancellationReviewRequest {
     String note;
     Boolean refundAmountVerified;
     Boolean refundAccountConfirmed;
+    BookingRefundTransferMethod refundTransferMethod;
+    @Size(max = 100)
+    String transactionReference;
 }

@@ -14,6 +14,7 @@ public record HotelReportResponse(
         BigDecimal cashRefunded,
         BigDecimal cashChangeReturned,
         BigDecimal netCashReceived,
+        BigDecimal roomRevenue,
         BigDecimal serviceRevenue,
         long serviceUsageCount,
         List<DailyServiceRevenueResponse> dailyServiceRevenue,

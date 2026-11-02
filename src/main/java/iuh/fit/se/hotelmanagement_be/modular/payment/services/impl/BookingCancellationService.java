@@ -11,6 +11,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingCancellationPolicyCalculator;
@@ -552,6 +553,10 @@ public class BookingCancellationService {
         if (cancellation.getRefundAmount().compareTo(zeroIfNull(order.getPaidAmount())) > 0) {
             throw new AppException(ErrorCode.CANCELLATION_REFUND_EXCEEDS_PAID);
         }
+        BookingRefundTransferMethod transferMethod = request.getRefundTransferMethod() == null
+                ? BookingRefundTransferMethod.PAYOS
+                : request.getRefundTransferMethod();
+        cancellation.setRefundTransferMethod(transferMethod);
         cancellation.setStatus(BookingCancellationStatus.REFUND_APPROVED);
         cancellation.setReviewedBy(account);
         cancellation.setReviewedAt(LocalDateTime.now());
@@ -584,7 +589,26 @@ public class BookingCancellationService {
             String cancellationId,
             BookingCancellationReviewRequest request,
             Account account) {
-        return requestPayout(cancellationId, account);
+        BookingCancellation cancellation = getCancellationForUpdate(cancellationId);
+        ensureBranchAccess(cancellation.getBooking(), account);
+        if (cancellation.getStatus() != BookingCancellationStatus.REFUND_APPROVED
+                || cancellation.getPayoutId() != null
+                || cancellation.getPayoutReference() != null
+                || cancellation.getPayoutState() != null) {
+            throw new AppException(ErrorCode.CANCELLATION_INVALID_STATUS);
+        }
+        if (request == null || !Boolean.TRUE.equals(request.getRefundAmountVerified())
+                || !Boolean.TRUE.equals(request.getRefundAccountConfirmed())) {
+            throw new AppException(ErrorCode.CANCELLATION_REVIEW_CONFIRMATION_REQUIRED);
+        }
+        String transactionReference = trimToNull(request.getTransactionReference());
+        if (transactionReference == null) {
+            throw new AppException(ErrorCode.CANCELLATION_REVIEW_NOTE_REQUIRED);
+        }
+        RefundBankDetails bankDetails = decryptBankDetails(cancellation);
+        validateBankDetails(bankDetails);
+        cancellation.setRefundTransferMethod(BookingRefundTransferMethod.MANUAL_BANK);
+        return completeRefund(cancellation, account, transactionReference, true);
     }
 
     @Transactional
@@ -602,6 +626,9 @@ public class BookingCancellationService {
         }
         if (cancellation.getStatus() != BookingCancellationStatus.REFUND_APPROVED
                 && cancellation.getStatus() != BookingCancellationStatus.PAYOUT_PROCESSING) {
+            throw new AppException(ErrorCode.CANCELLATION_INVALID_STATUS);
+        }
+        if (cancellation.getRefundTransferMethod() == BookingRefundTransferMethod.MANUAL_BANK) {
             throw new AppException(ErrorCode.CANCELLATION_INVALID_STATUS);
         }
         if (cancellation.getRefundAmount().signum() <= 0) {
@@ -703,6 +730,15 @@ public class BookingCancellationService {
             return toResponse(cancellationRepository.save(cancellation));
         }
 
+        return completeRefund(cancellation, account, cancellation.getPayoutReference(), false);
+    }
+
+    private BookingCancellationResponse completeRefund(
+            BookingCancellation cancellation,
+            Account account,
+            String refundReference,
+            boolean manualBankTransfer
+    ) {
         Order order = cancellation.getBooking().getOrder();
         if (order == null) {
             throw new AppException(ErrorCode.ORDER_NOT_FOUND);
@@ -717,7 +753,7 @@ public class BookingCancellationService {
                 .amount(cancellation.getRefundAmount())
                 .paymentType(PaymentType.BANK)
                 .cashFlowType(CashFlowType.REFUND)
-                .note("PayOS payout " + cancellation.getPayoutReference())
+                .note((manualBankTransfer ? "Manual bank refund " : "PayOS payout ") + refundReference)
                 .transactionDate(now)
                 .build());
         BigDecimal remainingPaidAmount = paidAmount.subtract(cancellation.getRefundAmount());
@@ -727,7 +763,7 @@ public class BookingCancellationService {
         cancellation.setStatus(BookingCancellationStatus.REFUNDED);
         cancellation.setRefundedBy(account == null ? cancellation.getReviewedBy() : account);
         cancellation.setRefundedAt(now);
-        cancellation.setRefundReference(cancellation.getPayoutReference());
+        cancellation.setRefundReference(refundReference);
         clearBankDetails(cancellation);
         BookingCancellation saved = cancellationRepository.save(cancellation);
 
@@ -745,10 +781,9 @@ public class BookingCancellationService {
             String customerName = booking.getCustomer() == null ? null : booking.getCustomer().getFullName();
             String hotelName = hotelName(booking);
             String formattedAmount = formatMoney(cancellation.getRefundAmount());
-            String payoutReference = cancellation.getPayoutReference();
             afterCommit("refund completion email", booking.getId(), () ->
                     emailService.sendRefundCompletedEmail(
-                            recipientEmail, customerName, booking.getId(), hotelName, formattedAmount, payoutReference));
+                            recipientEmail, customerName, booking.getId(), hotelName, formattedAmount, refundReference));
         }
         return toResponse(saved);
     }
@@ -1085,6 +1120,7 @@ public class BookingCancellationService {
                 .customerPhone(booking.getCustomer() == null ? null : booking.getCustomer().getPhone())
                 .status(cancellation.getStatus())
                 .refundMethod(cancellation.getRefundMethod())
+                .refundTransferMethod(cancellation.getRefundTransferMethod())
                 .reason(cancellation.getReason())
                 .paidAmount(booking.getOrder() == null ? BigDecimal.ZERO : zeroIfNull(booking.getOrder().getPaidAmount()))
                 .refundAmount(cancellation.getRefundAmount())

@@ -3,6 +3,8 @@ package iuh.fit.se.hotelmanagement_be.modular.report.services;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
@@ -62,6 +64,25 @@ class HotelReportServiceTest {
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay()
         )).thenReturn(8L);
+        BookingDetail roomRevenueDetail = new BookingDetail();
+        roomRevenueDetail.setCheckinTime(startDate.atTime(14, 0));
+        roomRevenueDetail.setCheckoutTime(endDate.plusDays(1).atTime(12, 0));
+        roomRevenueDetail.setNightlyPrices(List.of(
+                nightlyPrice(startDate, "120000"),
+                nightlyPrice(endDate, "130000"),
+                nightlyPrice(endDate.plusDays(1), "140000")
+        ));
+        BookingDetail legacyRoomRevenueDetail = new BookingDetail();
+        legacyRoomRevenueDetail.setCheckinTime(startDate.minusDays(1).atTime(14, 0));
+        legacyRoomRevenueDetail.setCheckoutTime(endDate.atTime(12, 0));
+        legacyRoomRevenueDetail.setRoomSubTotal(200000.0);
+        when(bookingRepository.findRoomRevenueDetailsForPeriod(
+                7L,
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay(),
+                BookingStatus.cancelledStatuses(),
+                BookingStatusType.CANCELLED
+        )).thenReturn(List.of(roomRevenueDetail, legacyRoomRevenueDetail));
         BookingRepository.RoomTypeBookingReportProjection standardRoomBookings =
                 mock(BookingRepository.RoomTypeBookingReportProjection.class);
         when(standardRoomBookings.getRoomType()).thenReturn(RoomType.STANDARD);
@@ -166,6 +187,7 @@ class HotelReportServiceTest {
         assertEquals(new BigDecimal("75000"), report.cashRefunded());
         assertEquals(new BigDecimal("25000"), report.cashChangeReturned());
         assertEquals(new BigDecimal("400000"), report.netCashReceived());
+        assertEquals(0, new BigDecimal("350000").compareTo(report.roomRevenue()));
         assertEquals(2, report.serviceUsageCount());
         assertEquals(1, report.dailyServiceRevenue().size());
         assertEquals(3, report.promotionUsageCount());
@@ -180,5 +202,12 @@ class HotelReportServiceTest {
         assertEquals(5, report.totalRoomCount());
         assertEquals("UNKNOWN", report.roomStatuses().get(report.roomStatuses().size() - 1).status());
         assertEquals(1, report.roomStatuses().get(report.roomStatuses().size() - 1).roomCount());
+    }
+
+    private BookingNightlyPrice nightlyPrice(LocalDate stayDate, String amount) {
+        BookingNightlyPrice price = new BookingNightlyPrice();
+        price.setStayDate(stayDate);
+        price.setNightTotal(new BigDecimal(amount));
+        return price;
     }
 }

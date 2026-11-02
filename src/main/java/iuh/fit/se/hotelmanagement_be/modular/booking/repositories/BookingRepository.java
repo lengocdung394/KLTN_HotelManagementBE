@@ -43,6 +43,25 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     );
 
     @Query("""
+            SELECT DISTINCT bd
+            FROM Booking b
+            JOIN b.bookingDetails bd
+            LEFT JOIN FETCH bd.nightlyPrices
+            WHERE b.hotel.id = :hotelId
+              AND bd.checkinTime < :end
+              AND bd.checkoutTime > :start
+              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledBookingStatuses)
+              AND (bd.status IS NULL OR bd.status <> :cancelledDetailStatus)
+            """)
+    List<BookingDetail> findRoomRevenueDetailsForPeriod(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end,
+            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses,
+            @Param("cancelledDetailStatus") BookingStatusType cancelledDetailStatus
+    );
+
+    @Query("""
             SELECT COUNT(b)
             FROM Booking b
             WHERE b.hotel.id = :hotelId

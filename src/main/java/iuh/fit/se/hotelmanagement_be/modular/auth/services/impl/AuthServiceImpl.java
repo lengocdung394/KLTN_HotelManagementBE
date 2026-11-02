@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Slf4j
@@ -310,34 +311,47 @@ public class AuthServiceImpl implements AuthService {
         log.info("==> [SUCCESS] Tìm thấy tổng cộng {} khách hàng.", customers.size());
 
         return customers.stream()
-                .map(this::mapToCustomerResponse)
+                .map(customer -> mapToCustomerResponse(customer, customer.getBookings()))
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<CustomerGetOneResponse> getCustomersByHotelId(Long hotelId) {
-        log.info("==> [API] Đang lấy danh sách khách hàng theo chi nhánh hotelId: {}...", hotelId);
-        List<Customer> customers = customerRepository.findCustomersByHotelId(hotelId);
-        log.info("==> [SUCCESS] Tìm thấy {} khách hàng cho chi nhánh hotelId: {}.", customers.size(), hotelId);
+        log.info("==> [API] Đang lấy danh sách khách đã booking ở các chi nhánh, thống kê theo hotelId: {}...", hotelId);
+        List<Customer> customers = customerRepository.findCustomersWithBookings();
+        log.info("==> [SUCCESS] Tìm thấy {} khách đã booking ở các chi nhánh.", customers.size());
 
         return customers.stream()
-                .map(this::mapToCustomerResponse)
+                .map(customer -> mapToCustomerResponse(
+                        customer,
+                        bookingsForHotel(customer, hotelId)))
                 .toList();
     }
 
-    private CustomerGetOneResponse mapToCustomerResponse(Customer customer) {
+    private List<Booking> bookingsForHotel(Customer customer, Long hotelId) {
+        if (customer.getBookings() == null) {
+            return List.of();
+        }
+        return customer.getBookings().stream()
+                .filter(booking -> booking.getHotel() != null
+                        && Objects.equals(booking.getHotel().getId(), hotelId))
+                .toList();
+    }
+
+    private CustomerGetOneResponse mapToCustomerResponse(Customer customer, List<Booking> bookings) {
         log.debug("Đang map dữ liệu cho khách hàng ID: {}", customer.getId());
 
-        int totalBookings = (customer.getBookings() != null) ? customer.getBookings().size() : 0;
-        int cancelledBookings = customer.getBookings() == null
+        int totalBookings = bookings == null ? 0 : bookings.size();
+        int cancelledBookings = bookings == null
                 ? 0
-                : (int) customer.getBookings().stream()
+                : (int) bookings.stream()
                 .filter(booking -> booking.getBookingStatus() != null
                         && booking.getBookingStatus().isCancelled())
                 .count();
-        LocalDateTime latestBookingAt = customer.getBookings() == null
+        LocalDateTime latestBookingAt = bookings == null
                 ? null
-                : customer.getBookings().stream()
+                : bookings.stream()
                 .map(Booking::getCreatedAt)
                 .filter(createdAt -> createdAt != null)
                 .max(LocalDateTime::compareTo)
@@ -345,8 +359,8 @@ public class AuthServiceImpl implements AuthService {
         BigDecimal totalSpent = BigDecimal.ZERO;
         BigDecimal totalRoomAmount = BigDecimal.ZERO;
 
-        if (customer.getBookings() != null) {
-            for (Booking booking : customer.getBookings()) {
+        if (bookings != null) {
+            for (Booking booking : bookings) {
                 if (booking.getOrder() != null) {
                     if (booking.getOrder().getTotalAmount() != null) {
                         totalSpent = totalSpent.add(booking.getOrder().getTotalAmount());
@@ -364,6 +378,7 @@ public class AuthServiceImpl implements AuthService {
                 .phone(customer.getPhone())
                 .email(customer.getEmail())
                 .cccd(customer.getCccd())
+                .registered(customer.isRegistered())
                 .loyaltyTier(customer.getLoyaltyTier())
                 .totalSpent(totalSpent)
                 .totalRoomAmount(totalRoomAmount)

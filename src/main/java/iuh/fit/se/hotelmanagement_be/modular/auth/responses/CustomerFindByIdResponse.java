@@ -13,4 +13,5 @@ public class CustomerFindByIdResponse {
     String phone;
     String email;
     String cccd;
+    boolean registered;
 }

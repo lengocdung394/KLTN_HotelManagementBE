@@ -18,6 +18,7 @@ public class CustomerGetOneResponse {
     String phone;
     String email;
     String cccd;
+    boolean registered;
     LoyaltyTier loyaltyTier;      // Ví dụ: BRONZE, SILVER, GOLD, PLATINUM
     BigDecimal totalSpent;            // Tổng tiền đã chi tiêu
     BigDecimal totalRoomAmount;

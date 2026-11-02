@@ -16,11 +16,14 @@ public class BookingServiceResponseForHotel {
     String serviceId;
     String name;
     Integer quantity;
+    Integer usedQuantity;
     Double price;
     Double subTotal;
     LocalDateTime usedAt;
     Boolean used;
     String usedBy;
+    Boolean isPaid;
+    LocalDateTime paidAt;
     Boolean cancelled;
     LocalDateTime cancelledAt;
 }

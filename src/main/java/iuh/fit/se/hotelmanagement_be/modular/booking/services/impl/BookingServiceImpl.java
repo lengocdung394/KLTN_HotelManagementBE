@@ -1020,6 +1020,7 @@ public class BookingServiceImpl implements BookingService {
                             .serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null)
                             .name(serviceDetail.getName())
                             .quantity(serviceDetail.getQuantity())
+                            .usedQuantity(serviceDetail.getUsedQuantity())
                             .cancelled(serviceDetail.getCancelled())
                             .cancelledAt(serviceDetail.getCancelledAt())
                             .price(serviceDetail.getPrice())
@@ -1029,6 +1030,8 @@ public class BookingServiceImpl implements BookingService {
                             .usedAt(serviceDetail.getUsedAt())
                             .used(serviceDetail.getUsed())
                             .usedBy(serviceDetail.getUsedBy())
+                            .isPaid(serviceDetail.getIsPaid())
+                            .paidAt(serviceDetail.getPaidAt())
                             .build()).toList() : null).build()).toList();
         }
         Order order = booking.getOrder();
@@ -1133,11 +1136,14 @@ public class BookingServiceImpl implements BookingService {
                         return true;
                     })
                     .map(detail -> {
-                        // 1. Ưu tiên lấy mốc thời gian thực tế nếu có, nếu chưa có thì dùng giờ dự kiến
-                        LocalDateTime effectiveCheckIn = detail.getCheckinTime();
+                        // Keep the reservation start unless the guest checked in even earlier.
+                        LocalDateTime actualCheckIn = detail.getActualCheckInTime();
+                        LocalDateTime effectiveCheckIn = actualCheckIn != null
+                                && (detail.getCheckinTime() == null || actualCheckIn.isBefore(detail.getCheckinTime()))
+                                ? actualCheckIn
+                                : detail.getCheckinTime();
                         LocalDateTime effectiveCheckOut = detail.getCheckoutTime();
 
-                        // 2. Tính toán danh sách ngày bị chiếm (occupiedDates) dựa trên mốc thực tế này
                         List<LocalDate> dates = new ArrayList<>();
                         if (effectiveCheckIn != null && effectiveCheckOut != null) {
                             LocalDate current = effectiveCheckIn.toLocalDate();
@@ -1153,8 +1159,9 @@ public class BookingServiceImpl implements BookingService {
                                 .customerName(detail.getBooking() != null && detail.getBooking().getCustomer() != null
                                         ? detail.getBooking().getCustomer().getFullName()
                                         : "Khách tại quầy")
-                                .checkinTime(effectiveCheckIn)   // Trả về giờ thực tế lên matrix
-                                .checkoutTime(effectiveCheckOut) // Trả về giờ thực tế lên matrix
+                                .checkinTime(detail.getCheckinTime())
+                                .actualCheckInTime(actualCheckIn)
+                                .checkoutTime(effectiveCheckOut)
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
                                 .roomStatus(detail.getStatus())
                                 .occupiedDates(dates)

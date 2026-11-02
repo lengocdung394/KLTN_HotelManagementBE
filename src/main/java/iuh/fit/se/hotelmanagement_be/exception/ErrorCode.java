@@ -149,8 +149,9 @@ public enum ErrorCode {
     // ==========================================
     SERVICE_NOT_FOUND(7001, "[7001] Không tìm thấy dịch vụ", HttpStatus.NOT_FOUND),
     BOOKING_SERVICE_DETAIL_NOT_FOUND(7002, "Không tìm thấy chi tiết dịch vụ đi kèm trong phòng này!", HttpStatus.BAD_REQUEST),
-    PAID_SERVICE_CANNOT_BE_MODIFIED(7003, "[7003] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    PAID_SERVICE_CANNOT_BE_MODIFIED(7003, "[7003] Dịch vụ đã thanh toán, không thể hủy hoặc thay đổi số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
     SERVICE_ALREADY_USED(7004, "Dịch vụ đã được xác nhận sử dụng nên không thể hủy hoặc thay đổi số lượng", HttpStatus.BAD_REQUEST),
+    INVALID_SERVICE_USAGE_QUANTITY(7005, "Số lượng xác nhận phải nằm trong số lượng dịch vụ còn lại", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================

@@ -55,7 +55,7 @@ public class HotelRoomPolicyController {
         return ResponseEntity.ok(authService.getAllCustomers());
     }
 
-    @Operation(summary = "Lấy danh sách khách hàng theo chi nhánh khách sạn dựa trên lịch sử đặt phòng")
+    @Operation(summary = "Lấy khách đã booking tại mọi chi nhánh, thống kê theo chi nhánh được yêu cầu")
     @GetMapping("/hotel/{hotelId}")
     public ResponseEntity<List<CustomerGetOneResponse>> getCustomersByHotelId(@PathVariable Long hotelId) {
         return ResponseEntity.ok(authService.getCustomersByHotelId(hotelId));

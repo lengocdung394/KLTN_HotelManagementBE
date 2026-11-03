@@ -50,14 +50,13 @@ public class CustomerServiceImpl implements CustomerService {
         Optional<Customer> customerByCccd = customerRepository.findByCccd(request.getCccd());
 
         if (customerByPhone.isPresent() && customerByCccd.isPresent()
-                && customerByPhone.get().getId().equals(customerByCccd.get().getId())) {
-            return toCustomerResponse(customerByPhone.get()); // Khách cũ load lại trang
+                && !customerByPhone.get().getId().equals(customerByCccd.get().getId())) {
+            throw new AppException(ErrorCode.CCCD_EXISTED,
+                    "Số điện thoại và CCCD thuộc về hai hồ sơ khách hàng khác nhau.");
         }
-        if (customerByPhone.isPresent()) {
-            throw new AppException(ErrorCode.PHONE_EXISTED);
-        }
-        if (customerByCccd.isPresent()) {
-            throw new AppException(ErrorCode.CCCD_EXISTED);
+        if (customerByPhone.isPresent() || customerByCccd.isPresent()) {
+            Customer existingCustomer = customerByPhone.orElseGet(customerByCccd::orElseThrow);
+            return toCustomerResponse(existingCustomer, true);
         }
 
         // 2. Tạo mới khách hàng
@@ -74,16 +73,18 @@ public class CustomerServiceImpl implements CustomerService {
 
         accountSocketEmitter.emitGuestCustomerCreated(savedCustomer.getId(), hotelId);
 
-        return toCustomerResponse(savedCustomer);
+        return toCustomerResponse(savedCustomer, false);
     }
 
-    public CustomerResponse toCustomerResponse(Customer customer) {
+    private CustomerResponse toCustomerResponse(Customer customer, boolean alreadyExists) {
         return CustomerResponse.builder()
                 .id(customer.getId())
                 .fullName(customer.getFullName())
                 .cccd(customer.getCccd())
                 .phone(customer.getPhone())
                 .email(customer.getEmail())
+                .alreadyExists(alreadyExists)
+                .registered(customer.isRegistered())
                 .build();
     }
 
@@ -96,6 +97,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .cccd(customer.getCccd())
                 .phone(customer.getPhone())
                 .email(customer.getEmail())
+                .registered(customer.isRegistered())
                 .build();
     }
 
@@ -314,6 +316,12 @@ public class CustomerServiceImpl implements CustomerService {
         java.math.BigDecimal spent = saved.getTotalSpent() != null
                 ? java.math.BigDecimal.valueOf(saved.getTotalSpent())
                 : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal roomAmount = saved.getBookings() == null
+                ? java.math.BigDecimal.ZERO
+                : saved.getBookings().stream()
+                .filter(booking -> booking.getOrder() != null && booking.getOrder().getRoomTotalAmount() != null)
+                .map(booking -> booking.getOrder().getRoomTotalAmount())
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
 
         return iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse.builder()
                 .id(saved.getId())
@@ -323,7 +331,14 @@ public class CustomerServiceImpl implements CustomerService {
                 .cccd(saved.getCccd())
                 .loyaltyTier(saved.getLoyaltyTier())
                 .totalSpent(spent)
+                .totalRoomAmount(roomAmount)
                 .totalBookings(saved.getTotalBookings())
+                .cancelledBookings(saved.getBookings() == null
+                        ? 0
+                        : (int) saved.getBookings().stream()
+                        .filter(booking -> booking.getBookingStatus() != null
+                                && booking.getBookingStatus().isCancelled())
+                        .count())
                 .build();
     }
 }

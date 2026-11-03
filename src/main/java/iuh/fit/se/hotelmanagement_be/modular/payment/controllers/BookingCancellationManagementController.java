@@ -83,7 +83,7 @@ public class BookingCancellationManagementController {
                 .build());
     }
 
-    // Tương thích API cũ; thao tác này hiện khởi chạy payout PayOS, không tự ghi nhận hoàn tất.
+    // Chỉ xác nhận hoàn tất sau khi chuyển khoản ngân hàng thủ công bên ngoài hệ thống.
     @PatchMapping("/{cancellationId}/confirm-refund")
     @PreAuthorize("hasRole('MANAGER') or hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<BookingCancellationResponse>> confirmRefund(
@@ -93,7 +93,7 @@ public class BookingCancellationManagementController {
         Account account = (Account) authentication.getPrincipal();
         return ResponseEntity.ok(ApiResponse.<BookingCancellationResponse>builder()
                 .code(1000)
-                .message("Đã gửi hoặc cập nhật trạng thái payout từ PayOS.")
+                .message("Đã xác nhận chuyển khoản hoàn tiền thủ công.")
                 .result(bookingCancellationService.confirmRefund(cancellationId, request, account))
                 .build());
     }

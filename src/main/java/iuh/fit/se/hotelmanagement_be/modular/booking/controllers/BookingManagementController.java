@@ -4,6 +4,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.controllers;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingModificationRequest;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.ConfirmServiceUsageRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.bookingcancel.BookingCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
@@ -52,10 +53,11 @@ public class BookingManagementController {
     public ResponseEntity<ApiResponse<BookingServiceResponseForHotel>> confirmServiceUsed(
             @PathVariable String bookingId,
             @PathVariable String serviceDetailId,
+            @Valid @RequestBody ConfirmServiceUsageRequest request,
             Authentication authentication
     ) {
         Account account = (Account) authentication.getPrincipal();
-        BookingServiceResponseForHotel result = bookingManagementService.confirmServiceUsed(bookingId, serviceDetailId, account);
+        BookingServiceResponseForHotel result = bookingManagementService.confirmServiceUsed(bookingId, serviceDetailId, request.getQuantity(), account);
         return ResponseEntity.ok(ApiResponse.<BookingServiceResponseForHotel>builder()
                 .code(200)
                 .message("Đã xác nhận dịch vụ được sử dụng.")

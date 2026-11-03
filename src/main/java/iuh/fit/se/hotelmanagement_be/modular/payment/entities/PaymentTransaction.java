@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.entities;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -40,8 +42,17 @@ public class PaymentTransaction {
     @Enumerated(EnumType.STRING)
     CashFlowType cashFlowType;
 
+    @Enumerated(EnumType.STRING)
+    PaymentSource paymentSource;
+
     String note;
     LocalDateTime transactionDate;
+
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "processor_employee_id", nullable = true)
+    Employee processorEmployee;
 
     @Column(name = "created_at")
     LocalDateTime createdAt;

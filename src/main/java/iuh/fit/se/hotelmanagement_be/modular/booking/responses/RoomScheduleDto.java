@@ -18,6 +18,7 @@ public class RoomScheduleDto {
     String bookingId;
     String customerName;
     LocalDateTime checkinTime;
+    LocalDateTime actualCheckInTime;
     LocalDateTime checkoutTime;
     BookingStatus bookingStatus; // PENDING, CONFIRMED, IN_HOUSE, ...
     BookingStatusType roomStatus;

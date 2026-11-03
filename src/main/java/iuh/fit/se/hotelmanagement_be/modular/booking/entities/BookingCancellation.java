@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.entities;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutState;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutStateConverter;
 import jakarta.persistence.*;
@@ -40,6 +41,10 @@ public class BookingCancellation {
     @Enumerated(EnumType.STRING)
     @Column(length = 16)
     BookingCancellationRefundMethod refundMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24)
+    BookingRefundTransferMethod refundTransferMethod;
 
     @Column(length = 500)
     String reason;

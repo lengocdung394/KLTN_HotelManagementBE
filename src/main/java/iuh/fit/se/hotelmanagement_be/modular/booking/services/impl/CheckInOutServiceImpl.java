@@ -2,7 +2,12 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService.CheckoutInvoiceDetails;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService.CheckoutInvoiceRoomDetail;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService.CheckoutInvoiceServiceDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.SurchargeCalculator;
@@ -27,6 +32,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
@@ -59,6 +65,7 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CheckInOutServiceImpl implements CheckInOutService {
     CheckInOutRepository checkInOutRepository;
+    EmployeeRepository employeeRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingRepository bookingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
@@ -205,6 +212,9 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                                                     : v.getPrice() * v.getQuantity())
                                             .name(v.getName())
                                             .quantity(v.getQuantity())
+                                            .usedQuantity(v.getUsedQuantity())
+                                            .isPaid(v.getIsPaid())
+                                            .paidAt(v.getPaidAt())
                                             .cancelled(v.getCancelled())
                                             .cancelledAt(v.getCancelledAt())
                                             .usedAt(v.getUsedAt()).used(v.getUsed()).usedBy(v.getUsedBy()).build()).toList() : Collections.emptyList()
@@ -457,6 +467,11 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_METHOD);
                 }
                 if (refundMethod == PaymentType.CASH) {
+                    if (employeeId == null || employeeId.isBlank()) {
+                        throw new AppException(ErrorCode.EMPLOYEE_NOT_FOUND);
+                    }
+                    Employee refundingEmployee = employeeRepository.findById(employeeId)
+                            .orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
                     CheckoutRefund refund = new CheckoutRefund();
                     refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
                     refund.setBooking(booking);
@@ -473,6 +488,8 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                             .amount(refundAmount)
                             .paymentType(PaymentType.CASH)
                             .cashFlowType(CashFlowType.REFUND)
+                            .paymentSource(PaymentSource.FRONT_DESK)
+                            .processorEmployee(refundingEmployee)
                             .note("Hoàn dư tiền mặt tại quầy khi check-out booking " + booking.getId())
                             .transactionDate(now)
                             .build());
@@ -538,7 +555,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         String customerName = booking.getCustomer().getFullName();
         String bookingId = booking.getId();
         String hotelName = booking.getHotel() != null ? booking.getHotel().getName() : "Khách sạn";
-        String invoiceDetails = buildInvoiceDetails(booking, order, checkoutTime);
+        CheckoutInvoiceDetails invoiceDetails = buildInvoiceDetails(booking, order, checkoutTime);
 
         emailService.sendAfterCommit("checkout invoice for booking " + bookingId, () ->
                 emailService.sendCheckoutInvoiceEmail(
@@ -550,33 +567,56 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                 ));
     }
 
-    private String buildInvoiceDetails(Booking booking, Order order, LocalDateTime checkoutTime) {
-        StringBuilder invoice = new StringBuilder()
-                .append("Ngày checkout: ").append(checkoutTime).append("\n")
-                .append("Các phòng:\n");
-        booking.getBookingDetails().forEach(detail -> invoice
-                .append("- Phòng ")
-                .append(detail.getRoom() != null ? detail.getRoom().getRoomNumber() : "N/A")
-                .append(" | Tiền phòng: ").append(detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0)
-                .append(" VND | Dịch vụ: ").append(detail.getServiceSubTotal() != null ? detail.getServiceSubTotal() : 0)
-                .append(" VND | Phụ thu: ")
-                .append((detail.getEarlyCheckInFee() != null ? detail.getEarlyCheckInFee() : BigDecimal.ZERO)
-                        .add(detail.getLateCheckOutFee() != null ? detail.getLateCheckOutFee() : BigDecimal.ZERO)
-                        .add(detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO))
-                .append(" VND\n"));
-
-        if (order == null) {
-            return invoice.toString();
-        }
-        return invoice
-                .append("\nTiền phòng: ").append(formatInvoiceAmount(order.getRoomTotalAmount())).append("\n")
-                .append("Tiền dịch vụ: ").append(formatInvoiceAmount(order.getServiceTotalAmount())).append("\n")
-                .append("Phụ thu: ").append(formatInvoiceAmount(order.getSurchargeTotalAmount())).append("\n")
-                .append("Giảm giá: ").append(formatInvoiceAmount(order.getDiscountAmountTotal())).append("\n")
-                .append("Tổng hóa đơn: ").append(formatInvoiceAmount(order.getTotalAmount())).append("\n")
-                .append("Đã thanh toán: ").append(formatInvoiceAmount(order.getPaidAmount())).append("\n")
-                .append("Còn phải thanh toán: ").append(formatInvoiceAmount(order.getRemainingAmount()))
-                .toString();
+    private CheckoutInvoiceDetails buildInvoiceDetails(Booking booking, Order order, LocalDateTime checkoutTime) {
+        List<CheckoutInvoiceRoomDetail> rooms = booking.getBookingDetails().stream()
+                .map(detail -> {
+                    boolean cancelled = detail.getStatus() == BookingStatusType.CANCELLED;
+                    List<CheckoutInvoiceServiceDetail> services = cancelled || detail.getBookingServiceDetails() == null
+                            ? List.of()
+                            : detail.getBookingServiceDetails().stream()
+                                    .filter(service -> !Boolean.TRUE.equals(service.getCancelled()))
+                                    .map(service -> {
+                                        BigDecimal unitPrice = BigDecimal.valueOf(
+                                                service.getPrice() != null ? service.getPrice() : 0.0);
+                                        return new CheckoutInvoiceServiceDetail(
+                                                service.getName(),
+                                                service.getQuantity(),
+                                                unitPrice.multiply(BigDecimal.valueOf(service.getQuantity())));
+                                    })
+                                    .toList();
+                    BigDecimal roomAmount = cancelled ? BigDecimal.ZERO
+                            : BigDecimal.valueOf(detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0);
+                    BigDecimal serviceAmount = services.stream()
+                            .map(CheckoutInvoiceServiceDetail::lineTotal)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal surchargeAmount = (detail.getEarlyCheckInFee() != null
+                            ? detail.getEarlyCheckInFee() : BigDecimal.ZERO)
+                            .add(detail.getLateCheckOutFee() != null
+                                    ? detail.getLateCheckOutFee() : BigDecimal.ZERO)
+                            .add(detail.getOtherSurcharges() != null
+                                    ? detail.getOtherSurcharges() : BigDecimal.ZERO);
+                    return new CheckoutInvoiceRoomDetail(
+                            detail.getRoom() != null ? detail.getRoom().getRoomNumber() : "N/A",
+                            detail.getCheckinTime(),
+                            detail.getCheckoutTime(),
+                            cancelled,
+                            roomAmount,
+                            services,
+                            surchargeAmount,
+                            roomAmount.add(serviceAmount).add(surchargeAmount));
+                })
+                .toList();
+        return new CheckoutInvoiceDetails(
+                order != null ? order.getId() : null,
+                checkoutTime,
+                rooms,
+                order != null ? formatInvoiceAmount(order.getRoomTotalAmount()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getServiceTotalAmount()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getSurchargeTotalAmount()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getDiscountAmountTotal()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getTotalAmount()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getPaidAmount()) : BigDecimal.ZERO,
+                order != null ? formatInvoiceAmount(order.getRemainingAmount()) : BigDecimal.ZERO);
     }
 
     private BigDecimal formatInvoiceAmount(BigDecimal amount) {
@@ -589,6 +629,8 @@ public class CheckInOutServiceImpl implements CheckInOutService {
         BigDecimal totalSurcharge = BigDecimal.ZERO;
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
+                totalSurcharge = totalSurcharge.add(
+                        detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO);
                 continue;
             }
 

@@ -3,6 +3,7 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.responses.bookingcancel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PayOSPayoutState;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
@@ -23,6 +24,7 @@ public class BookingCancellationResponse {
     private String customerPhone;
     private BookingCancellationStatus status;
     private BookingCancellationRefundMethod refundMethod;
+    private BookingRefundTransferMethod refundTransferMethod;
     private String reason;
     private BigDecimal paidAmount;
     private BigDecimal refundAmount;

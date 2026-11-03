@@ -13,12 +13,14 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.ExtraFeeBreakdownResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.PromotionDiscountResult;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingCancellationPolicyCalculator;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -63,6 +65,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
     BookingRepository bookingRepository;
+    BookingDetailRepository bookingDetailRepository;
     EmployeeRepository employeeRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
@@ -78,7 +81,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
     @Override
     @Transactional
-    public BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, Account account) {
+    public BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, int quantity, Account account) {
         Booking booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
         if (account.getHotelId() == null || booking.getHotel() == null
@@ -106,11 +109,19 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         if (Boolean.TRUE.equals(serviceDetail.getCancelled())) {
             throw new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND);
         }
-        if (Boolean.TRUE.equals(serviceDetail.getUsed())) {
+        int totalQuantity = serviceDetail.getQuantity();
+        int usedQuantity = serviceDetail.getUsedQuantity();
+        if (Boolean.TRUE.equals(serviceDetail.getUsed()) || usedQuantity >= totalQuantity) {
             throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
         }
+        int remainingQuantity = totalQuantity - usedQuantity;
+        if (quantity < 1 || quantity > remainingQuantity) {
+            throw new AppException(ErrorCode.INVALID_SERVICE_USAGE_QUANTITY);
+        }
 
-        serviceDetail.setUsed(true);
+        int updatedUsedQuantity = usedQuantity + quantity;
+        serviceDetail.setUsedQuantity(updatedUsedQuantity);
+        serviceDetail.setUsed(updatedUsedQuantity >= totalQuantity);
         serviceDetail.setUsedAt(LocalDateTime.now());
         serviceDetail.setUsedBy(account.getEmployee() == null ? account.getEmail() : account.getEmployee().getFullName());
 
@@ -119,6 +130,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 .serviceId(serviceDetail.getService().getId())
                 .name(serviceDetail.getName())
                 .quantity(serviceDetail.getQuantity())
+                .usedQuantity(serviceDetail.getUsedQuantity())
                 .price(serviceDetail.getPrice())
                 .subTotal(serviceDetail.getPrice() == null
                         ? 0.0
@@ -126,6 +138,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 .usedAt(serviceDetail.getUsedAt())
                 .used(serviceDetail.getUsed())
                 .usedBy(serviceDetail.getUsedBy())
+                .isPaid(serviceDetail.getIsPaid())
+                .paidAt(serviceDetail.getPaidAt())
                 .cancelled(serviceDetail.getCancelled())
                 .cancelledAt(serviceDetail.getCancelledAt())
                 .build();
@@ -259,6 +273,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.warn("Attempted to update a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_UPDATE_CANCELLED_ROOM);
             }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                log.warn("Attempted to modify non-pending BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
 
             Room originalRoom = targetDetail.getRoom();
             Integer originalAdults = targetDetail.getNumAdults();
@@ -274,6 +292,12 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             log.error("New Room not found with ID: {}", req.getNewRoomId());
                             return new AppException(ErrorCode.ROOM_NOT_FOUND);
                         });
+                if (newRoom.getFloor() == null
+                        || newRoom.getFloor().getBuilding() == null
+                        || newRoom.getFloor().getBuilding().getHotel() == null
+                        || !hotelId.equals(newRoom.getFloor().getBuilding().getHotel().getId())) {
+                    throw new AppException(ErrorCode.UNAUTHORIZED_BRANCH_ACCESS);
+                }
                 if (newRoom.getRoomStatus() == RoomStatus.MAINTENANCE
                         || newRoom.getRoomStatus() == RoomStatus.CLEANING) {
                     throw new AppException(ErrorCode.ROOM_NOT_AVAILABLE_FOR_BOOKING);
@@ -287,6 +311,13 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (checkInToUse == null || checkOutToUse == null
                     || !checkOutToUse.toLocalDate().isAfter(checkInToUse.toLocalDate())) {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
+            }
+            if (bookingDetailRepository.existsOverlappingActiveBooking(
+                    targetDetail.getRoom().getId(),
+                    checkInToUse,
+                    checkOutToUse,
+                    targetDetail.getId())) {
+                throw new AppException(ErrorCode.ROOM_ALREADY_OCCUPIED_OR_BOOKED);
             }
 
             targetDetail.setCheckinTime(checkInToUse);
@@ -468,6 +499,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         for (BookingDetail detail : booking.getBookingDetails()) {
             if (detail.getStatus() == BookingStatusType.CANCELLED) {
                 detail.setTotalPrice(0.0);
+                detail.setServiceSubTotal(0.0);
+                totalSurcharge = totalSurcharge.add(
+                        detail.getOtherSurcharges() != null ? detail.getOtherSurcharges() : BigDecimal.ZERO);
                 continue;
             }
 
@@ -497,6 +531,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             }
 
             // Cập nhật totalPrice cho từng BookingDetail (Tiền phòng + Tiền dịch vụ phòng đó)
+            detail.setServiceSubTotal(serviceSub);
             detail.setTotalPrice(roomSub + serviceSub);
 
             // Cộng dồn vào tổng chung của Order
@@ -599,15 +634,24 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.debug("BookingDetail ID: {} is already cancelled. Skipping.", detailId);
                 continue;
             }
+            if (targetDetail.getStatus() != BookingStatusType.PENDING) {
+                log.warn("Attempted to cancel non-pending BookingDetail ID: {}", targetDetail.getId());
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
             if (targetDetail.getBookingServiceDetails() != null && targetDetail.getBookingServiceDetails().stream()
                     .anyMatch(service -> Boolean.TRUE.equals(service.getUsed())
                             && !Boolean.TRUE.equals(service.getCancelled()))) {
                 throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
             }
 
+            LocalDateTime cancelledAt = LocalDateTime.now();
+            BigDecimal cancellationPenalty = calculateRoomCancellationPenalty(booking, targetDetail, cancelledAt);
             targetDetail.setStatus(BookingStatusType.CANCELLED);
-            targetDetail.setCancelledAt(LocalDateTime.now());
+            targetDetail.setCancelledAt(cancelledAt);
             targetDetail.setCancelledBy(operatorName);
+            targetDetail.setOtherSurcharges(
+                    (targetDetail.getOtherSurcharges() != null ? targetDetail.getOtherSurcharges() : BigDecimal.ZERO)
+                            .add(cancellationPenalty));
 
             if (targetDetail.getRoomSubTotal() != null) {
                 roomPriceReduced = roomPriceReduced.subtract(BigDecimal.valueOf(targetDetail.getRoomSubTotal()));
@@ -627,6 +671,60 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         log.info("Total room price reduced from cancellations: {}", roomPriceReduced);
         return roomPriceReduced;
+    }
+
+    private BigDecimal calculateRoomCancellationPenalty(
+            Booking booking,
+            BookingDetail detail,
+            LocalDateTime cancelledAt) {
+        if (booking.getOrder() == null || detail.getCheckinTime() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal roomPenaltyRate = BookingCancellationPolicyCalculator
+                .calculate(detail.getCheckinTime(), cancelledAt)
+                .roomPenaltyRate();
+        if (roomPenaltyRate.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        Order order = booking.getOrder();
+        BigDecimal roomGross = zeroIfNull(order.getRoomTotalAmount());
+        BigDecimal serviceGross = zeroIfNull(order.getServiceTotalAmount());
+        BigDecimal coreGross = roomGross.add(serviceGross);
+        if (roomGross.signum() <= 0 || coreGross.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalDiscount = zeroIfNull(order.getDiscountAmountTotal());
+        BigDecimal totalRoomDiscountShare = totalDiscount.multiply(roomGross)
+                .divide(coreGross, 2, RoundingMode.HALF_UP);
+        BigDecimal roomNet = roomGross
+                .subtract(zeroIfNull(order.getDiscountRoomAmount()))
+                .subtract(totalRoomDiscountShare)
+                .max(BigDecimal.ZERO);
+        BigDecimal serviceNet = serviceGross
+                .subtract(zeroIfNull(order.getDiscountServiceAmount()))
+                .subtract(totalDiscount.subtract(totalRoomDiscountShare))
+                .max(BigDecimal.ZERO);
+        BigDecimal payable = roomNet.add(serviceNet).add(zeroIfNull(order.getSurchargeTotalAmount()));
+        if (payable.signum() <= 0 || roomNet.signum() <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal paid = zeroIfNull(order.getPaidAmount()).min(payable);
+        BigDecimal paidRoom = paid.multiply(roomNet).divide(payable, 2, RoundingMode.HALF_UP);
+        BigDecimal cancelledRoomShare = BigDecimal.valueOf(
+                        detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0)
+                .divide(roomGross, 8, RoundingMode.HALF_UP)
+                .min(BigDecimal.ONE);
+        return paidRoom.multiply(cancelledRoomShare)
+                .multiply(roomPenaltyRate)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal amount) {
+        return amount == null ? BigDecimal.ZERO : amount.max(BigDecimal.ZERO);
     }
 
     // Ham them dich vu cho phongf
@@ -653,6 +751,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.warn("Attempted to add services to a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM);
             }
+            if (!canModifyServicesForDetail(targetDetail)) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
 
             if (req.getServices() == null || req.getServices().isEmpty()) {
                 continue;
@@ -669,17 +770,19 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                             log.error("Service not found with ID: {}", sReq.getServiceId());
                             return new AppException(ErrorCode.SERVICE_NOT_FOUND);
                         });
+                double price = catalogService.getPrice() != null ? catalogService.getPrice() : 0.0;
 
                 // 1. Kiểm tra xem dịch vụ này ĐÃ TỒN TẠI TRONG PHÒNG NÀY CHƯA (và chưa bị hủy)
                 BookingServiceDetail existingServiceDetail = targetDetail.getBookingServiceDetails().stream()
                         .filter(sd -> sd.getService().getId().equals(sReq.getServiceId())
                                 && !Boolean.TRUE.equals(sd.getCancelled())
-                                && !Boolean.TRUE.equals(sd.getUsed()))
+                                && !Boolean.TRUE.equals(sd.getUsed())
+                                && sd.getUsedQuantity() == 0
+                                && !Boolean.TRUE.equals(sd.getIsPaid())
+                                && Double.compare(sd.getPrice() != null ? sd.getPrice() : 0.0, price) == 0)
                         .findFirst()
                         .orElse(null);
-
                 double itemTotal = 0.0;
-                double price = catalogService.getPrice() != null ? catalogService.getPrice() : 0.0;
 
                 if (existingServiceDetail != null) {
                     // TRƯỜNG HỢP A: Dịch vụ đã tồn tại -> Cộng dồn số lượng lên
@@ -723,13 +826,14 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     .mapToDouble(sd -> (sd.getPrice() != null ? sd.getPrice() : 0.0) * sd.getQuantity())
                     .sum();
 
+            targetDetail.setServiceSubTotal(updatedServiceSubTotal);
             targetDetail.setTotalPrice(roomSub + updatedServiceSubTotal);
         }
 
         return totalServicePriceAdded;
     }
 
-    private BigDecimal processServiceCancellations(Booking booking, List<ServiceCancellationRequest> requests) {
+    BigDecimal processServiceCancellations(Booking booking, List<ServiceCancellationRequest> requests) {
         if (requests == null || requests.isEmpty()) {
             return BigDecimal.ZERO;
         }
@@ -744,6 +848,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             if (targetDetail.getStatus() == BookingStatusType.CANCELLED) {
                 continue;
             }
+            if (!canModifyServicesForDetail(targetDetail)) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
             if (request.getServiceDetailIds() == null || request.getServiceDetailIds().isEmpty()) {
                 continue;
             }
@@ -757,16 +864,23 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 if (Boolean.TRUE.equals(serviceDetail.getCancelled())) {
                     continue;
                 }
-                if (Boolean.TRUE.equals(serviceDetail.getUsed())) {
+                int quantity = serviceDetail.getQuantity();
+                int usedQuantity = Math.max(0, serviceDetail.getUsedQuantity());
+                if (usedQuantity >= quantity
+                        || (Boolean.TRUE.equals(serviceDetail.getUsed()) && usedQuantity == 0)) {
                     throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
                 }
-
-                serviceDetail.setCancelled(true);
-                serviceDetail.setCancelledAt(LocalDateTime.now());
-
                 double price = serviceDetail.getPrice() != null ? serviceDetail.getPrice() : 0.0;
-                int quantity = serviceDetail.getQuantity();
-                servicePriceChange = servicePriceChange.subtract(BigDecimal.valueOf(price * quantity));
+                int cancellableQuantity = quantity - usedQuantity;
+                servicePriceChange = servicePriceChange.subtract(BigDecimal.valueOf(price * cancellableQuantity));
+
+                if (usedQuantity > 0) {
+                    serviceDetail.setQuantity(usedQuantity);
+                    serviceDetail.setUsed(true);
+                } else {
+                    serviceDetail.setCancelled(true);
+                    serviceDetail.setCancelledAt(LocalDateTime.now());
+                }
             }
         }
 
@@ -798,6 +912,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                 log.warn("Attempted to update service quantity in a cancelled BookingDetail ID: {}", targetDetail.getId());
                 throw new AppException(ErrorCode.CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM);
             }
+            if (!canModifyServicesForDetail(targetDetail)) {
+                throw new AppException(ErrorCode.ROOM_MUST_BE_PENDING_FOR_MODIFICATION);
+            }
 
             if (updateReq.getServices() == null || updateReq.getServices().isEmpty()) {
                 continue;
@@ -808,6 +925,69 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             }
 
             for (ServiceQuantityItem sItem : updateReq.getServices()) {
+                int newQuantity = Math.max(0, sItem.getQuantity());
+                if (sItem.getBookingServiceDetailId() == null || sItem.getBookingServiceDetailId().isBlank()) {
+                    List<BookingServiceDetail> matchingServices = targetDetail.getBookingServiceDetails().stream()
+                            .filter(sd -> sd.getService().getId().equals(sItem.getServiceId())
+                                    && !Boolean.TRUE.equals(sd.getCancelled()))
+                            .toList();
+                    if (matchingServices.isEmpty()) {
+                        log.warn("Service ID: {} not found in BookingDetail ID: {}.",
+                                sItem.getServiceId(), targetDetail.getId());
+                        continue;
+                    }
+
+                    int currentTotalQuantity = matchingServices.stream()
+                            .mapToInt(BookingServiceManagementServiceImpl::serviceQuantity)
+                            .sum();
+                    int usedTotalQuantity = matchingServices.stream()
+                            .mapToInt(BookingServiceManagementServiceImpl::consumedServiceQuantity)
+                            .sum();
+                    if (newQuantity < usedTotalQuantity) {
+                        throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                    }
+                    if (newQuantity >= currentTotalQuantity) {
+                        if (newQuantity > currentTotalQuantity) {
+                            log.warn("Ignoring service quantity increase for service ID: {} in BookingDetail ID: {}; use service additions instead.",
+                                    sItem.getServiceId(), targetDetail.getId());
+                        }
+                        continue;
+                    }
+
+                    int quantityToRemove = currentTotalQuantity - newQuantity;
+                    List<BookingServiceDetail> removalOrder = matchingServices.stream()
+                            .sorted((first, second) -> Integer.compare(
+                                    consumedServiceQuantity(first),
+                                    consumedServiceQuantity(second)))
+                            .toList();
+                    for (BookingServiceDetail serviceDetail : removalOrder) {
+                        if (quantityToRemove == 0) break;
+
+                        int quantity = serviceQuantity(serviceDetail);
+                        int usedQuantity = consumedServiceQuantity(serviceDetail);
+                        int removableQuantity = quantity - usedQuantity;
+                        if (removableQuantity <= 0) continue;
+
+                        int removedQuantity = Math.min(quantityToRemove, removableQuantity);
+                        int remainingQuantity = quantity - removedQuantity;
+                        double price = serviceDetail.getPrice() != null ? serviceDetail.getPrice() : 0.0;
+                        servicePriceChange = servicePriceChange.subtract(
+                                BigDecimal.valueOf(price * removedQuantity));
+                        quantityToRemove -= removedQuantity;
+
+                        if (remainingQuantity == 0) {
+                            serviceDetail.setCancelled(true);
+                            serviceDetail.setCancelledAt(LocalDateTime.now());
+                        } else {
+                            serviceDetail.setQuantity(remainingQuantity);
+                            if (remainingQuantity == usedQuantity) {
+                                serviceDetail.setUsed(true);
+                            }
+                        }
+                    }
+                    continue;
+                }
+
                 BookingServiceDetail targetService;
                 if (sItem.getBookingServiceDetailId() != null && !sItem.getBookingServiceDetailId().isBlank()) {
                     targetService = targetDetail.getBookingServiceDetails().stream()
@@ -818,25 +998,21 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     if (Boolean.TRUE.equals(targetService.getCancelled())) {
                         throw new AppException(ErrorCode.BOOKING_SERVICE_DETAIL_NOT_FOUND);
                     }
-                    if (Boolean.TRUE.equals(targetService.getUsed())) {
-                        throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
-                    }
                 } else {
                     targetService = targetDetail.getBookingServiceDetails().stream()
                             .filter(sd -> sd.getService().getId().equals(sItem.getServiceId())
                                     && !Boolean.TRUE.equals(sd.getCancelled())
-                                    && !Boolean.TRUE.equals(sd.getUsed()))
+                                    && !Boolean.TRUE.equals(sd.getUsed())
+                                    && sd.getUsedQuantity() == 0)
                             .findFirst()
                             .orElse(null);
                 }
-
-                int newQuantity = sItem.getQuantity();
 
                 if (targetService == null) {
                     BookingServiceDetail usedService = targetDetail.getBookingServiceDetails().stream()
                             .filter(sd -> sd.getService().getId().equals(sItem.getServiceId())
                                     && !Boolean.TRUE.equals(sd.getCancelled())
-                                    && Boolean.TRUE.equals(sd.getUsed()))
+                                    && (Boolean.TRUE.equals(sd.getUsed()) || sd.getUsedQuantity() > 0))
                             .findFirst()
                             .orElse(null);
                     if (usedService != null && newQuantity != usedService.getQuantity()) {
@@ -848,10 +1024,22 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     continue;
                 }
 
+                int usedQuantity = consumedServiceQuantity(targetService);
+                if (newQuantity < usedQuantity
+                        || (Boolean.TRUE.equals(targetService.getUsed()) && usedQuantity == 0)) {
+                    throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                }
+                if (Boolean.TRUE.equals(targetService.getIsPaid()) && newQuantity > targetService.getQuantity()) {
+                    throw new AppException(ErrorCode.PAID_SERVICE_CANNOT_BE_MODIFIED);
+                }
+
                 int oldQuantity = targetService.getQuantity();
                 double pricePerUnit = targetService.getPrice() != null ? targetService.getPrice() : 0.0;
 
                 if (newQuantity <= 0) {
+                    if (usedQuantity > 0) {
+                        throw new AppException(ErrorCode.SERVICE_ALREADY_USED);
+                    }
                     // TRƯỜNG HỢP 1: Hủy dịch vụ (giảm về 0)
                     targetService.setCancelled(true);
                     targetService.setCancelledAt(LocalDateTime.now());
@@ -868,6 +1056,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
                     double priceChangeAmount = pricePerUnit * quantityDiff;
 
                     targetService.setQuantity(newQuantity);
+                    if (newQuantity == usedQuantity) {
+                        targetService.setUsed(true);
+                    }
                     servicePriceChange = servicePriceChange.add(BigDecimal.valueOf(priceChangeAmount));
 
                     log.info("Updated service ID: {} in BookingDetail ID: {} from quantity {} to {}. Price change: {}",
@@ -891,6 +1082,25 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         }
 
         return servicePriceChange;
+    }
+
+    private boolean canModifyServicesForDetail(BookingDetail detail) {
+        return detail.getStatus() == BookingStatusType.PENDING
+                || detail.getStatus() == BookingStatusType.CHECKED_IN
+                || detail.getStatus() == BookingStatusType.CHECKED_OUT;
+    }
+
+    private static int serviceQuantity(BookingServiceDetail serviceDetail) {
+        return Math.max(0, serviceDetail.getQuantity());
+    }
+
+    private static int consumedServiceQuantity(BookingServiceDetail serviceDetail) {
+        int quantity = serviceQuantity(serviceDetail);
+        int usedQuantity = Math.max(0, serviceDetail.getUsedQuantity());
+        if (usedQuantity == 0 && Boolean.TRUE.equals(serviceDetail.getUsed())) {
+            return quantity;
+        }
+        return Math.min(quantity, usedQuantity);
     }
 
     @Override

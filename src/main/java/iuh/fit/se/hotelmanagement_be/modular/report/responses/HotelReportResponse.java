@@ -25,6 +25,8 @@ public record HotelReportResponse(
         long onlineCancelledBookingCount,
         long offlineCancelledBookingCount,
         List<BookingCancellationReportResponse> cancelledBookings,
+        List<RefundActivityReportResponse> checkoutSurplusRefunds,
+        List<RefundActivityReportResponse> bookingCancellationRefunds,
         long totalRoomCount,
         List<RoomStatusReportResponse> roomStatuses,
         List<RoomTypeBookingReportResponse> roomTypeBookings

@@ -3,12 +3,14 @@ package iuh.fit.se.hotelmanagement_be.modular.report.services;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
@@ -33,6 +35,7 @@ class HotelReportServiceTest {
     private BookingCancellationRepository bookingCancellationRepository;
     private OrderRepository orderRepository;
     private PaymentTransactionRepository paymentTransactionRepository;
+    private CheckoutRefundRepository checkoutRefundRepository;
     private RoomRepository roomRepository;
     private UserPromotionUsageRepository userPromotionUsageRepository;
     private HotelReportService service;
@@ -43,6 +46,7 @@ class HotelReportServiceTest {
         bookingCancellationRepository = mock(BookingCancellationRepository.class);
         orderRepository = mock(OrderRepository.class);
         paymentTransactionRepository = mock(PaymentTransactionRepository.class);
+        checkoutRefundRepository = mock(CheckoutRefundRepository.class);
         roomRepository = mock(RoomRepository.class);
         userPromotionUsageRepository = mock(UserPromotionUsageRepository.class);
         service = new HotelReportService(
@@ -50,6 +54,7 @@ class HotelReportServiceTest {
                 bookingCancellationRepository,
                 orderRepository,
                 paymentTransactionRepository,
+                checkoutRefundRepository,
                 roomRepository,
                 userPromotionUsageRepository
         );
@@ -160,6 +165,17 @@ class HotelReportServiceTest {
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay()
         )).thenReturn(List.of(onlineCancellation, offlineCancellation));
+        when(checkoutRefundRepository.getRefundReport(
+                7L,
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay()
+        )).thenReturn(List.of());
+        when(bookingCancellationRepository.getRefundReport(
+                7L,
+                BookingCancellationStatus.NO_REFUND_REQUIRED,
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay()
+        )).thenReturn(List.of());
 
         RoomRepository.RoomStatusReportProjection readyRooms =
                 mock(RoomRepository.RoomStatusReportProjection.class);
@@ -199,6 +215,8 @@ class HotelReportServiceTest {
         assertEquals(1, report.offlineCancelledBookingCount());
         assertEquals("Đổi lịch", report.cancelledBookings().get(0).reason());
         assertEquals("Không ghi nhận lý do", report.cancelledBookings().get(1).reason());
+        assertEquals(0, report.checkoutSurplusRefunds().size());
+        assertEquals(0, report.bookingCancellationRefunds().size());
         assertEquals(5, report.totalRoomCount());
         assertEquals("UNKNOWN", report.roomStatuses().get(report.roomStatuses().size() - 1).status());
         assertEquals(1, report.roomStatuses().get(report.roomStatuses().size() - 1).roomCount());

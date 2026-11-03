@@ -16,6 +16,7 @@ public class BookingCancellationReviewRequest {
     Boolean refundAmountVerified;
     Boolean refundAccountConfirmed;
     BookingRefundTransferMethod refundTransferMethod;
-    @Size(max = 100)
+    Boolean refundCompletedConfirmed;
+    @Size(max = 120)
     String transactionReference;
 }

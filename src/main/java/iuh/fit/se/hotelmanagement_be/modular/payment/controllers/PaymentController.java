@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CashPaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentResponse;
@@ -16,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -65,8 +68,13 @@ public class PaymentController {
 
 
     @PostMapping("/cash")
-    public ResponseEntity<PaymentTransactionResponse> payWithCash(@RequestBody @Valid CashPaymentRequest request) {
-        PaymentTransactionResponse response = paymentService.payWithCash(request);
+    @PreAuthorize("hasAnyAuthority('ROLE_EMPLOYEE', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    public ResponseEntity<PaymentTransactionResponse> payWithCash(
+            @RequestBody @Valid CashPaymentRequest request,
+            Authentication authentication) {
+        Object principal = authentication == null ? null : authentication.getPrincipal();
+        Account account = principal instanceof Account ? (Account) principal : null;
+        PaymentTransactionResponse response = paymentService.payWithCash(request, account);
         return ResponseEntity.ok(response);
     }
 

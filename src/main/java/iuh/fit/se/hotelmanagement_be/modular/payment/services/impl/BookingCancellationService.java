@@ -30,6 +30,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.PaymentService;
@@ -425,6 +426,8 @@ public class BookingCancellationService {
                 .amount(cancellation.getRefundAmount())
                 .paymentType(PaymentType.CASH)
                 .cashFlowType(CashFlowType.REFUND)
+                .paymentSource(PaymentSource.FRONT_DESK)
+                .processorEmployee(account == null ? null : account.getEmployee())
                 .note("Hoàn tiền mặt hủy booking " + booking.getId())
                 .transactionDate(refundedAt)
                 .build());
@@ -597,16 +600,10 @@ public class BookingCancellationService {
                 || cancellation.getPayoutState() != null) {
             throw new AppException(ErrorCode.CANCELLATION_INVALID_STATUS);
         }
-        if (request == null || !Boolean.TRUE.equals(request.getRefundAmountVerified())
-                || !Boolean.TRUE.equals(request.getRefundAccountConfirmed())) {
+        if (request == null || !Boolean.TRUE.equals(request.getRefundCompletedConfirmed())) {
             throw new AppException(ErrorCode.CANCELLATION_REVIEW_CONFIRMATION_REQUIRED);
         }
         String transactionReference = trimToNull(request.getTransactionReference());
-        if (transactionReference == null) {
-            throw new AppException(ErrorCode.CANCELLATION_REVIEW_NOTE_REQUIRED);
-        }
-        RefundBankDetails bankDetails = decryptBankDetails(cancellation);
-        validateBankDetails(bankDetails);
         cancellation.setRefundTransferMethod(BookingRefundTransferMethod.MANUAL_BANK);
         return completeRefund(cancellation, account, transactionReference, true);
     }
@@ -753,7 +750,11 @@ public class BookingCancellationService {
                 .amount(cancellation.getRefundAmount())
                 .paymentType(PaymentType.BANK)
                 .cashFlowType(CashFlowType.REFUND)
-                .note((manualBankTransfer ? "Manual bank refund " : "PayOS payout ") + refundReference)
+                .paymentSource(manualBankTransfer ? PaymentSource.FRONT_DESK : PaymentSource.ONLINE_GATEWAY)
+                .processorEmployee(manualBankTransfer && account != null ? account.getEmployee() : null)
+                .note(manualBankTransfer
+                        ? "Manual bank refund" + (refundReference == null ? "" : " " + refundReference)
+                        : "PayOS payout " + refundReference)
                 .transactionDate(now)
                 .build());
         BigDecimal remainingPaidAmount = paidAmount.subtract(cancellation.getRefundAmount());

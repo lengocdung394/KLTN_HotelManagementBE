@@ -188,6 +188,9 @@ public class BookingServiceImpl implements BookingService {
         ensureCustomerEmail(customer, request);
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+        booking.setHotel(hotel);
         // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
         boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Xử lý danh sách chi tiết đặt phòng
@@ -201,11 +204,6 @@ public class BookingServiceImpl implements BookingService {
                 booking.getBookingDetails().add(detail);
             }
         }
-
-        // 2. Tìm khách sạn
-        Hotel hotel = hotelRepository.findById(hotelId)
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        booking.setHotel(hotel);
 
         // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
         booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
@@ -988,8 +986,9 @@ public class BookingServiceImpl implements BookingService {
         if (booking.getBookingDetails() != null) {
             detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponseForHotel.builder().bookingStatusType(detail.getStatus())
                     .cancelledAt(detail.getCancelledAt())
-                    .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+                    .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults() != null ? detail.getNumAdults() : 0).numChildren(detail.getNumChildren() != null ? detail.getNumChildren() : 0).numInfants(detail.getNumInfants() != null ? detail.getNumInfants() : 0)
                     // Map thẳng các khoản chi tiết vào Response
+                    .cancelledBy(detail.getCancelledBy())
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
                     .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
                     .extraChildFeePerNight(detail.getExtraChildFeePerNight())

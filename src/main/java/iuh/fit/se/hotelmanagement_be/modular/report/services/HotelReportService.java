@@ -9,12 +9,15 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingReposit
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.DailyServiceRevenueResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.BookingCancellationReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.HotelReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.PromotionUsageReportResponse;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.RefundActivityReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomStatusReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomTypeBookingReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
@@ -41,6 +44,7 @@ public class HotelReportService {
     private final BookingCancellationRepository bookingCancellationRepository;
     private final OrderRepository orderRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final CheckoutRefundRepository checkoutRefundRepository;
     private final RoomRepository roomRepository;
     private final UserPromotionUsageRepository userPromotionUsageRepository;
 
@@ -171,6 +175,33 @@ public class HotelReportService {
                         row.getCancelledAt()
                 ))
                 .toList();
+        List<RefundActivityReportResponse> checkoutSurplusRefunds =
+                checkoutRefundRepository.getRefundReport(hotelId, start, endExclusive).stream()
+                        .map(row -> new RefundActivityReportResponse(
+                                row.getBookingId(),
+                                row.getAmount(),
+                                row.getPaymentMethod() == null ? null : row.getPaymentMethod().name(),
+                                row.getStatus() == null ? null : row.getStatus().name(),
+                                row.getRequestedAt(),
+                                row.getRefundedAt()
+                        ))
+                        .toList();
+        List<RefundActivityReportResponse> bookingCancellationRefunds =
+                bookingCancellationRepository.getRefundReport(
+                                hotelId,
+                                BookingCancellationStatus.NO_REFUND_REQUIRED,
+                                start,
+                                endExclusive
+                        ).stream()
+                        .map(row -> new RefundActivityReportResponse(
+                                row.getBookingId(),
+                                row.getAmount(),
+                                row.getPaymentMethod() == null ? null : row.getPaymentMethod().name(),
+                                row.getStatus() == null ? null : row.getStatus().name(),
+                                row.getRequestedAt(),
+                                row.getRefundedAt()
+                        ))
+                        .toList();
 
         Map<RoomStatus, Long> roomCounts = new EnumMap<>(RoomStatus.class);
         for (RoomStatus status : RoomStatus.values()) {
@@ -214,6 +245,8 @@ public class HotelReportService {
                 onlineCancelledBookingCount,
                 offlineCancelledBookingCount,
                 cancelledBookings,
+                checkoutSurplusRefunds,
+                bookingCancellationRefunds,
                 totalRoomCount,
                 roomStatuses,
                 roomTypeBookings

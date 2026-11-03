@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
@@ -19,6 +20,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
@@ -404,7 +406,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentTransactionResponse payWithCash(
-            CashPaymentRequest request
+            CashPaymentRequest request,
+            Account account
     ) {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() ->
@@ -452,6 +455,9 @@ public class PaymentServiceImpl implements PaymentService {
 
         BigDecimal changeAmount =
                 amountPaid.subtract(remainingAmount);
+        PaymentSource paymentSource = account != null && account.getEmployee() != null
+                ? PaymentSource.FRONT_DESK
+                : PaymentSource.UNKNOWN;
 
         PaymentTransaction receiptTransaction =
                 PaymentTransaction.builder()
@@ -459,11 +465,16 @@ public class PaymentServiceImpl implements PaymentService {
                         .amount(amountPaid)
                         .paymentType(PaymentType.CASH)
                         .cashFlowType(CashFlowType.RECEIPT)
+                        .paymentSource(paymentSource)
                         .note(
                                 request.getNote() != null
                                         ? request.getNote()
                                         : "Thanh toán tiền mặt tại quầy"
                         )
+                        .processorEmployee(paymentSource == PaymentSource.FRONT_DESK
+                                && account != null && account.getEmployee() != null
+                                ? account.getEmployee()
+                                : null)
                         .transactionDate(LocalDateTime.now())
                         .build();
 
@@ -476,6 +487,7 @@ public class PaymentServiceImpl implements PaymentService {
                             .amount(changeAmount)
                             .paymentType(PaymentType.CASH)
                             .cashFlowType(CashFlowType.CHANGE)
+                            .paymentSource(paymentSource)
                             .note("Tiền thừa trả khách")
                             .transactionDate(LocalDateTime.now())
                             .build();
@@ -523,6 +535,13 @@ public class PaymentServiceImpl implements PaymentService {
                 .changeAmount(changeAmount)
                 .paymentType("CASH")
                 .cashFlowType(CashFlowType.RECEIPT)
+                .paymentSource(receiptTransaction.getPaymentSource())
+                .processorEmployeeId(receiptTransaction.getProcessorEmployee() != null
+                        ? receiptTransaction.getProcessorEmployee().getId()
+                        : null)
+                .processorEmployeeName(receiptTransaction.getProcessorEmployee() != null
+                        ? receiptTransaction.getProcessorEmployee().getFullName()
+                        : null)
                 .transactionDate(
                         receiptTransaction.getTransactionDate()
                 )

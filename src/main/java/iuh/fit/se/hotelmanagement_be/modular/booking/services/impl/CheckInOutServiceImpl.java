@@ -2,6 +2,8 @@ package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService.CheckoutInvoiceDetails;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService.CheckoutInvoiceRoomDetail;
@@ -30,6 +32,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
@@ -62,6 +65,7 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class CheckInOutServiceImpl implements CheckInOutService {
     CheckInOutRepository checkInOutRepository;
+    EmployeeRepository employeeRepository;
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingRepository bookingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
@@ -463,6 +467,11 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_METHOD);
                 }
                 if (refundMethod == PaymentType.CASH) {
+                    if (employeeId == null || employeeId.isBlank()) {
+                        throw new AppException(ErrorCode.EMPLOYEE_NOT_FOUND);
+                    }
+                    Employee refundingEmployee = employeeRepository.findById(employeeId)
+                            .orElseThrow(() -> new AppException(ErrorCode.EMPLOYEE_NOT_FOUND));
                     CheckoutRefund refund = new CheckoutRefund();
                     refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
                     refund.setBooking(booking);
@@ -479,6 +488,8 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                             .amount(refundAmount)
                             .paymentType(PaymentType.CASH)
                             .cashFlowType(CashFlowType.REFUND)
+                            .paymentSource(PaymentSource.FRONT_DESK)
+                            .processorEmployee(refundingEmployee)
                             .note("Hoàn dư tiền mặt tại quầy khi check-out booking " + booking.getId())
                             .transactionDate(now)
                             .build());

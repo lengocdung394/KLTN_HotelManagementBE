@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
@@ -11,6 +12,8 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.PaymentTransaction;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentCreateRequest;
@@ -66,7 +69,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public PaymentTransactionResponse processPayment(PaymentCreateRequest request) {
+    public PaymentTransactionResponse processPayment(PaymentCreateRequest request, Account account) {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
@@ -78,6 +81,13 @@ public class OrderServiceImpl implements OrderService {
         CashFlowType cashFlow = request.getCashFlowType() != null ? request.getCashFlowType() : CashFlowType.RECEIPT;
         Booking booking = order.getBooking();
         boolean isOnlineCustomerPayment = request.getNote() != null && request.getNote().contains("trực tuyến");
+        PaymentSource paymentSource = account != null && account.getEmployee() != null
+                ? PaymentSource.FRONT_DESK
+                : account != null && account.getCustomer() != null
+                ? PaymentSource.CUSTOMER
+                : isOnlineCustomerPayment
+                ? PaymentSource.CUSTOMER
+                : PaymentSource.UNKNOWN;
 
         if (isOnlineCustomerPayment && cashFlow == CashFlowType.RECEIPT) {
             order.setTotalAmount(paymentAmount);
@@ -106,7 +116,13 @@ public class OrderServiceImpl implements OrderService {
                 .amount(paymentAmount)
                 .paymentType(request.getPaymentType())
                 .cashFlowType(cashFlow)
+                .paymentSource(paymentSource)
                 .note(request.getNote())
+                .processorEmployee(paymentSource == PaymentSource.FRONT_DESK
+                        && cashFlow == CashFlowType.RECEIPT
+                        && account != null && account.getEmployee() != null
+                        ? account.getEmployee()
+                        : null)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -260,8 +276,16 @@ public class OrderServiceImpl implements OrderService {
                 .amount(tx.getAmount())
                 .paymentType(tx.getPaymentType() != null ? tx.getPaymentType().name() : null)
                 .cashFlowType(tx.getCashFlowType())
+                .paymentSource(tx.getPaymentSource())
                 .note(tx.getNote())
                 .createdAt(tx.getCreatedAt())
+                .transactionDate(tx.getTransactionDate())
+                .processorEmployeeId(tx.getProcessorEmployee() != null
+                        ? tx.getProcessorEmployee().getId()
+                        : null)
+                .processorEmployeeName(tx.getProcessorEmployee() != null
+                        ? tx.getProcessorEmployee().getFullName()
+                        : null)
                 .build();
     }
 }

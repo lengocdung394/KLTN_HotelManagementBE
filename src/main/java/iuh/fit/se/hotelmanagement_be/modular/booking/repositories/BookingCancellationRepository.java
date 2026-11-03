@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellatio
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.math.BigDecimal;
 
 public interface BookingCancellationRepository extends JpaRepository<BookingCancellation, String> {
     interface CancellationReportProjection {
@@ -22,6 +24,38 @@ public interface BookingCancellationRepository extends JpaRepository<BookingCanc
         String getReason();
         LocalDateTime getCancelledAt();
     }
+
+    interface RefundReportProjection {
+        String getBookingId();
+        BigDecimal getAmount();
+        BookingCancellationRefundMethod getPaymentMethod();
+        BookingCancellationStatus getStatus();
+        LocalDateTime getRequestedAt();
+        LocalDateTime getRefundedAt();
+    }
+
+    @Query("""
+            SELECT booking.id AS bookingId,
+                   cancellation.refundAmount AS amount,
+                   cancellation.refundMethod AS paymentMethod,
+                   cancellation.status AS status,
+                   cancellation.requestedAt AS requestedAt,
+                   cancellation.refundedAt AS refundedAt
+            FROM BookingCancellation cancellation
+            JOIN cancellation.booking booking
+            WHERE booking.hotel.id = :hotelId
+              AND cancellation.refundAmount > 0
+              AND cancellation.status <> :noRefundStatus
+              AND COALESCE(cancellation.refundedAt, cancellation.requestedAt) >= :start
+              AND COALESCE(cancellation.refundedAt, cancellation.requestedAt) < :end
+            ORDER BY COALESCE(cancellation.refundedAt, cancellation.requestedAt) DESC
+            """)
+    List<RefundReportProjection> getRefundReport(
+            @Param("hotelId") Long hotelId,
+            @Param("noRefundStatus") BookingCancellationStatus noRefundStatus,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
 
     @Query("""
             SELECT booking.id AS bookingId,

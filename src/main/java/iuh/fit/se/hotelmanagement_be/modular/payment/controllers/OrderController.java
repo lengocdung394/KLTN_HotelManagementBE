@@ -10,6 +10,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.responses.OrderResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.PaymentTransactionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.OrderService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -84,9 +86,12 @@ public class OrderController {
             description = "Tạo một giao dịch thanh toán (tiền mặt, chuyển khoản, ví điện tử) cho hóa đơn. Tự động đóng hóa đơn nếu đã trả hết nợ."
     )
     public ResponseEntity<ApiResponse<PaymentTransactionResponse>> processPayment(
-            @Valid @RequestBody PaymentCreateRequest request) {
+            @Valid @RequestBody PaymentCreateRequest request,
+            Authentication authentication) {
 
-        PaymentTransactionResponse result = orderService.processPayment(request);
+        Object principal = authentication == null ? null : authentication.getPrincipal();
+        Account account = principal instanceof Account ? (Account) principal : null;
+        PaymentTransactionResponse result = orderService.processPayment(request, account);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.<PaymentTransactionResponse>builder()
                         .code(1000)

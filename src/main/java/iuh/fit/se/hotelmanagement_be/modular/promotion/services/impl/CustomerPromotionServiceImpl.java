@@ -60,13 +60,17 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                             .code(cp.getUniqueCode()) // mã riêng biệt nè
                             .name(p.getName())
                             .description(p.getDescription()) // Đảm bảo truyền mô tả ở đây
-                            .type(p.getType().name())
+                            .type(p.getType() != null ? p.getType().name() : "TOTAL")
+                            .discountType(p.getDiscountType() != null ? p.getDiscountType().name() : "PERCENTAGE")
                             .discountValue(p.getDiscountValue())
                             .maxDiscountAmount(p.getMaxDiscountAmount())
-
                             .isUsed(cp.isUsed())
                             .usedAt(cp.getUsedAt())
                             .minBookingValue(p.getMinBookingValue())
+                            .minRoomValue(p.getMinRoomValue())
+                            .minServiceValue(p.getMinServiceValue())
+                            .hotelId(p.getHotel() != null ? p.getHotel().getId() : null)
+                            .hotelName(p.getHotel() != null ? p.getHotel().getName() : "Toàn hệ thống")
                             .startDate(p.getStartDate())
                             .endDate(p.getEndDate())
                             .exclusive(p.getIsExclusive() != null ? p.getIsExclusive() : false)

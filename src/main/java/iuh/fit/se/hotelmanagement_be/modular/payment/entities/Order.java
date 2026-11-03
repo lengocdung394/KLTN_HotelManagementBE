@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSource;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -150,6 +151,7 @@ public class Order {
                 .transactionDate(LocalDateTime.now())
                 .paymentType(paymentType)
                 .cashFlowType(CashFlowType.RECEIPT)
+                .paymentSource(PaymentSource.ONLINE_GATEWAY)
                 .note(transactionNote)
                 .order(this)
                 .build();

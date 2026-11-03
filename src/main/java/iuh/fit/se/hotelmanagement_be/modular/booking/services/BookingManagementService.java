@@ -34,7 +34,7 @@ public interface BookingManagementService {
      */
     BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request);
 
-    BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, Account account);
+    BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, int quantity, Account account);
 
            /**
      * Thêm mới các phòng vào đơn đặt phòng hiện có (có thể kèm theo các dịch vụ đi kèm ngay tại thời điểm thêm).

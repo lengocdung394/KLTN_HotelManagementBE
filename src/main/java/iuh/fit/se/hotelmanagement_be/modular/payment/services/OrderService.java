@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.services;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.PaymentCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.OrderResponse;
@@ -15,7 +16,7 @@ public interface OrderService {
 
     List<OrderResponse> getOrdersByStatus(OrderStatusType status);
 
-    PaymentTransactionResponse processPayment(PaymentCreateRequest request);
+    PaymentTransactionResponse processPayment(PaymentCreateRequest request, Account account);
 
     OrderResponse closeOrder(String orderId);
 }

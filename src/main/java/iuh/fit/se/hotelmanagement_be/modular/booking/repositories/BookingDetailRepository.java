@@ -59,7 +59,7 @@ public interface BookingDetailRepository extends JpaRepository<BookingDetail, St
                   iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CANCELLED,
                   iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType.CHECKED_OUT
               )
-              AND bd.checkinTime <= :endDate
+              AND (bd.checkinTime <= :endDate OR bd.actualCheckInTime <= :endDate)
               AND bd.checkoutTime >= :startDate
             """)
     List<BookingDetail> findCalendarBookingsByDateRange(

@@ -188,6 +188,9 @@ public class BookingServiceImpl implements BookingService {
         ensureCustomerEmail(customer, request);
         Employee employee = validateAndGetEmployee(employeeId);
         Booking booking = initBookingForEmployee(customer, employee, BookingChannel.OFFLINE, BookingStatus.PENDING);
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
+        booking.setHotel(hotel);
         // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
         boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. Xử lý danh sách chi tiết đặt phòng
@@ -201,11 +204,6 @@ public class BookingServiceImpl implements BookingService {
                 booking.getBookingDetails().add(detail);
             }
         }
-
-        // 2. Tìm khách sạn
-        Hotel hotel = hotelRepository.findById(hotelId)
-                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
-        booking.setHotel(hotel);
 
         // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
         booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
@@ -251,6 +249,11 @@ public class BookingServiceImpl implements BookingService {
 
     private void sendBookingCreatedEmailAfterCommit(Booking booking, Customer customer, Hotel hotel) {
         String email = emailService.getCustomerEmail(customer);
+        if (email == null || email.isBlank()) {
+            log.info("Skipping booking confirmation email because no customer email is available, bookingId={}",
+                    booking.getId());
+            return;
+        }
 
         List<EmailService.BookingRoomEmailDetail> bookingDetails = booking.getBookingDetails().stream()
                 .map(detail -> new EmailService.BookingRoomEmailDetail(
@@ -323,7 +326,6 @@ public class BookingServiceImpl implements BookingService {
             return;
         }
 
-        throw new AppException(ErrorCode.CUSTOMER_EMAIL_REQUIRED);
     }
 
     private boolean isFallbackCustomerEmail(String email) {
@@ -984,8 +986,9 @@ public class BookingServiceImpl implements BookingService {
         if (booking.getBookingDetails() != null) {
             detailResponses = booking.getBookingDetails().stream().map(detail -> BookingDetailResponseForHotel.builder().bookingStatusType(detail.getStatus())
                     .cancelledAt(detail.getCancelledAt())
-                    .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
+                    .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults() != null ? detail.getNumAdults() : 0).numChildren(detail.getNumChildren() != null ? detail.getNumChildren() : 0).numInfants(detail.getNumInfants() != null ? detail.getNumInfants() : 0)
                     // Map thẳng các khoản chi tiết vào Response
+                    .cancelledBy(detail.getCancelledBy())
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
                     .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
                     .extraChildFeePerNight(detail.getExtraChildFeePerNight())
@@ -1016,6 +1019,7 @@ public class BookingServiceImpl implements BookingService {
                             .serviceId(serviceDetail.getService() != null ? serviceDetail.getService().getId() : null)
                             .name(serviceDetail.getName())
                             .quantity(serviceDetail.getQuantity())
+                            .usedQuantity(serviceDetail.getUsedQuantity())
                             .cancelled(serviceDetail.getCancelled())
                             .cancelledAt(serviceDetail.getCancelledAt())
                             .price(serviceDetail.getPrice())
@@ -1025,6 +1029,8 @@ public class BookingServiceImpl implements BookingService {
                             .usedAt(serviceDetail.getUsedAt())
                             .used(serviceDetail.getUsed())
                             .usedBy(serviceDetail.getUsedBy())
+                            .isPaid(serviceDetail.getIsPaid())
+                            .paidAt(serviceDetail.getPaidAt())
                             .build()).toList() : null).build()).toList();
         }
         Order order = booking.getOrder();
@@ -1129,11 +1135,14 @@ public class BookingServiceImpl implements BookingService {
                         return true;
                     })
                     .map(detail -> {
-                        // 1. Ưu tiên lấy mốc thời gian thực tế nếu có, nếu chưa có thì dùng giờ dự kiến
-                        LocalDateTime effectiveCheckIn = detail.getCheckinTime();
+                        // Keep the reservation start unless the guest checked in even earlier.
+                        LocalDateTime actualCheckIn = detail.getActualCheckInTime();
+                        LocalDateTime effectiveCheckIn = actualCheckIn != null
+                                && (detail.getCheckinTime() == null || actualCheckIn.isBefore(detail.getCheckinTime()))
+                                ? actualCheckIn
+                                : detail.getCheckinTime();
                         LocalDateTime effectiveCheckOut = detail.getCheckoutTime();
 
-                        // 2. Tính toán danh sách ngày bị chiếm (occupiedDates) dựa trên mốc thực tế này
                         List<LocalDate> dates = new ArrayList<>();
                         if (effectiveCheckIn != null && effectiveCheckOut != null) {
                             LocalDate current = effectiveCheckIn.toLocalDate();
@@ -1149,8 +1158,9 @@ public class BookingServiceImpl implements BookingService {
                                 .customerName(detail.getBooking() != null && detail.getBooking().getCustomer() != null
                                         ? detail.getBooking().getCustomer().getFullName()
                                         : "Khách tại quầy")
-                                .checkinTime(effectiveCheckIn)   // Trả về giờ thực tế lên matrix
-                                .checkoutTime(effectiveCheckOut) // Trả về giờ thực tế lên matrix
+                                .checkinTime(detail.getCheckinTime())
+                                .actualCheckInTime(actualCheckIn)
+                                .checkoutTime(effectiveCheckOut)
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
                                 .roomStatus(detail.getStatus())
                                 .occupiedDates(dates)

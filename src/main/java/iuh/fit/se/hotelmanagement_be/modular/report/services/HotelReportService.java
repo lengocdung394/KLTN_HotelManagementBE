@@ -3,17 +3,21 @@ package iuh.fit.se.hotelmanagement_be.modular.report.services;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.OrderRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentTransactionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.UserPromotionUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.DailyServiceRevenueResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.BookingCancellationReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.HotelReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.PromotionUsageReportResponse;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.RefundActivityReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomStatusReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.report.responses.RoomTypeBookingReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
@@ -24,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -39,6 +44,7 @@ public class HotelReportService {
     private final BookingCancellationRepository bookingCancellationRepository;
     private final OrderRepository orderRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final CheckoutRefundRepository checkoutRefundRepository;
     private final RoomRepository roomRepository;
     private final UserPromotionUsageRepository userPromotionUsageRepository;
 
@@ -94,6 +100,18 @@ public class HotelReportService {
         BigDecimal cashChangeReturned = cashFlow.getCashChangeReturned() == null
                 ? BigDecimal.ZERO
                 : cashFlow.getCashChangeReturned();
+
+        BigDecimal roomRevenue = calculateRoomRevenue(
+                bookingRepository.findRoomRevenueDetailsForPeriod(
+                        hotelId,
+                        start,
+                        endExclusive,
+                        BookingStatus.cancelledStatuses(),
+                        BookingStatusType.CANCELLED
+                ),
+                startDate,
+                endDate.plusDays(1)
+        );
 
         List<OrderRepository.DailyServiceRevenueProjection> revenueRows =
                 orderRepository.getDailyServiceRevenue(
@@ -157,6 +175,33 @@ public class HotelReportService {
                         row.getCancelledAt()
                 ))
                 .toList();
+        List<RefundActivityReportResponse> checkoutSurplusRefunds =
+                checkoutRefundRepository.getRefundReport(hotelId, start, endExclusive).stream()
+                        .map(row -> new RefundActivityReportResponse(
+                                row.getBookingId(),
+                                row.getAmount(),
+                                row.getPaymentMethod() == null ? null : row.getPaymentMethod().name(),
+                                row.getStatus() == null ? null : row.getStatus().name(),
+                                row.getRequestedAt(),
+                                row.getRefundedAt()
+                        ))
+                        .toList();
+        List<RefundActivityReportResponse> bookingCancellationRefunds =
+                bookingCancellationRepository.getRefundReport(
+                                hotelId,
+                                BookingCancellationStatus.NO_REFUND_REQUIRED,
+                                start,
+                                endExclusive
+                        ).stream()
+                        .map(row -> new RefundActivityReportResponse(
+                                row.getBookingId(),
+                                row.getAmount(),
+                                row.getPaymentMethod() == null ? null : row.getPaymentMethod().name(),
+                                row.getStatus() == null ? null : row.getStatus().name(),
+                                row.getRequestedAt(),
+                                row.getRefundedAt()
+                        ))
+                        .toList();
 
         Map<RoomStatus, Long> roomCounts = new EnumMap<>(RoomStatus.class);
         for (RoomStatus status : RoomStatus.values()) {
@@ -189,6 +234,7 @@ public class HotelReportService {
                 cashRefunded,
                 cashChangeReturned,
                 cashReceived.subtract(cashRefunded).subtract(cashChangeReturned),
+                roomRevenue,
                 serviceRevenue,
                 serviceUsageCount,
                 dailyServiceRevenue,
@@ -199,9 +245,48 @@ public class HotelReportService {
                 onlineCancelledBookingCount,
                 offlineCancelledBookingCount,
                 cancelledBookings,
+                checkoutSurplusRefunds,
+                bookingCancellationRefunds,
                 totalRoomCount,
                 roomStatuses,
                 roomTypeBookings
         );
+    }
+
+    private BigDecimal calculateRoomRevenue(
+            List<BookingDetail> details,
+            LocalDate startDate,
+            LocalDate endExclusive
+    ) {
+        BigDecimal revenue = BigDecimal.ZERO;
+        for (BookingDetail detail : details) {
+            if (detail.getNightlyPrices() != null && !detail.getNightlyPrices().isEmpty()) {
+                revenue = revenue.add(detail.getNightlyPrices().stream()
+                        .filter(price -> price.getStayDate() != null
+                                && !price.getStayDate().isBefore(startDate)
+                                && price.getStayDate().isBefore(endExclusive))
+                        .map(price -> price.getNightTotal() == null ? BigDecimal.ZERO : price.getNightTotal())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add));
+                continue;
+            }
+
+            if (detail.getCheckinTime() == null || detail.getCheckoutTime() == null
+                    || detail.getRoomSubTotal() == null) {
+                continue;
+            }
+            LocalDate checkIn = detail.getCheckinTime().toLocalDate();
+            LocalDate checkOut = detail.getCheckoutTime().toLocalDate();
+            long totalNights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
+            long includedNights = java.time.temporal.ChronoUnit.DAYS.between(
+                    checkIn.isAfter(startDate) ? checkIn : startDate,
+                    checkOut.isBefore(endExclusive) ? checkOut : endExclusive
+            );
+            if (totalNights > 0 && includedNights > 0) {
+                revenue = revenue.add(BigDecimal.valueOf(detail.getRoomSubTotal())
+                        .multiply(BigDecimal.valueOf(includedNights))
+                        .divide(BigDecimal.valueOf(totalNights), 2, RoundingMode.HALF_UP));
+            }
+        }
+        return revenue;
     }
 }

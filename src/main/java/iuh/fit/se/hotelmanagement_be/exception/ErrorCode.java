@@ -141,6 +141,7 @@ public enum ErrorCode {
     CANNOT_UPDATE_DATE_FOR_CANCELLED_ROOM(6022, "Không thể cập nhật thời gian cho phòng đã bị hủy", HttpStatus.BAD_REQUEST),
     CANNOT_ADD_SERVICE_TO_CANCELLED_ROOM(6023, "Không thể thêm dịch vụ vào chi tiết phòng đã bị hủy", HttpStatus.BAD_REQUEST),
     CANNOT_CANCEL_SERVICE_IN_CANCELLED_ROOM(6024, "Không thể hủy dịch vụ vì phòng đặt này đã bị hủy trước đó!", HttpStatus.BAD_REQUEST),
+    ROOM_MUST_BE_PENDING_FOR_MODIFICATION(6025, "Chỉ có thể chỉnh sửa phòng đang ở trạng thái chờ nhận phòng", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================
@@ -148,8 +149,9 @@ public enum ErrorCode {
     // ==========================================
     SERVICE_NOT_FOUND(7001, "[7001] Không tìm thấy dịch vụ", HttpStatus.NOT_FOUND),
     BOOKING_SERVICE_DETAIL_NOT_FOUND(7002, "Không tìm thấy chi tiết dịch vụ đi kèm trong phòng này!", HttpStatus.BAD_REQUEST),
-    PAID_SERVICE_CANNOT_BE_MODIFIED(7003, "[7003] Dịch vụ đã thanh toán, nghiêm cấm chỉnh sửa số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
+    PAID_SERVICE_CANNOT_BE_MODIFIED(7003, "[7003] Dịch vụ đã thanh toán, không thể hủy hoặc thay đổi số lượng để đối soát kế toán", HttpStatus.BAD_REQUEST),
     SERVICE_ALREADY_USED(7004, "Dịch vụ đã được xác nhận sử dụng nên không thể hủy hoặc thay đổi số lượng", HttpStatus.BAD_REQUEST),
+    INVALID_SERVICE_USAGE_QUANTITY(7005, "Số lượng xác nhận phải nằm trong số lượng dịch vụ còn lại", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================

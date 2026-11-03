@@ -34,6 +34,10 @@ public class BookingServiceDetail {
     LocalDateTime usedAt;
 
     @Builder.Default
+    @Column(name = "used_quantity", nullable = false)
+    int usedQuantity = 0;
+
+    @Builder.Default
     @Column(name = "is_used")
     Boolean used = false;
 

@@ -24,7 +24,7 @@ public class OtpService {
     @Transactional
     public void saveOtp(String email, String otpCode, CustomerRegisterRequest request) {
         // Email này da có OTP cũ thì xóa trước khi tạo mới
-        otpRepository.deleteByEmail(email);
+        otpRepository.deleteByEmailIgnoreCase(email.trim());
 
         OtpVerification otp = OtpVerification.builder()
                 .email(email)
@@ -43,7 +43,8 @@ public class OtpService {
 
     public boolean validateOtp(String email, String inputOtp) {
 
-        OtpVerification otp = otpRepository.findByEmail(email)
+        OtpVerification otp = otpRepository
+                .findByEmailIgnoreCaseAndFullNameIsNotNullAndPhoneIsNotNullAndCccdIsNotNullAndPasswordIsNotNull(email.trim())
                 .orElseThrow(() -> new AppException(ErrorCode.OTP_NOT_FOUND));
 
         if (otp.isVerified())
@@ -77,13 +78,14 @@ public class OtpService {
     }
 
     public OtpVerification getPendingRegistration(String email) {
-        return otpRepository.findByEmail(email)
+        return otpRepository
+                .findByEmailIgnoreCaseAndFullNameIsNotNullAndPhoneIsNotNullAndCccdIsNotNullAndPasswordIsNotNull(email.trim())
                 .orElseThrow(() -> new RuntimeException(("Khong tim thay thong tin dang ki")));
     }
 
     @Transactional
     public void clearOtp(String email) {
-        otpRepository.deleteByEmail(email);
+        otpRepository.deleteByEmailIgnoreCase(email.trim());
     }
 
     public String generateOtpCode() {
@@ -93,7 +95,8 @@ public class OtpService {
 
     public String resendOtp(String email) {
         // 1. Kiểm tra xem người dùng có thông tin đăng ký đang chờ hay không
-        OtpVerification pendingUser = otpRepository.findByEmail(email)
+        OtpVerification pendingUser = otpRepository
+                .findByEmailIgnoreCaseAndFullNameIsNotNullAndPhoneIsNotNullAndCccdIsNotNullAndPasswordIsNotNull(email.trim())
                 .orElseThrow(() -> new RuntimeException("Khong tim thay thong tin dang ki cua User"));
 
         // XỬ LÝ TRƯỜNG HỢP ĐÚNG: Đã xác thực thành công rồi thì KHÔNG cho gửi lại nữa

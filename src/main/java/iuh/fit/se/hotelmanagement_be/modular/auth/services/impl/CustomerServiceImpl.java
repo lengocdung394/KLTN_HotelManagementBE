@@ -45,17 +45,8 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerResponse createWalkInCustomer(WalkInCustomerRequest request, Long hotelId) {
-        // 1. Kiểm tra logic trùng SĐT hoặc CCCD (như đã bàn ở trên)
-        Optional<Customer> customerByPhone = customerRepository.findByPhone(request.getPhone());
-        Optional<Customer> customerByCccd = customerRepository.findByCccd(request.getCccd());
-
-        if (customerByPhone.isPresent() && customerByCccd.isPresent()
-                && !customerByPhone.get().getId().equals(customerByCccd.get().getId())) {
-            throw new AppException(ErrorCode.CCCD_EXISTED,
-                    "Số điện thoại và CCCD thuộc về hai hồ sơ khách hàng khác nhau.");
-        }
-        if (customerByPhone.isPresent() || customerByCccd.isPresent()) {
-            Customer existingCustomer = customerByPhone.orElseGet(customerByCccd::orElseThrow);
+        Customer existingCustomer = findMatchingCustomer(request.getPhone(), request.getCccd());
+        if (existingCustomer != null) {
             return toCustomerResponse(existingCustomer, true);
         }
 
@@ -104,14 +95,9 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerRegisterResponse customerRegisterRequest(CustomerRegisterRequest request) {
         LocalDateTime now = LocalDateTime.now();
+        request.setEmail(request.getEmail().trim().toLowerCase(java.util.Locale.ROOT));
 
-        Customer customer = customerRepository
-                .findByPhone(request.getPhone())
-                .orElseGet(() ->
-                        customerRepository
-                                .findByCccd(request.getCccd())
-                                .orElse(null)
-                );
+        Customer customer = findMatchingCustomer(request.getPhone(), request.getCccd());
 
         // Khách đã có tài khoản hoàn chỉnh
         if (customer != null && customer.isRegistered()) {
@@ -135,8 +121,7 @@ public class CustomerServiceImpl implements CustomerService {
             throw new AppException(ErrorCode.EMAIL_EXISTED);
         }
 
-        if (otpRepository.existsByEmailAndExpiredAtAfter(
-                request.getEmail(), now)) {
+        if (otpRepository.existsPendingRegistrationByEmail(request.getEmail(), now)) {
             throw new AppException(ErrorCode.EMAIL_OTP_PENDING);
         }
 
@@ -192,7 +177,7 @@ public class CustomerServiceImpl implements CustomerService {
                 otpService.getPendingRegistration(request.getEmail());
 
         Role customerRole = roleRepository
-                .findByName("ROLE_CUSTOMER")
+                .findByCode("ROLE_CUSTOMER")
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Không tìm thấy ROLE_CUSTOMER"
@@ -213,13 +198,10 @@ public class CustomerServiceImpl implements CustomerService {
                 .roles(Set.of(customerRole))
                 .build();
 
-        Customer customer = customerRepository
-                .findByPhone(pendingUser.getPhone())
-                .orElseGet(() ->
-                        customerRepository
-                                .findByCccd(pendingUser.getCccd())
-                                .orElse(null)
-                );
+        Customer customer = findMatchingCustomer(
+                pendingUser.getPhone(),
+                pendingUser.getCccd()
+        );
 
         if (customer != null) {
             if (customer.isRegistered()) {
@@ -262,13 +244,17 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerCheckResponse checkCustomer(CustomerCheckRequest request) {
-        Customer customer = customerRepository
-                .findByPhone(request.getPhone())
-                .orElseGet(() ->
-                        customerRepository
-                                .findByCccd(request.getCccd())
-                                .orElse(null)
-                );
+        Optional<Customer> matchingCustomer =
+                customerRepository.findByPhoneAndCccd(request.getPhone(), request.getCccd());
+        if (matchingCustomer.isEmpty()
+                && hasCustomerWithPhoneOrCccd(request.getPhone(), request.getCccd())) {
+            return CustomerCheckResponse.builder()
+                    .status("IDENTITY_MISMATCH")
+                    .message(ErrorCode.CUSTOMER_IDENTITY_MISMATCH.getMessage())
+                    .build();
+        }
+
+        Customer customer = matchingCustomer.orElse(null);
 
         if (customer != null && customer.isRegistered()) {
             return CustomerCheckResponse.builder()
@@ -292,6 +278,25 @@ public class CustomerServiceImpl implements CustomerService {
                 .build();
     }
 
+    private Customer findMatchingCustomer(String phone, String cccd) {
+        Optional<Customer> matchingCustomer =
+                customerRepository.findByPhoneAndCccd(phone, cccd);
+        if (matchingCustomer.isPresent()) {
+            return matchingCustomer.get();
+        }
+
+        if (hasCustomerWithPhoneOrCccd(phone, cccd)) {
+            throw new AppException(ErrorCode.CUSTOMER_IDENTITY_MISMATCH);
+        }
+        return null;
+    }
+
+    private boolean hasCustomerWithPhoneOrCccd(String phone, String cccd) {
+        Optional<Customer> customerByPhone = customerRepository.findByPhone(phone);
+        Optional<Customer> customerByCccd = customerRepository.findByCccd(cccd);
+        return customerByPhone.isPresent() || customerByCccd.isPresent();
+    }
+
     @Override
     @org.springframework.transaction.annotation.Transactional
     public iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse updateCustomer(String id, iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest request) {
@@ -302,13 +307,25 @@ public class CustomerServiceImpl implements CustomerService {
             customer.setFullName(request.getName().trim());
         }
         if (request.getPhone() != null && !request.getPhone().isBlank()) {
-            customer.setPhone(request.getPhone().trim());
+            String phone = request.getPhone().trim();
+            Optional<Customer> customerByPhone = customerRepository.findByPhone(phone);
+            if (customerByPhone.isPresent()
+                    && !customerByPhone.get().getId().equals(customer.getId())) {
+                throw new AppException(ErrorCode.PHONE_EXISTED);
+            }
+            customer.setPhone(phone);
         }
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             customer.setEmail(request.getEmail().trim());
         }
         if (request.getIdentityNumber() != null && !request.getIdentityNumber().isBlank()) {
-            customer.setCccd(request.getIdentityNumber().trim());
+            String cccd = request.getIdentityNumber().trim();
+            Optional<Customer> customerByCccd = customerRepository.findByCccd(cccd);
+            if (customerByCccd.isPresent()
+                    && !customerByCccd.get().getId().equals(customer.getId())) {
+                throw new AppException(ErrorCode.CCCD_EXISTED);
+            }
+            customer.setCccd(cccd);
         }
 
         Customer saved = customerRepository.save(customer);

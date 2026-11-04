@@ -40,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -483,6 +484,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
+    @Transactional
     public List<RoomResponse> getRoomsByHotelId(Long hotelId) {
         List<Room> rooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
         if (rooms == null || rooms.isEmpty()) {
@@ -490,53 +492,58 @@ public class RoomServiceImpl implements RoomService {
             return Collections.emptyList();
         }
 
-        return rooms.stream().map(room -> {
-            // 1. Lấy Hotel của phòng thông qua chuỗi quan hệ Floor -> Building -> Hotel
-            Hotel hotel = room.getFloor().getBuilding().getHotel();
+        return rooms.stream().map(this::toRoomResponse).toList();
+    }
 
-            // 2. Tìm BranchRoomPolicy dựa vào Hotel và RoomType của phòng
-            BranchRoomPolicy policy = branchRoomPolicyRepository
-                    .findByHotelAndRoomType(hotel, room.getRoomType())
-                    .orElse(null);
+    @Override
+    @Transactional
+    public List<RoomResponse> getAvailableRoomsByHotelId(
+            Long hotelId,
+            LocalDateTime checkIn,
+            LocalDateTime checkOut) {
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        return bookingDetailRepository.findAvailableRooms(hotelId, checkIn, checkOut, fiveMinutesAgo)
+                .stream()
+                .map(this::toRoomResponse)
+                .toList();
+    }
 
-            // 3. Lấy danh sách giường theo RoomType (như phần trước)
-            List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomId(room.getId());
+    private RoomResponse toRoomResponse(Room room) {
+        Hotel hotel = room.getFloor().getBuilding().getHotel();
+        BranchRoomPolicy policy = branchRoomPolicyRepository
+                .findByHotelAndRoomType(hotel, room.getRoomType())
+                .orElse(null);
+        List<RoomBedResponse> bedResponses = roomTypeBedRepository.findByRoomId(room.getId()).stream()
+                .map(roomBed -> RoomBedResponse.builder()
+                        .bedTypeName(roomBed.getBedType().getName())
+                        .description(roomBed.getBedType().getDescription())
+                        .quantity(roomBed.getQuantity())
+                        .capacity(roomBed.getBedType().getCapacity())
+                        .isExtraBed(roomBed.getBedType().getIsExtraBed())
+                        .build())
+                .toList();
 
-            List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
-                    RoomBedResponse.builder()
-                            .bedTypeName(rtb.getBedType().getName())
-                            .description(rtb.getBedType().getDescription())
-                            .quantity(rtb.getQuantity())
-                            .capacity(rtb.getBedType().getCapacity())
-                            .isExtraBed(rtb.getBedType().getIsExtraBed())
-                            .build()
-            ).toList();
-
-            // 4. Build ra RoomResponse đầy đủ thông tin chính sách phòng
-            return RoomResponse.builder()
-                    .id(room.getId())
-                    .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
-                    // lay ra so phong
-                    .roomNumber(room.getRoomNumber())
-                    .floorNumber(room.getFloor().getFloorNumber())
-                    .nameBuilding(room.getFloor().getBuilding().getName())
-                    .roomStatus(room.getRoomStatus())
-                    .basePrice(room.getBasePrice())
-                    .roomType(room.getRoomType())
-                    .area(policy.getArea())
-                    .avatarUrl(room.getAvatarUrl())
-                    .amenities(room.getAmenities())
-                    .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
-                    // gia phong final tien phong + dich vu
-                    .totalPrice(room.calculateRoomTotalPrice(room, policy))
-                    .defaultImageUrl(room.getDefaultImageUrl())
-                    .beds(bedResponses)
-                    .standardCapacity(policy.getStandardCapacity())
-                    .maxExtraGuests(policy.getMaxExtraGuests())
-                    .extraAdultFee(policy != null ? policy.getExtraAdultFee() : null)
-                    .extraChildFee(policy != null ? policy.getExtraChildFee() : null)
-                    .build();
-        }).toList();
+        return RoomResponse.builder()
+                .id(room.getId())
+                .floorId(room.getFloor() == null ? null : room.getFloor().getId())
+                .roomNumber(room.getRoomNumber())
+                .floorNumber(room.getFloor().getFloorNumber())
+                .nameBuilding(room.getFloor().getBuilding().getName())
+                .roomStatus(room.getRoomStatus())
+                .basePrice(room.getBasePrice())
+                .roomType(room.getRoomType())
+                .area(policy == null ? null : policy.getArea())
+                .avatarUrl(room.getAvatarUrl())
+                .amenities(room.getAmenities())
+                .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
+                .totalPrice(policy == null ? room.getBasePrice() : room.calculateRoomTotalPrice(room, policy))
+                .defaultImageUrl(room.getDefaultImageUrl())
+                .beds(bedResponses)
+                .standardCapacity(policy == null ? null : policy.getStandardCapacity())
+                .maxExtraGuests(policy == null ? null : policy.getMaxExtraGuests())
+                .extraAdultFee(policy == null ? null : policy.getExtraAdultFee())
+                .extraChildFee(policy == null ? null : policy.getExtraChildFee())
+                .build();
     }
 
     @Override

@@ -9,6 +9,7 @@ import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
 import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface RoomService {
@@ -17,6 +18,7 @@ public interface RoomService {
     RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles);
     List<RoomResponse> getRoomsByFloorId(String floorId);
     List<RoomResponse> getRoomsByHotelId(Long hotelId);
+    List<RoomResponse> getAvailableRoomsByHotelId(Long hotelId, LocalDateTime checkIn, LocalDateTime checkOut);
     RoomTypeDetailResponse getRoomTypeDetailByHotelAndType(Long hotelId, RoomType roomType);
     RoomResponse getRoomById(String roomId, Long hotelId, boolean isSuperAdmin);
 }

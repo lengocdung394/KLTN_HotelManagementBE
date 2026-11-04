@@ -24,7 +24,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.format.annotation.DateTimeFormat;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -89,8 +92,11 @@ public class RoomController {
 
     @GetMapping("/public/hotel/{hotelId}")
     @Operation(summary = "Lấy danh sách phòng công khai theo ID khách sạn")
-    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicRoomsByHotelId(@PathVariable Long hotelId) {
-        List<RoomResponse> roomResponseList = roomService.getRoomsByHotelId(hotelId);
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicRoomsByHotelId(
+            @PathVariable Long hotelId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
+        List<RoomResponse> roomResponseList = getPublicRooms(hotelId, checkIn, checkOut);
         return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
                 .code(200)
                 .message("Lấy danh sách phòng công khai thành công!")
@@ -100,15 +106,32 @@ public class RoomController {
 
     @GetMapping("/public/all")
     @Operation(summary = "Lấy danh sách tất cả phòng công khai theo khách sạn")
-    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicAllRooms(@RequestParam(required = false) Long hotelId) {
+    public ResponseEntity<ApiResponse<List<RoomResponse>>> getPublicAllRooms(
+            @RequestParam(required = false) Long hotelId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut) {
         List<RoomResponse> roomResponseList = (hotelId != null)
-                ? roomService.getRoomsByHotelId(hotelId)
+                ? getPublicRooms(hotelId, checkIn, checkOut)
                 : List.of();
         return ResponseEntity.ok(ApiResponse.<List<RoomResponse>>builder()
                 .code(200)
                 .message("Lấy danh sách phòng công khai thành công!")
                 .result(roomResponseList)
                 .build());
+    }
+
+    private List<RoomResponse> getPublicRooms(Long hotelId, LocalDate checkIn, LocalDate checkOut) {
+        if ((checkIn == null) != (checkOut == null)
+                || (checkIn != null && !checkOut.isAfter(checkIn))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Khoảng ngày lưu trú không hợp lệ.");
+        }
+        if (checkIn == null) {
+            return roomService.getRoomsByHotelId(hotelId);
+        }
+        return roomService.getAvailableRoomsByHotelId(
+                hotelId,
+                checkIn.atStartOfDay(),
+                checkOut.atStartOfDay());
     }
 
     // quan li & supper admin

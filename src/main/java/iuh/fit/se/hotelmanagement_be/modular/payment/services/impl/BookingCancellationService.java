@@ -1025,42 +1025,53 @@ public class BookingCancellationService {
         }
     }
 
-    private RefundBreakdown calculateRefund(Order order, BigDecimal roomPenaltyRate) {
+    RefundBreakdown calculateRefund(Order order, BigDecimal roomPenaltyRate) {
         if (order == null) {
             return RefundBreakdown.zero();
         }
-        BigDecimal roomGross = zeroIfNull(order.getRoomTotalAmount());
-        BigDecimal serviceGross = zeroIfNull(order.getServiceTotalAmount());
-        BigDecimal surchargeGross = zeroIfNull(order.getSurchargeTotalAmount());
+        BigDecimal roomGross = roundToWholeVnd(zeroIfNull(order.getRoomTotalAmount()));
+        BigDecimal serviceGross = roundToWholeVnd(zeroIfNull(order.getServiceTotalAmount()));
+        BigDecimal surchargeGross = roundToWholeVnd(zeroIfNull(order.getSurchargeTotalAmount()));
         BigDecimal coreGross = roomGross.add(serviceGross);
 
-        BigDecimal roomDiscount = zeroIfNull(order.getDiscountRoomAmount());
-        BigDecimal serviceDiscount = zeroIfNull(order.getDiscountServiceAmount());
-        BigDecimal totalDiscount = zeroIfNull(order.getDiscountAmountTotal());
+        BigDecimal roomDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountRoomAmount()));
+        BigDecimal serviceDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountServiceAmount()));
+        BigDecimal totalDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountAmountTotal()));
         BigDecimal totalRoomDiscountShare = coreGross.signum() == 0
                 ? BigDecimal.ZERO
-                : totalDiscount.multiply(roomGross).divide(coreGross, 2, RoundingMode.HALF_UP);
-        BigDecimal totalServiceDiscountShare = totalDiscount.subtract(totalRoomDiscountShare);
+                : totalDiscount.multiply(roomGross).divide(coreGross, 0, RoundingMode.HALF_UP);
+        BigDecimal totalServiceDiscountShare = roundToWholeVnd(totalDiscount.subtract(totalRoomDiscountShare));
 
         BigDecimal roomNet = roomGross.subtract(roomDiscount).subtract(totalRoomDiscountShare).max(BigDecimal.ZERO);
         BigDecimal serviceNet = serviceGross.subtract(serviceDiscount).subtract(totalServiceDiscountShare).max(BigDecimal.ZERO);
         BigDecimal payable = roomNet.add(serviceNet).add(surchargeGross);
-        BigDecimal paid = zeroIfNull(order.getPaidAmount()).min(payable);
+        BigDecimal paid = roundToWholeVnd(zeroIfNull(order.getPaidAmount())).min(payable);
         if (payable.signum() <= 0 || paid.signum() <= 0) {
             return RefundBreakdown.zero();
         }
 
-        BigDecimal paidRoom = paid.multiply(roomNet).divide(payable, 2, RoundingMode.HALF_UP);
-        BigDecimal paidService = paid.multiply(serviceNet).divide(payable, 2, RoundingMode.HALF_UP);
-        BigDecimal roomPenalty = paidRoom.multiply(roomPenaltyRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal coreNet = roomNet.add(serviceNet);
+        BigDecimal paidSurcharge = coreNet.signum() == 0
+                ? paid
+                : paid.multiply(surchargeGross).divide(payable, 0, RoundingMode.HALF_UP).min(paid);
+        BigDecimal paidCore = paid.subtract(paidSurcharge);
+        BigDecimal paidRoom = coreNet.signum() == 0
+                ? BigDecimal.ZERO
+                : paidCore.multiply(roomNet).divide(coreNet, 0, RoundingMode.HALF_UP).min(paidCore);
+        BigDecimal paidService = paidCore.subtract(paidRoom);
+        BigDecimal roomPenalty = roundToWholeVnd(paidRoom.multiply(roomPenaltyRate));
         BigDecimal roomRefund = paidRoom.subtract(roomPenalty).max(BigDecimal.ZERO);
         BigDecimal serviceRefund = paidService;
-        BigDecimal refund = roomRefund.add(serviceRefund).min(paid).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal refund = roomRefund.add(serviceRefund);
         return new RefundBreakdown(
-                refund,
+                refund.setScale(2, RoundingMode.HALF_UP),
                 roomRefund.setScale(2, RoundingMode.HALF_UP),
                 serviceRefund.setScale(2, RoundingMode.HALF_UP),
                 roomPenalty.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private BigDecimal roundToWholeVnd(BigDecimal amount) {
+        return amount.setScale(0, RoundingMode.HALF_UP);
     }
 
     private void cancelBooking(
@@ -1162,7 +1173,7 @@ public class BookingCancellationService {
         return value == null || value.isBlank();
     }
 
-    private record RefundBreakdown(
+    record RefundBreakdown(
             BigDecimal total,
             BigDecimal roomRefund,
             BigDecimal serviceRefund,

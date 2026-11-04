@@ -67,6 +67,7 @@ public enum ErrorCode {
     CUSTOMER_ALREADY_REGISTERED(3003, "[3003] Khách hàng đã được đăng ký từ trước", HttpStatus.BAD_REQUEST),
     CUSTOMER_NOT_FOUND(3004, "[3004] Không tìm thấy thông tin khách hàng", HttpStatus.NOT_FOUND),
     CUSTOMER_EMAIL_REQUIRED(3005, "Vui lòng nhập email khách hàng để nhận xác nhận đặt phòng", HttpStatus.BAD_REQUEST),
+    CUSTOMER_IDENTITY_MISMATCH(3006, "Số điện thoại và CCCD không khớp với cùng một hồ sơ khách hàng", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================

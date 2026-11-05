@@ -9,6 +9,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
@@ -745,13 +746,19 @@ public class BookingCancellationService {
             throw new AppException(ErrorCode.CANCELLATION_REFUND_EXCEEDS_PAID);
         }
         LocalDateTime now = LocalDateTime.now();
+        Booking booking = cancellation.getBooking();
+        PaymentSource paymentSource = manualBankTransfer
+                ? PaymentSource.FRONT_DESK
+                : paymentSourceForBooking(booking);
         paymentRepository.save(PaymentTransaction.builder()
                 .order(order)
                 .amount(cancellation.getRefundAmount())
                 .paymentType(PaymentType.BANK)
                 .cashFlowType(CashFlowType.REFUND)
-                .paymentSource(manualBankTransfer ? PaymentSource.FRONT_DESK : PaymentSource.ONLINE_GATEWAY)
-                .processorEmployee(manualBankTransfer && account != null ? account.getEmployee() : null)
+                .paymentSource(paymentSource)
+                .processorEmployee(manualBankTransfer
+                        ? account == null ? null : account.getEmployee()
+                        : paymentSource == PaymentSource.FRONT_DESK ? booking.getEmployee() : null)
                 .note(manualBankTransfer
                         ? "Manual bank refund" + (refundReference == null ? "" : " " + refundReference)
                         : "PayOS payout " + refundReference)
@@ -768,7 +775,6 @@ public class BookingCancellationService {
         clearBankDetails(cancellation);
         BookingCancellation saved = cancellationRepository.save(cancellation);
 
-        Booking booking = cancellation.getBooking();
         if (booking.getHotel() != null) {
             bookingSocketEmitter.emitRefundCompleted(booking.getHotel().getId(), booking.getId(), cancellation.getRefundAmount());
             bookingSocketEmitter.emitBookingStateUpdated(booking.getHotel().getId(), booking.getId(), "REFUND_COMPLETED");
@@ -787,6 +793,16 @@ public class BookingCancellationService {
                             recipientEmail, customerName, booking.getId(), hotelName, formattedAmount, refundReference));
         }
         return toResponse(saved);
+    }
+
+    private PaymentSource paymentSourceForBooking(Booking booking) {
+        if (booking.getEmployee() != null || booking.getBookingChannel() == BookingChannel.OFFLINE) {
+            return PaymentSource.FRONT_DESK;
+        }
+        if (booking.getBookingChannel() == BookingChannel.ONLINE) {
+            return PaymentSource.ONLINE_BOOKING;
+        }
+        return PaymentSource.UNKNOWN;
     }
 
     private boolean isPayoutComplete(Payout payout, BigDecimal refundAmount) {

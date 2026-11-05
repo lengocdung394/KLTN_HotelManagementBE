@@ -5,6 +5,7 @@ import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.impl.BookingSocketEmitter;
@@ -81,13 +82,21 @@ public class OrderServiceImpl implements OrderService {
         CashFlowType cashFlow = request.getCashFlowType() != null ? request.getCashFlowType() : CashFlowType.RECEIPT;
         Booking booking = order.getBooking();
         boolean isOnlineCustomerPayment = request.getNote() != null && request.getNote().contains("trực tuyến");
-        PaymentSource paymentSource = account != null && account.getEmployee() != null
+        boolean isFrontDeskPayment = account != null && account.getEmployee() != null
+                || booking != null && (booking.getEmployee() != null
+                || booking.getBookingChannel() == BookingChannel.OFFLINE);
+        boolean isOnlineBookingPayment = account != null && account.getCustomer() != null
+                || isOnlineCustomerPayment
+                || booking != null && booking.getBookingChannel() == BookingChannel.ONLINE;
+        PaymentSource paymentSource = isFrontDeskPayment
                 ? PaymentSource.FRONT_DESK
-                : account != null && account.getCustomer() != null
-                ? PaymentSource.CUSTOMER
-                : isOnlineCustomerPayment
-                ? PaymentSource.CUSTOMER
+                : isOnlineBookingPayment
+                ? PaymentSource.ONLINE_BOOKING
                 : PaymentSource.UNKNOWN;
+        iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee processorEmployee =
+                account != null && account.getEmployee() != null
+                        ? account.getEmployee()
+                        : booking != null ? booking.getEmployee() : null;
 
         if (isOnlineCustomerPayment && cashFlow == CashFlowType.RECEIPT) {
             order.setTotalAmount(paymentAmount);
@@ -120,8 +129,7 @@ public class OrderServiceImpl implements OrderService {
                 .note(request.getNote())
                 .processorEmployee(paymentSource == PaymentSource.FRONT_DESK
                         && cashFlow == CashFlowType.RECEIPT
-                        && account != null && account.getEmployee() != null
-                        ? account.getEmployee()
+                        ? processorEmployee
                         : null)
                 .transactionDate(LocalDateTime.now())
                 .createdAt(LocalDateTime.now())

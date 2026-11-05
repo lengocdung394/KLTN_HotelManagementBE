@@ -260,6 +260,10 @@ public class BookingServiceImpl implements BookingService {
                         detail.getRoom() != null ? detail.getRoom().getRoomNumber() : null,
                         detail.getCheckinTime(),
                         detail.getCheckoutTime(),
+                        bookingNightCount(detail),
+                        detail.getRoomSubTotal() != null
+                                ? BigDecimal.valueOf(detail.getRoomSubTotal())
+                                : BigDecimal.ZERO,
                         detail.getBookingServiceDetails() == null
                                 ? List.of()
                                 : detail.getBookingServiceDetails().stream()
@@ -277,18 +281,21 @@ public class BookingServiceImpl implements BookingService {
         String customerName = customer.getFullName();
         String bookingId = booking.getId();
         String hotelName = hotel.getName();
-        BigDecimal totalAmount = booking.getOrder() != null
-                ? booking.getOrder().getTotalAmount()
-                : BigDecimal.ZERO;
+        Order order = booking.getOrder();
+        EmailService.BookingPriceSummary priceSummary = new EmailService.BookingPriceSummary(
+                order != null ? order.getRoomTotalAmount() : BigDecimal.ZERO,
+                order != null ? order.getServiceTotalAmount() : BigDecimal.ZERO,
+                order != null ? order.getSurchargeTotalAmount() : BigDecimal.ZERO,
+                order != null ? order.getDiscountRoomAmount() : BigDecimal.ZERO,
+                order != null ? order.getDiscountServiceAmount() : BigDecimal.ZERO,
+                order != null ? order.getDiscountAmountTotal() : BigDecimal.ZERO,
+                order != null ? order.getTotalAmount() : BigDecimal.ZERO);
         var customerPromotion = booking.getCustomerPromotion();
         var promotion = customerPromotion != null ? customerPromotion.getPromotion() : booking.getPromotion();
         String promotionName = promotion != null ? promotion.getName() : null;
         String promotionCode = customerPromotion != null
                 ? customerPromotion.getUniqueCode()
                 : promotion != null ? promotion.getCode() : null;
-        BigDecimal promotionDiscount = booking.getApplyAmount() != null
-                ? booking.getApplyAmount()
-                : BigDecimal.ZERO;
         boolean paymentDueWithinFiveMinutes = booking.getBookingStatus() == BookingStatus.PENDING;
 
         emailService.sendAfterCommit("booking " + bookingId, () ->
@@ -298,12 +305,23 @@ public class BookingServiceImpl implements BookingService {
                         bookingId,
                         hotelName,
                         bookingDetails,
-                        totalAmount,
+                        priceSummary,
                         promotionName,
                         promotionCode,
-                        promotionDiscount,
                         paymentDueWithinFiveMinutes
                 ));
+    }
+
+    private long bookingNightCount(BookingDetail detail) {
+        if (detail.getNightlyPrices() != null && !detail.getNightlyPrices().isEmpty()) {
+            return detail.getNightlyPrices().size();
+        }
+        if (detail.getCheckinTime() == null || detail.getCheckoutTime() == null) {
+            return 0;
+        }
+        return Math.max(1, ChronoUnit.DAYS.between(
+                detail.getCheckinTime().toLocalDate(),
+                detail.getCheckoutTime().toLocalDate()));
     }
 
     private void ensureCustomerEmail(Customer customer, BookingCreateRequest request) {

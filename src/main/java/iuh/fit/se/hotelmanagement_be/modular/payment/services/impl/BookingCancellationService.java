@@ -176,6 +176,31 @@ public class BookingCancellationService {
                 "Nhân viên yêu cầu hủy booking");
     }
 
+    @Transactional
+    public BookingCancellationResponse requestHotelClosureCancellation(
+            String bookingId,
+            BookingCancellationRequest request,
+            Account account) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        ensureBranchAccess(booking, account);
+        if (booking.getBookingDetails() != null
+                && booking.getBookingDetails().stream()
+                .anyMatch(detail -> detail.getStatus() == BookingStatusType.CHECKED_IN)) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_COMPLETED);
+        }
+        BookingCancellationRequest cancellationRequest = request == null
+                ? new BookingCancellationRequest()
+                : request;
+        if (cancellationRequest.getReason() == null || cancellationRequest.getReason().isBlank()) {
+            cancellationRequest.setReason("Khách sạn tạm đóng để sửa chữa, cải tạo");
+        }
+        String employeeId = account.getEmployeeId();
+        String cancelledBy = employeeId == null ? "ACCOUNT:" + account.getId() : "EMPLOYEE:" + employeeId;
+        return cancelBooking(booking, cancellationRequest, account, null, false, cancelledBy,
+                "Booking được hủy do khách sạn tạm đóng; hoàn tiền không áp dụng phí phạt", true);
+    }
+
     @Transactional(readOnly = true)
     public BookingCancellationPreviewResponse previewCancellationByStaff(String bookingId, Account account) {
         Booking booking = bookingRepository.findById(bookingId)
@@ -211,6 +236,19 @@ public class BookingCancellationService {
             boolean requireBankDetails,
             String cancelledBy,
             String notification) {
+        return cancelBooking(booking, request, requestedByAccount, customerId, requireBankDetails,
+                cancelledBy, notification, false);
+    }
+
+    private BookingCancellationResponse cancelBooking(
+            Booking booking,
+            BookingCancellationRequest request,
+            Account requestedByAccount,
+            String customerId,
+            boolean requireBankDetails,
+            String cancelledBy,
+            String notification,
+            boolean hotelClosureCancellation) {
         String bookingId = booking.getId();
         if (booking.getBookingStatus() != BookingStatus.PENDING
                 && booking.getBookingStatus() != BookingStatus.CONFIRMED) {
@@ -223,7 +261,12 @@ public class BookingCancellationService {
         paymentService.cancelOutstandingPaymentLinks(bookingId);
         LocalDateTime now = LocalDateTime.now();
         CancellationPolicy policy = cancellationPolicy(booking, now);
-        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        RefundBreakdown breakdown = hotelClosureCancellation
+                ? fullPaidRefund(booking.getOrder())
+                : calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        String refundPolicy = hotelClosureCancellation
+                ? "FULL_REFUND_HOTEL_CLOSURE_NO_PENALTY"
+                : policy.name();
         BookingCancellationRefundMethod refundMethod = requestedByAccount == null || request == null
                 || request.getRefundMethod() == null
                 ? BookingCancellationRefundMethod.BANK
@@ -252,7 +295,7 @@ public class BookingCancellationService {
                 || !amountMatches(request.getConfirmedRoomRefundAmount(), breakdown.roomRefund())
                 || !amountMatches(request.getConfirmedServiceRefundAmount(), breakdown.serviceRefund())
                 || !amountMatches(request.getConfirmedRoomPenaltyAmount(), breakdown.roomPenalty())
-                || !policy.name().equals(request.getConfirmedRefundPolicy()))) {
+                || !refundPolicy.equals(request.getConfirmedRefundPolicy()))) {
             throw new AppException(ErrorCode.CANCELLATION_REFUND_AMOUNT_CHANGED);
         }
         BookingCancellationStatus status = breakdown.total().signum() <= 0
@@ -273,7 +316,7 @@ public class BookingCancellationService {
                 .serviceRefundAmount(breakdown.serviceRefund())
                 .roomPenaltyAmount(breakdown.roomPenalty())
                 .hoursBeforeCheckIn(policy.hoursBeforeCheckIn())
-                .refundPolicy(policy.name())
+                .refundPolicy(refundPolicy)
                 .refundEmail(refundEmail)
                 .requestedByCustomerId(customerId)
                 .requestedByAccount(requestedByAccount)
@@ -308,6 +351,16 @@ public class BookingCancellationService {
             scheduleCancellationEmail(booking, cancellation, refundEmail);
         }
         return toResponse(cancellation);
+    }
+
+    private RefundBreakdown fullPaidRefund(Order order) {
+        if (order == null || order.getPaidAmount() == null || order.getPaidAmount().signum() <= 0) {
+            return RefundBreakdown.zero();
+        }
+        BigDecimal total = roundToWholeVnd(order.getPaidAmount());
+        BigDecimal roomRefund = calculateRefund(order, BigDecimal.ZERO).roomRefund().min(total);
+        BigDecimal serviceRefund = total.subtract(roomRefund).max(BigDecimal.ZERO);
+        return new RefundBreakdown(total, roomRefund, serviceRefund, BigDecimal.ZERO);
     }
 
 

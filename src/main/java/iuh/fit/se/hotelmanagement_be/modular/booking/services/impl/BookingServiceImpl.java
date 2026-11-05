@@ -21,6 +21,7 @@ import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.Notific
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.closure.repositories.HotelClosureScheduleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingDetailCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.BookingServiceRequest;
@@ -83,6 +84,7 @@ public class BookingServiceImpl implements BookingService {
     RoomSeasonalRateRepository roomSeasonalRateRepository;
     BookingDetailRepository bookingDetailRepository;
     BookingCancellationRepository bookingCancellationRepository;
+    HotelClosureScheduleRepository hotelClosureScheduleRepository;
     BookingSocketEmitter bookingSocketEmitter;
     PromotionUsageService promotionUsageService;
     EmailService emailService;
@@ -642,6 +644,14 @@ public class BookingServiceImpl implements BookingService {
             }
 
             Long hotelId = room.getFloor().getBuilding().getHotel().getId();
+            if (!hotelClosureScheduleRepository.findBlockingSchedules(
+                    hotelId,
+                    detailReq.getCheckInTime().toLocalDate(),
+                    detailReq.getCheckOutTime().toLocalDate()).isEmpty()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "Ngày lưu trú bị ảnh hưởng bởi lịch tạm đóng khách sạn.");
+            }
             BranchRoomPolicy policy = policiesByRoomType.get(room.getRoomType());
             if (policy == null) {
                 policy = branchRoomPolicyRepository.findByHotelIdAndRoomType(hotelId, room.getRoomType());

@@ -13,6 +13,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatu
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.closure.repositories.HotelClosureScheduleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingModificationResponse;
@@ -53,7 +54,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -65,6 +69,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
     BookingRepository bookingRepository;
+    HotelClosureScheduleRepository hotelClosureScheduleRepository;
     BookingDetailRepository bookingDetailRepository;
     EmployeeRepository employeeRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
@@ -459,6 +464,10 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             throw new AppException(ErrorCode.BOOKING_ALREADY_COMPLETED);
         }
 
+        Map<String, String> originalStayDates = new HashMap<>();
+        booking.getBookingDetails().forEach(detail -> originalStayDates.put(
+                detail.getId(), stayDateKey(detail)));
+
         Employee employee = employeeRepository.findById(request.getEmployeeId())
                 .orElseThrow(() -> {
                     log.error("Employee not found with ID: {}", request.getEmployeeId());
@@ -488,6 +497,25 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
 
         // 6. Xử lý cập nhật/giảm số lượng dịch vụ theo phòng
         servicePriceChange = servicePriceChange.add(processServiceQuantityUpdates(booking, request.getServiceQuantityUpdates()));
+
+        for (BookingDetail detail : booking.getBookingDetails()) {
+            if (detail.getStatus() == BookingStatusType.CANCELLED || detail.getCheckinTime() == null
+                    || detail.getCheckoutTime() == null || booking.getHotel() == null) {
+                continue;
+            }
+            String originalDates = originalStayDates.get(detail.getId());
+            if (Objects.equals(originalDates, stayDateKey(detail))) {
+                continue;
+            }
+            if (!hotelClosureScheduleRepository.findBlockingSchedules(
+                    booking.getHotel().getId(),
+                    detail.getCheckinTime().toLocalDate(),
+                    detail.getCheckoutTime().toLocalDate()).isEmpty()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "Không thể đổi ngày hoặc thêm phòng vào thời gian khách sạn tạm đóng.");
+            }
+        }
 
         // ==========================================
         // 6. TÍNH TOÁN TỔNG TIỀN PHÒNG VÀ DỊCH VỤ SAU KHI MODIFY
@@ -885,6 +913,16 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         }
 
         return servicePriceChange;
+    }
+
+    private String stayDateKey(BookingDetail detail) {
+        String checkin = detail.getCheckinTime() == null
+                ? ""
+                : detail.getCheckinTime().toLocalDate().toString();
+        String checkout = detail.getCheckoutTime() == null
+                ? ""
+                : detail.getCheckoutTime().toLocalDate().toString();
+        return checkin + "|" + checkout;
     }
 
     // Ham giam so luong dich vu

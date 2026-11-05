@@ -148,11 +148,56 @@ public class SocketIOConfig {
                 log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
             }
 
-            // Chỉ gửi tin nhắn khách hàng tới đúng room của chi nhánh đó (không gửi cho Super Admin)
+            // Kiểm tra số lượng nhân viên chi nhánh đang online trong room
+            int staffClients = 0;
             if (hotelId != null) {
+                staffClients = server.getRoomOperations("hotel_" + hotelId).getClients().size();
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
             }
+            boolean isBranchOnline = staffClients > 0;
+            data.put("isBranchOnline", isBranchOnline);
+            data.put("isRead", false);
             client.sendEvent("customer_staff_chat_ack", data);
+        });
+
+        // Kiểm tra trạng thái trực tuyến (online/offline) của chi nhánh
+        server.addEventListener("check_branch_online_status", java.util.Map.class, (client, data, ackSender) -> {
+            Long hotelId = null;
+            if (data != null && data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+            int staffClients = 0;
+            if (hotelId != null) {
+                staffClients = server.getRoomOperations("hotel_" + hotelId).getClients().size();
+            }
+            java.util.Map<String, Object> res = new java.util.HashMap<>();
+            res.put("hotelId", hotelId);
+            res.put("online", staffClients > 0);
+            res.put("staffCount", staffClients);
+            client.sendEvent("branch_online_status_result", res);
+        });
+
+        // Nhân viên đánh dấu đã đọc tin nhắn của khách hàng
+        server.addEventListener("staff_mark_customer_read", java.util.Map.class, (client, data, ackSender) -> {
+            log.info("👀 [SocketIO] Nhân viên đã đọc tin nhắn của khách: {}", data);
+            String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
+            Long hotelId = null;
+            if (data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+            if (customerId != null) {
+                try {
+                    liveChatService.markMessagesAsRead(customerId, hotelId);
+                } catch (Exception e) {
+                    log.error("Lỗi khi cập nhật đã đọc trong DB: ", e);
+                }
+                server.getRoomOperations("user_" + customerId).sendEvent("customer_chat_messages_read", data);
+                server.getRoomOperations(customerId).sendEvent("customer_chat_messages_read", data);
+            }
         });
 
         server.addEventListener("staff_send_customer_chat", java.util.Map.class, (client, data, ackSender) -> {

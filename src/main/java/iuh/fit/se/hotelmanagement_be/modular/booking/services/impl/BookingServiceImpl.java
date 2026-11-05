@@ -797,7 +797,7 @@ public class BookingServiceImpl implements BookingService {
             iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(servReq.getServiceId()).orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
             BigDecimal unitPrice = servReq.getPrice() != null ? BigDecimal.valueOf(servReq.getPrice()) : BigDecimal.valueOf(service.getPrice());
-            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName()).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).used(false).isPaid(false).build();
+            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName() != null && !servReq.getName().isBlank() ? servReq.getName() : (service != null ? service.getName() : "Dịch vụ")).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).used(false).isPaid(false).build();
         }).collect(Collectors.toList());
     }
 

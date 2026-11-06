@@ -32,6 +32,9 @@ public class Account implements UserDetails {
 
     String password;
 
+    @Column(name = "display_name", length = 150)
+    String displayName;
+
     // Quan hệ 1-1 ngược lại tới Employee (Account không giữ khóa ngoại)
     @ToString.Exclude
     @OneToOne(mappedBy = "account", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

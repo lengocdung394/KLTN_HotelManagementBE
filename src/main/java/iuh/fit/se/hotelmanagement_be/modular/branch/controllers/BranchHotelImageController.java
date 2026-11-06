@@ -31,7 +31,7 @@ public class BranchHotelImageController {
     private final HotelRepository hotelRepository;
 
     @GetMapping("/images")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
     public ResponseEntity<ApiResponse<List<String>>> getBranchImages(Authentication authentication) {
         Hotel hotel = getCurrentHotel(authentication);
         List<String> imageUrls = hotel.getImageUrls() == null ? List.of() : List.copyOf(hotel.getImageUrls());

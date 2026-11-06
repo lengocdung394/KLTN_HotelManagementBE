@@ -201,6 +201,21 @@ public class BookingCancellationService {
                 "Booking được hủy do khách sạn tạm đóng; hoàn tiền không áp dụng phí phạt", true);
     }
 
+    public BookingCancellationPreviewResponse previewHotelClosureCancellation(Booking booking) {
+        RefundBreakdown breakdown = fullPaidRefund(booking.getOrder());
+        return BookingCancellationPreviewResponse.builder()
+                .bookingId(booking.getId())
+                .paidAmount(booking.getOrder() == null
+                        ? BigDecimal.ZERO
+                        : zeroIfNull(booking.getOrder().getPaidAmount()))
+                .refundAmount(breakdown.total())
+                .roomRefundAmount(breakdown.roomRefund())
+                .serviceRefundAmount(breakdown.serviceRefund())
+                .roomPenaltyAmount(breakdown.roomPenalty())
+                .refundPolicy("FULL_REFUND_HOTEL_CLOSURE_NO_PENALTY")
+                .build();
+    }
+
     @Transactional(readOnly = true)
     public BookingCancellationPreviewResponse previewCancellationByStaff(String bookingId, Account account) {
         Booking booking = bookingRepository.findById(bookingId)

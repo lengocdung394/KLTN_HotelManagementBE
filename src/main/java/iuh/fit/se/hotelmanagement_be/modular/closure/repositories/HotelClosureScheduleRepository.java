@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface HotelClosureScheduleRepository extends JpaRepository<HotelClosureSchedule, String> {
+    List<HotelClosureSchedule> findAllByActiveTrue();
+
     @Query("""
             select distinct schedule
             from HotelClosureSchedule schedule

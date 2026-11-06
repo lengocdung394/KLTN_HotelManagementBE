@@ -12,5 +12,6 @@ public record HotelClosureResponse(
         LocalDate endDate,
         boolean allHotels,
         List<Long> hotelIds,
-        LocalDateTime createdAt) {
+        LocalDateTime createdAt,
+        boolean active) {
 }

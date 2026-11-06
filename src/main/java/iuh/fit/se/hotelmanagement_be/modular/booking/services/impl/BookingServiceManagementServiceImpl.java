@@ -915,6 +915,51 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         return servicePriceChange;
     }
 
+    @Override
+    @Transactional
+    public void cancelUnusedServicesBeforeCheckout(
+            String bookingId,
+            List<String> bookingDetailIds,
+            String employeeId) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        List<ServiceCancellationRequest> servicesToCancel = booking.getBookingDetails().stream()
+                .filter(detail -> bookingDetailIds.contains(detail.getId()))
+                .map(detail -> new ServiceCancellationRequest(
+                        detail.getId(),
+                        detail.getBookingServiceDetails() == null
+                                ? List.of()
+                                : detail.getBookingServiceDetails().stream()
+                                        .filter(service -> !Boolean.TRUE.equals(service.getCancelled()))
+                                        .filter(service -> {
+                                            int quantity = Math.max(0, service.getQuantity());
+                                            int usedQuantity = Math.min(quantity, Math.max(0, service.getUsedQuantity()));
+                                            return quantity > usedQuantity
+                                                    && !(Boolean.TRUE.equals(service.getUsed()) && usedQuantity == 0);
+                                        })
+                                        .map(BookingServiceDetail::getId)
+                                        .toList()))
+                .filter(request -> !request.getServiceDetailIds().isEmpty())
+                .toList();
+        if (servicesToCancel.isEmpty()) {
+            return;
+        }
+
+        BookingModificationRequest request = BookingModificationRequest.builder()
+                .employeeId(employeeId)
+                .bookingDetailIdsToCancel(List.of())
+                .servicesToCancel(servicesToCancel)
+                .roomsToAdd(List.of())
+                .roomsToChange(List.of())
+                .servicesToAddForExistingRooms(List.of())
+                .serviceQuantityUpdates(List.of())
+                .promotionRequest(null)
+                .customerPromotionRequest(null)
+                .removePromotion(false)
+                .build();
+        modifyBooking(bookingId, request);
+    }
+
     private String stayDateKey(BookingDetail detail) {
         String checkin = detail.getCheckinTime() == null
                 ? ""

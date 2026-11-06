@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface CheckInOutService {
@@ -31,6 +32,10 @@ public interface CheckInOutService {
     BookingResponse processBulkCheckIn(String bookingId, List<String> bookingDetailIds, String employeeId);
 
     BookingResponse prepareBulkCheckOut(String bookingId, List<String> bookingDetailIds);
+
+    BigDecimal previewLateCheckOutFee(BookingDetail detail, LocalDateTime actualCheckOut);
+
+    void cancelUnusedServicesBeforeCheckout(String bookingId, List<String> bookingDetailIds, String employeeId);
 
     BookingResponse processBulkCheckOut(String bookingId, CheckoutRequest request, String employeeId);
 }

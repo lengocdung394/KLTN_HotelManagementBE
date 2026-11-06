@@ -33,6 +33,14 @@ public class Hotel {
 
     String phone;
 
+    @ElementCollection
+    @CollectionTable(name = "hotel_images", joinColumns = @JoinColumn(name = "hotel_id"))
+    @Column(name = "image_url", nullable = false, length = 2048)
+    @OrderColumn(name = "display_order")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    List<String> imageUrls;
+
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

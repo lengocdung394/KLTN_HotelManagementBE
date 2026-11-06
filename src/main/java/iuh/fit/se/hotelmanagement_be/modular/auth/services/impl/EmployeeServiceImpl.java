@@ -269,7 +269,31 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Employee employee = account.getEmployee();
         if (employee == null) {
-            throw new RuntimeException("Tài khoản này không có hồ sơ nhân viên.");
+            boolean isSuperAdmin = account.getAuthorities().stream()
+                    .anyMatch(authority -> "ROLE_SUPER_ADMIN".equals(authority.getAuthority()));
+            if (!isSuperAdmin || account.getCustomer() != null) {
+                throw new RuntimeException("Tài khoản này không có hồ sơ nhân viên.");
+            }
+
+            String email = request.getEmail().trim();
+            if (!email.equalsIgnoreCase(account.getEmail())
+                    && accountRepository.existsByEmailIgnoreCaseAndIdNot(email, account.getId())) {
+                throw new RuntimeException("Email này đã được sử dụng bởi tài khoản khác.");
+            }
+            updateAccountPassword(request, account);
+            account.setEmail(email);
+            account.setDisplayName(request.getFullName().trim());
+            Account saved = accountRepository.save(account);
+            return EmployeeResponse.builder()
+                    .id(saved.getId())
+                    .email(saved.getEmail())
+                    .fullName(saved.getDisplayName())
+                    .position("Quản trị hệ thống")
+                    .roles(saved.getRoles() == null ? Set.of()
+                            : saved.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                    .roleCodes(saved.getRoles() == null ? Set.of()
+                            : saved.getRoles().stream().map(Role::getCode).collect(Collectors.toSet()))
+                    .build();
         }
 
         String email = request.getEmail().trim();
@@ -288,6 +312,20 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new RuntimeException("Số CCCD này đã được sử dụng bởi nhân viên khác.");
         }
 
+        updateAccountPassword(request, account);
+
+        account.setEmail(email);
+        employee.setFullName(request.getFullName().trim());
+        employee.setPosition(request.getPosition());
+        employee.setAddress(request.getAddress());
+        employee.setPhone(request.getPhone());
+        employee.setCccd(request.getCccd());
+        Employee saved = employeeRepository.save(employee);
+
+        return toEmployeeResponse(saved);
+    }
+
+    private void updateAccountPassword(EmployeeProfileUpdateRequest request, Account account) {
         if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
             if (request.getNewPassword().length() < 8) {
                 throw new RuntimeException("Mật khẩu mới phải có ít nhất 8 ký tự.");
@@ -299,16 +337,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         } else if (request.getConfirmPassword() != null && !request.getConfirmPassword().isBlank()) {
             throw new RuntimeException("Vui lòng nhập mật khẩu mới.");
         }
-
-        account.setEmail(email);
-        employee.setFullName(request.getFullName().trim());
-        employee.setPosition(request.getPosition());
-        employee.setAddress(request.getAddress());
-        employee.setPhone(request.getPhone());
-        employee.setCccd(request.getCccd());
-        Employee saved = employeeRepository.save(employee);
-
-        return toEmployeeResponse(saved);
     }
 
     private EmployeeResponse toEmployeeResponse(Employee emp) {

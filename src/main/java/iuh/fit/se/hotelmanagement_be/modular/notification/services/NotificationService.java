@@ -156,7 +156,22 @@ public class NotificationService {
             String referenceId) {
         return createAndPublish(
                 hotelId, type, title, description, referenceType, referenceId,
-                true, true);
+                true, true, null);
+    }
+
+    @Transactional
+    public Notification createAndPublishInCurrentTransaction(
+            Long hotelId,
+            NotificationType type,
+            String title,
+            String description,
+            String referenceType,
+            String referenceId,
+            boolean publishToHotel,
+            boolean publishToSuperAdmin) {
+        return createAndPublish(
+                hotelId, type, title, description, referenceType, referenceId,
+                publishToHotel, publishToSuperAdmin, null);
     }
 
     private Notification createAndPublish(

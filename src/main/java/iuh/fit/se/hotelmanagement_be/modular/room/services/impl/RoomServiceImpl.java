@@ -1,804 +1,762 @@
-package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
-
-import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
-import iuh.fit.se.hotelmanagement_be.exception.AppException;
-import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
-import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
-import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.*;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
-import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
-import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomTypeBedRepository;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomBedRequest;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
-import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomBedResponse;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
-import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
-import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
-import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
-import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
-import jakarta.transaction.Transactional;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.util.*;
-import java.util.stream.Collectors;
-
-@Slf4j
-@Service
-@RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class RoomServiceImpl implements RoomService {
-    RoomRepository roomRepository;
-    BookingDetailRepository bookingDetailRepository;
-    FloorRepository floorRepository;
-    AmenityRepository amenityRepository;
-    CloudinaryService cloudinaryService;
-    RoomTypeBedRepository roomTypeBedRepository;
-    BedTypeRepository bedTypeRepository;
-
-    BranchRoomPolicyRepository branchRoomPolicyRepository;
-    HotelRepository hotelRepository;
-    RoomSocketEmitter roomSocketEmitter;
-
-    @Transactional
-    @Override
-    public RoomCreateResponse updateRoom(
-            String roomId,
-            RoomUpdateRequest dto,
-            List<MultipartFile> imageFiles,
-            boolean isSuperAdmin
-    ) {
-
-
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        String oldRoomNumber = room.getRoomNumber();
-        String oldRoomType = String.valueOf(room.getRoomType());
-        String oldRoomStatus = String.valueOf(room.getRoomStatus());
-        String oldFloor = room.getFloor() == null
-                ? ""
-                : "Tầng " + room.getFloor().getFloorNumber();
-
-        String oldAmenities = describeAmenities(room.getAmenities());
-        String oldBeds = describeBeds(roomTypeBedRepository.findByRoom_Id(room.getId()));
-        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
-
-        Long roomHotelId = room.getFloor() != null
-                && room.getFloor().getBuilding() != null
-                && room.getFloor().getBuilding().getHotel() != null
-                ? room.getFloor().getBuilding().getHotel().getId()
-                : null;
-
-        if (currentHotelId != null && !currentHotelId.equals(roomHotelId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        if (roomHotelId == null
-                || (!isSuperAdmin
-                && (currentHotelId == null || !currentHotelId.equals(roomHotelId)))) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        Floor newFloor;
-        if (!room.getFloor().getId().equals(dto.getFloorId())) {
-            newFloor = floorRepository.findById(dto.getFloorId())
-                    .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND));
-
-            Long newFloorHotelId = newFloor.getBuilding() != null
-                    && newFloor.getBuilding().getHotel() != null
-                    ? newFloor.getBuilding().getHotel().getId()
-                    : null;
-
-            if (newFloorHotelId == null
-                    || (currentHotelId != null && !currentHotelId.equals(newFloorHotelId))) {
-                throw new AppException(ErrorCode.UNAUTHORIZED);
-            }
-
-            room.setFloor(newFloor);
-        } else {
-            newFloor = room.getFloor();
-        }
-
-        Long targetHotelId = newFloor.getBuilding() != null
-                && newFloor.getBuilding().getHotel() != null
-                ? newFloor.getBuilding().getHotel().getId()
-                : null;
-
-        if (targetHotelId == null) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-
-        String roomNumber = dto.getRoomNumber();
-        if (roomNumber == null || roomNumber.trim().isEmpty()) {
-            String maxRoomNumStr = roomRepository.findMaxRoomNumberByFloorId(newFloor.getId());
-
-            if (maxRoomNumStr != null && !maxRoomNumStr.isEmpty()) {
-                try {
-                    roomNumber = String.valueOf(Integer.parseInt(maxRoomNumStr) + 1);
-                } catch (NumberFormatException exception) {
-                    roomNumber = String.valueOf(newFloor.getFloorNumber() * 100 + 1);
-                }
-            } else {
-                roomNumber = String.valueOf(newFloor.getFloorNumber() * 100 + 1);
-            }
-        } else if (roomRepository.existsByFloorIdAndRoomNumberAndIdNot(
-                newFloor.getId(),
-                roomNumber,
-                roomId
-        )) {
-            throw new AppException(ErrorCode.ROOM_NUMBER_ALREADY_EXISTS);
-        }
-
-        room.setRoomNumber(roomNumber);
-
-        List<RoomImage> finalRoomImages = new ArrayList<>();
-
-        List<String> keptImageUrls = dto.getKeptImageUrls() != null
-                ? dto.getKeptImageUrls()
-                : new ArrayList<>();
-
-        for (String url : keptImageUrls) {
-            finalRoomImages.add(RoomImage.builder()
-                    .url(url)
-                    .isDefault(false)
-                    .build());
-        }
-
-        String branchName = newFloor.getBuilding() != null
-                && newFloor.getBuilding().getHotel() != null
-                ? newFloor.getBuilding().getHotel().getName()
-                : "default-branch";
-
-        List<MultipartFile> validNewFiles = validateAndFilterImages(imageFiles, false);
-        if (validNewFiles != null && !validNewFiles.isEmpty()) {
-            List<String> uploadedNewUrls = cloudinaryService.uploadBranchImages(
-                    validNewFiles,
-                    branchName,
-                    ImageCategory.ROOMS
-            );
-
-            for (String url : uploadedNewUrls) {
-                finalRoomImages.add(RoomImage.builder()
-                        .url(url)
-                        .isDefault(false)
-                        .build());
-            }
-        }
-
-        if (finalRoomImages.size() < 4 || finalRoomImages.size() > 8) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
-        }
-
-        int targetDefaultIndex = 0;
-        if (dto.getDefaultImageIndex() != null
-                && dto.getDefaultImageIndex() >= 0
-                && dto.getDefaultImageIndex() < finalRoomImages.size()) {
-            targetDefaultIndex = dto.getDefaultImageIndex();
-        }
-
-        for (int i = 0; i < finalRoomImages.size(); i++) {
-            finalRoomImages.get(i).setIsDefault(i == targetDefaultIndex);
-        }
-
-        room.setAvatarUrl(finalRoomImages);
-        room.setRoomType(dto.getRoomType());
-
-        if (dto.getAmenityIds() != null) {
-            Set<Amenity> amenities = new HashSet<>(
-                    amenityRepository.findAllById(dto.getAmenityIds())
-            );
-            room.setAmenities(amenities);
-        }
-
-        BranchRoomPolicy branchRoomPolicy =
-                branchRoomPolicyRepository.findByHotelIdAndRoomType(
-                        targetHotelId,
-                        dto.getRoomType()
-                );
-
-        if (branchRoomPolicy == null) {
-            throw new IllegalStateException(
-                    "Chưa cấu hình chính sách cho loại phòng "
-                            + dto.getRoomType()
-                            + " tại khách sạn "
-                            + targetHotelId
-            );
-        }
-
-        room.setBasePrice(branchRoomPolicy.getBasePrice());
-
-        if (dto.getBeds() != null) {
-            replaceRoomBeds(room, dto.getBeds());
-        }
-
-        Room updatedRoom = roomRepository.save(room);
-
-        RoomCreateResponse response = RoomCreateResponse.builder()
-                .id(updatedRoom.getId())
-                .basePrice(updatedRoom.getBasePrice())
-                .floorId(updatedRoom.getFloor().getId())
-                .roomStatus(updatedRoom.getRoomStatus())
-                .roomType(updatedRoom.getRoomType())
-                .totalAmenitiesPrice(updatedRoom.getTotalAmenitiesPrice())
-                .totalPrice(
-                        updatedRoom.calculateRoomTotalPrice(updatedRoom, branchRoomPolicy)
-                                + updatedRoom.getTotalAmenitiesPrice()
-                )
-                .defaultImageUrl(updatedRoom.getDefaultImageUrl())
-                .avatarUrl(updatedRoom.getAvatarUrl())
-                .amenities(updatedRoom.getAmenities())
-                .build();
-
-        List<Map<String, Object>> changes = new ArrayList<>();
-
-        addRoomChange(changes, "Số phòng",
-                oldRoomNumber, updatedRoom.getRoomNumber());
-        addRoomChange(changes, "Loại phòng",
-                oldRoomType, String.valueOf(updatedRoom.getRoomType()));
-        addRoomChange(changes, "Trạng thái",
-                oldRoomStatus, String.valueOf(updatedRoom.getRoomStatus()));
-
-        String newFloor1 = updatedRoom.getFloor() == null
-                ? ""
-                : "Tầng " + updatedRoom.getFloor().getFloorNumber();
-
-        addRoomChange(changes, "Tầng", oldFloor, newFloor1);
-        addRoomChange(changes, "Tiện nghi",
-                oldAmenities, describeAmenities(updatedRoom.getAmenities()));
-        addRoomChange(changes, "Loại giường",
-                oldBeds,
-                describeBeds(roomTypeBedRepository.findByRoom_Id(updatedRoom.getId())));
-
-        Map<String, Object> roomEventData = new LinkedHashMap<>();
-        roomEventData.put("roomId", updatedRoom.getId());
-        roomEventData.put("roomNumber", updatedRoom.getRoomNumber());
-        roomEventData.put("roomType", updatedRoom.getRoomType());
-        roomEventData.put("changes", changes);
-
-        roomSocketEmitter.emitRoomUpdated(
-                targetHotelId,
-                roomEventData,
-                isSuperAdmin
-        );
-
-        return response;
-    }
-
-    @Transactional
-    @Override
-    public RoomResponse updateRoomStatus(String roomId, RoomStatus roomStatus, boolean isSuperAdmin) {
-        if (roomStatus != RoomStatus.READY && roomStatus != RoomStatus.MAINTENANCE) {
-            throw new AppException(ErrorCode.INVALID_ROOM_STATUS_TRANSITION);
-        }
-
-        Room room = roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        Long roomHotelId = room.getFloor() != null
-                && room.getFloor().getBuilding() != null
-                && room.getFloor().getBuilding().getHotel() != null
-                ? room.getFloor().getBuilding().getHotel().getId()
-                : null;
-        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
-        if (roomHotelId == null
-                || (!isSuperAdmin && (currentHotelId == null || !currentHotelId.equals(roomHotelId)))
-                || (currentHotelId != null && !currentHotelId.equals(roomHotelId))) {
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
-        if (room.getRoomStatus() == RoomStatus.IN_USE
-                || bookingDetailRepository.existsByRoom_IdAndStatus(roomId, BookingStatusType.CHECKED_IN)) {
-            throw new AppException(ErrorCode.ROOM_STATUS_CHANGE_WHILE_OCCUPIED);
-        }
-
-        room.setRoomStatus(roomStatus);
-        Room updatedRoom = roomRepository.save(room);
-        roomSocketEmitter.emitRoomStatusUpdated(
-                roomHotelId,
-                updatedRoom.getId(),
-                updatedRoom.getRoomNumber(),
-                updatedRoom.getRoomStatus()
-        );
-        return getRoomById(roomId, roomHotelId, isSuperAdmin);
-    }
-
-    @Transactional
-    @Override
-    public RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles) {
-
-        log.info("Thêm phòng, mã: {}", dto.toString());
-        // kiem tra dau vao file anh
-        List<MultipartFile> validFiles = validateAndFilterImages(imageFiles, true);
-        // 2. Tìm Tầng (Floor)
-        Floor floor = floorRepository.findById(dto.getFloorId())
-                .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND));
-
-        // ==================== BỔ SUNG: XÁC THỰC CHI NHÁNH (HOTEL SCOPE) ====================
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-
-        // Tự động sinh số phòng nếu người dùng không truyền lên (Dùng kiểu String)
-        String roomNumber = dto.getRoomNumber();
-        var authorities = authentication.getAuthorities();
-        boolean isAdmin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        boolean isManager = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
-
-        // Lấy hotelId của tài khoản đang đăng nhập
-        Long userHotelId = null;
-        if (authentication.getPrincipal() instanceof Account account) {
-            userHotelId = account.getHotelId();
-        }
-
-        // Lấy hotelId mà Floor này đang thuộc về (Floor -> Building -> Hotel)
-        Long floorHotelId = (floor.getBuilding() != null && floor.getBuilding().getHotel() != null)
-                ? floor.getBuilding().getHotel().getId()
-                : null;
-
-        // Rào chắn bảo mật: Nếu là Manager hoặc Admin đã được gán chi nhánh cố định
-        if (isManager || (isAdmin && userHotelId != null)) {
-            if (userHotelId == null) {
-                throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
-            }
-            // NẾU TẦNG KHÔNG THUỘC KHÁCH SẠN CỦA USER -> BÁO LỖI UNAUTHORIZED
-            if (!userHotelId.equals(floorHotelId)) {
-                throw new AppException(ErrorCode.UNAUTHORIZED); // Hoặc ErrorCode.CANNOT_CREATE_ROOM_FOR_OTHER_HOTEL
-            }
-        }
-        // ===================================================================================
-
-        // 3. Upload ảnh lên Cloudinary
-        //List<String> uploadedUrls = cloudinaryService.uploadMultipleImages(validFiles, "room");
-        // Lấy tên chi nhánh (Hotel Name) từ thông tin Floor -> Building -> Hotel
-        String branchName = (floor.getBuilding() != null && floor.getBuilding().getHotel() != null)
-                ? floor.getBuilding().getHotel().getName()
-                : "default-branch";
-
-        //ĐOẠN CODE MỚI: Upload theo chi nhánh và danh mục ROOMS
-        List<String> uploadedUrls = cloudinaryService.uploadBranchImages(validFiles, branchName, ImageCategory.ROOMS);
-        // 4. Xác định vị trí ảnh đại diện
-        int targetDefaultIndex = 0;
-        if (dto.getDefaultImageIndex() != null
-                && dto.getDefaultImageIndex() >= 0
-                && dto.getDefaultImageIndex() < uploadedUrls.size()) {
-            targetDefaultIndex = dto.getDefaultImageIndex();
-        }
-
-        // 5. Build danh sách RoomImage (gắn cờ isDefault)
-        List<RoomImage> roomImages = new ArrayList<>();
-        for (int i = 0; i < uploadedUrls.size(); i++) {
-            boolean isDefault = (i == targetDefaultIndex);
-            roomImages.add(RoomImage.builder()
-                    .url(uploadedUrls.get(i))
-                    .isDefault(isDefault)
-                    .build());
-        }
-
-        // 6. Lấy danh sách Tiện ích (Amenities) nếu có
-        Set<Amenity> amenities = new HashSet<>();
-        if (dto.getAmenityIds() != null && !dto.getAmenityIds().isEmpty()) {
-            amenities = new HashSet<>(amenityRepository.findAllById(dto.getAmenityIds()));
-        }
-
-        // lay gia phong tieu chuan thong qua loai phong
-        Double baseprice = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, dto.getRoomType()).getBasePrice();
-        // 7. Tạo Entity và Lưu xuống CSDL
-        Room newRoom = Room.builder()
-                .floor(floor)
-                .roomStatus(dto.getRoomStatus())
-                .roomType(dto.getRoomType())
-                // gia phong tieu chuan
-                .basePrice(baseprice)
-                .avatarUrl(roomImages)
-                .amenities(amenities)
-                .roomNumber(roomNumber)
-                .build();
-
-        Room savedRoom = roomRepository.save(newRoom);
-        replaceRoomBeds(savedRoom, dto.getBeds());
-
-        BranchRoomPolicy branchRoomPolicy = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, savedRoom.getRoomType());
-
-        RoomCreateResponse response = RoomCreateResponse.builder()
-                .id(savedRoom.getId()) // Nên trả về cả ID phòng vừa tạo
-                .floorId(savedRoom.getFloor().getId())
-                .roomStatus(savedRoom.getRoomStatus())
-                .roomType(savedRoom.getRoomType())
-                .totalAmenitiesPrice(savedRoom.getTotalAmenitiesPrice())
-                // Gia final ca tien phong + tien ich
-                .totalPrice(savedRoom.calculateRoomTotalPrice(savedRoom, branchRoomPolicy) + savedRoom.getTotalAmenitiesPrice())
-                .defaultImageUrl(savedRoom.getDefaultImageUrl())
-                .avatarUrl(savedRoom.getAvatarUrl())
-                .amenities(savedRoom.getAmenities())
-
-                .build();
-        // ban su kien soc ket
-
-
-        roomSocketEmitter.emitRoomCreated(floorHotelId, Map.of(
-                "roomId", savedRoom.getId(),
-                "roomNumber", savedRoom.getRoomNumber()
-        ));
-
-        return response;
-    }
-
-    @Override
-    public List<RoomResponse> getRoomsByFloorId(String floorId) {
-        Floor floor = floorRepository.findById(floorId)
-                .orElseThrow(() -> new RuntimeException("Floor not found"));
-
-        Long floorHotelId = floor.getBuilding().getHotel().getId();
-
-        return roomRepository.findByFloorId(floorId).stream()
-                .map(r -> {
-                    BranchRoomPolicy policy =
-                            branchRoomPolicyRepository.findByHotelIdAndRoomType(
-                                    floorHotelId,
-                                    r.getRoomType()
-                            );
-
-                    if (policy == null) {
-                        throw new IllegalStateException(
-                                "Chưa cấu hình chính sách cho loại phòng " + r.getRoomType()
-                                        + " tại khách sạn " + floorHotelId
-                        );
-                    }
-
-                    return RoomResponse.builder()
-                            .id(r.getId())
-                            .floorId(r.getFloor().getId())
-                            .roomStatus(r.getRoomStatus())
-                            .roomType(r.getRoomType())
-                            .totalAmenitiesPrice(r.getTotalAmenitiesPrice())
-                            .totalPrice(
-                                    r.calculateRoomTotalPrice(r, policy)
-                                            + r.getTotalAmenitiesPrice()
-                            )
-                            .defaultImageUrl(r.getDefaultImageUrl())
-                            .avatarUrl(r.getAvatarUrl())
-                            .amenities(r.getAmenities())
-                            .build();
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<RoomResponse> getPublicRoomsByHotelId(Long hotelId, String checkIn, String checkOut) {
-        List<RoomResponse> responses = getRoomsByHotelId(hotelId);
-        if (responses == null || responses.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
-        java.time.LocalDate ciDate = today;
-        java.time.LocalDate coDate = today.plusDays(1);
-        try {
-            if (checkIn != null && !checkIn.isBlank() && checkIn.trim().length() >= 10) {
-                ciDate = java.time.LocalDate.parse(checkIn.trim().substring(0, 10));
-            }
-            if (checkOut != null && !checkOut.isBlank() && checkOut.trim().length() >= 10) {
-                coDate = java.time.LocalDate.parse(checkOut.trim().substring(0, 10));
-            }
-            if (!coDate.isAfter(ciDate)) {
-                coDate = ciDate.plusDays(1);
-            }
-        } catch (Exception ignored) {
-        }
-
-        java.time.LocalDateTime checkInTime = ciDate.atTime(14, 0);
-        java.time.LocalDateTime checkOutTime = coDate.atTime(12, 0);
-        java.time.LocalDateTime fiveMinutesAgo = java.time.LocalDateTime.now().minusMinutes(5);
-
-        for (RoomResponse r : responses) {
-            if (r.getRoomStatus() == RoomStatus.READY && r.getId() != null) {
-                long overlapping = bookingDetailRepository.countOverlappingBookings(
-                        r.getId(),
-                        checkInTime,
-                        checkOutTime,
-                        fiveMinutesAgo
-                );
-                if (overlapping > 0) {
-                    r.setRoomStatus(RoomStatus.IN_USE);
-                }
-            }
-        }
-        return responses;
-    }
-
-    @Override
-    public List<RoomResponse> getRoomsByHotelId(Long hotelId) {
-        List<Room> rooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
-        if (rooms == null || rooms.isEmpty()) {
-            log.warn("⚠ Không tìm thấy phòng nào cho hotelId: {}", hotelId);
-            return Collections.emptyList();
-        }
-
-        return rooms.stream().map(room -> {
-            // 1. Lấy Hotel của phòng thông qua chuỗi quan hệ Floor -> Building -> Hotel
-            Hotel hotel = room.getFloor().getBuilding().getHotel();
-
-            // 2. Tìm BranchRoomPolicy dựa vào Hotel và RoomType của phòng
-            BranchRoomPolicy policy = branchRoomPolicyRepository
-                    .findByHotelAndRoomType(hotel, room.getRoomType())
-                    .orElse(null);
-
-            // 3. Lấy danh sách giường theo RoomType (như phần trước)
-            List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomId(room.getId());
-
-            List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
-                    RoomBedResponse.builder()
-                            .bedTypeName(rtb.getBedType().getName())
-                            .description(rtb.getBedType().getDescription())
-                            .quantity(rtb.getQuantity())
-                            .capacity(rtb.getBedType().getCapacity())
-                            .isExtraBed(rtb.getBedType().getIsExtraBed())
-                            .build()
-            ).toList();
-
-            // 4. Build ra RoomResponse đầy đủ thông tin chính sách phòng
-            return RoomResponse.builder()
-                    .id(room.getId())
-                    .floorId(room.getFloor() != null ? room.getFloor().getId() : null)
-                    // lay ra so phong
-                    .roomNumber(room.getRoomNumber())
-                    .floorNumber(room.getFloor().getFloorNumber())
-                    .nameBuilding(room.getFloor().getBuilding().getName())
-                    .roomStatus(room.getRoomStatus())
-                    .basePrice(room.getBasePrice())
-                    .roomType(room.getRoomType())
-                    .area(policy.getArea())
-                    .avatarUrl(room.getAvatarUrl())
-                    .amenities(room.getAmenities())
-                    .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
-                    // gia phong final tien phong + dich vu
-                    .totalPrice(room.calculateRoomTotalPrice(room, policy))
-                    .defaultImageUrl(room.getDefaultImageUrl())
-                    .beds(bedResponses)
-                    .standardCapacity(policy.getStandardCapacity())
-                    .maxExtraGuests(policy.getMaxExtraGuests())
-                    .extraAdultFee(policy != null ? policy.getExtraAdultFee() : null)
-                    .extraChildFee(policy != null ? policy.getExtraChildFee() : null)
-                    .build();
-        }).toList();
-    }
-
-    @Override
-    public RoomTypeDetailResponse getRoomTypeDetailByHotelAndType(Long hotelId, RoomType roomType) {
-        // 1. Lấy thông tin Hotel từ hotelId
-        Hotel hotel = hotelRepository.findById(hotelId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
-
-        // 2. Lấy Chính sách quy định của loại phòng tại khách sạn này
-        BranchRoomPolicy policy = branchRoomPolicyRepository
-                .findByHotelAndRoomType(hotel, roomType)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách cho loại phòng này tại chi nhánh."));
-
-        // 3. Lấy Danh sách giường đi kèm của loại phòng này
-        List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(roomType);
-
-        List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
-                RoomBedResponse.builder()
-                        .bedTypeName(rtb.getBedType().getName())
-                        .description(rtb.getBedType().getDescription())
-                        .quantity(rtb.getQuantity())
-                        .capacity(rtb.getBedType().getCapacity())
-                        .isExtraBed(rtb.getBedType().getIsExtraBed())
-                        .build()
-        ).toList();
-
-        // 4. Tổng hợp và trả về DTO
-        return RoomTypeDetailResponse.builder()
-                .roomType(roomType)
-                .standardCapacity(policy.getStandardCapacity())
-                .maxExtraGuests(policy.getMaxExtraGuests())
-                .extraAdultFee(policy.getExtraAdultFee())
-                .extraChildFee(policy.getExtraChildFee())
-                // gia cua phong
-                .priceBase(policy.getBasePrice())
-                .beds(bedResponses)
-                .build();
-    }
-
-    @Override
-    @Transactional
-    public RoomResponse getRoomById(
-            String roomId,
-            Long hotelId,
-            boolean isSuperAdmin) {
-
-        if (!isSuperAdmin && hotelId == null) {
-            throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
-        }
-
-        Room room = isSuperAdmin
-                ? roomRepository.findById(roomId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND))
-                : roomRepository.findByIdAndFloor_Building_Hotel_Id(roomId, hotelId)
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-
-        String floorId = room.getFloor().getId();
-        RoomResponse roomResponse = getRoomsByFloorId(floorId).stream()
-                .filter(item -> roomId.equals(item.getId()))
-                .findFirst()
-                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
-        List<RoomBedResponse> beds = roomTypeBedRepository.findByRoom_Id(room.getId())
-                .stream()
-                .map(roomBed -> RoomBedResponse.builder()
-                        .bedTypeId(roomBed.getBedType().getId())
-                        .bedTypeName(roomBed.getBedType().getName())
-                        .description(roomBed.getBedType().getDescription())
-                        .quantity(roomBed.getQuantity())
-                        .capacity(roomBed.getBedType().getCapacity())
-                        .isExtraBed(roomBed.getBedType().getIsExtraBed())
-                        .build())
-                .toList();
-        return RoomResponse.builder()
-                .id(roomResponse.getId())
-                .floorId(roomResponse.getFloorId())
-                .roomNumber(roomResponse.getRoomNumber())
-                .floorNumber(roomResponse.getFloorNumber())
-                .nameBuilding(roomResponse.getNameBuilding())
-                .roomStatus(roomResponse.getRoomStatus())
-                .roomType(roomResponse.getRoomType())
-                .basePrice(roomResponse.getBasePrice())
-                .totalAmenitiesPrice(roomResponse.getTotalAmenitiesPrice())
-                .totalPrice(roomResponse.getTotalPrice())
-                .area(roomResponse.getArea())
-                .beds(beds) // Gán danh sách giường vừa lấy từ room_beds
-                .defaultImageUrl(roomResponse.getDefaultImageUrl())
-                .avatarUrl(roomResponse.getAvatarUrl())
-                .amenities(roomResponse.getAmenities())
-                .maxExtraGuests(roomResponse.getMaxExtraGuests())
-                .standardCapacity(roomResponse.getStandardCapacity())
-                .extraAdultFee(roomResponse.getExtraAdultFee())
-                .extraChildFee(roomResponse.getExtraChildFee())
-                .build();
-    }
-
-
-    private List<MultipartFile> validateAndFilterImages(List<MultipartFile> imageFiles, boolean isRequired) {
-        if (imageFiles == null || imageFiles.isEmpty()) {
-            if (isRequired) {
-                throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
-            }
-            return Collections.emptyList();
-        }
-
-        // Lọc bỏ các file rỗng
-        List<MultipartFile> validFiles = imageFiles.stream()
-                .filter(file -> file != null && !file.isEmpty())
-                .toList();
-
-        // Kiểm tra số lượng (bắt buộc từ 4 đến 8 ảnh nếu là bắt buộc)
-        if (isRequired && (validFiles.size() < 4 || validFiles.size() > 8)) {
-            throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
-        }
-
-        if (validFiles.isEmpty()) {
-            if (isRequired) {
-                throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
-            }
-            return Collections.emptyList();
-        }
-
-        // Các định dạng ảnh cho phép & Giới hạn dung lượng (5MB)
-        List<String> allowedContentTypes = List.of("image/jpeg", "image/png", "image/jpg", "image/webp");
-        long maxFileSize = 5 * 1024 * 1024;
-
-        for (MultipartFile file : validFiles) {
-            // Kiểm tra định dạng loại ảnh
-            String contentType = file.getContentType();
-            if (contentType == null || !allowedContentTypes.contains(contentType.toLowerCase())) {
-                throw new AppException(ErrorCode.INVALID_IMAGE_FORMAT);
-            }
-
-            // Kiểm tra dung lượng file
-            if (file.getSize() > maxFileSize) {
-                throw new AppException(ErrorCode.IMAGE_SIZE_TOO_LARGE);
-            }
-        }
-
-        return validFiles;
-    }
-
-
-    private void replaceRoomBeds(Room room, List<RoomBedRequest> newBedRequests) {
-        // 1. Lấy danh sách giường cũ và xóa
-        List<RoomBed> existingBeds = roomTypeBedRepository.findByRoomId(room.getId());
-        if (existingBeds != null && !existingBeds.isEmpty()) {
-            roomTypeBedRepository.deleteAll(existingBeds);
-
-            // 👉 BỔ SUNG DÒNG NÀY ĐỂ ÉP XÓA NGAY LẬP TỨC TRƯỚC KHI INSERT
-            roomTypeBedRepository.flush();
-        }
-
-        if (newBedRequests == null || newBedRequests.isEmpty()) {
-            return;
-        }
-
-        // 2. Lấy thông tin các loại giường từ DB dựa trên ID
-        Set<Long> bedTypeIds = newBedRequests.stream()
-                .map(RoomBedRequest::getBedTypeId)
-                .collect(java.util.stream.Collectors.toSet());
-
-        Map<Long, BedType> bedTypesById = bedTypeRepository.findAllById(bedTypeIds).stream()
-                .collect(java.util.stream.Collectors.toMap(BedType::getId, bt -> bt));
-
-        // 3. Tạo các bản ghi RoomBed mới
-        List<RoomBed> newRoomBeds = new ArrayList<>();
-        for (RoomBedRequest req : newBedRequests) {
-            BedType bedType = bedTypesById.get(req.getBedTypeId());
-            if (bedType == null) {
-                throw new IllegalArgumentException("Loại giường với ID " + req.getBedTypeId() + " không tồn tại.");
-            }
-            newRoomBeds.add(RoomBed.builder()
-                    .room(room)
-                    .bedType(bedType)
-                    .quantity(req.getQuantity())
-                    .build());
-        }
-
-        // 4. Lưu xuống database
-        roomTypeBedRepository.saveAll(newRoomBeds);
-    }
-
-    private String describeAmenities(Set<Amenity> amenities) {
-        if (amenities == null || amenities.isEmpty()) {
-            return "Không có";
-        }
-
-        return amenities.stream()
-                .map(Amenity::getName)
-                .filter(Objects::nonNull)
-                .sorted()
-                .collect(Collectors.joining(", "));
-    }
-
-    private String describeBeds(List<RoomBed> beds) {
-        if (beds == null || beds.isEmpty()) {
-            return "Không có";
-        }
-
-        return beds.stream()
-                .map(bed -> bed.getBedType().getName() + " × " + bed.getQuantity())
-                .sorted()
-                .collect(Collectors.joining(", "));
-    }
-
-    private void addRoomChange(
-            List<Map<String, Object>> changes,
-            String label,
-            Object before,
-            Object after
-    ) {
-        if (Objects.equals(before, after)) {
-            return;
-        }
-
-        Map<String, Object> change = new LinkedHashMap<>();
-        change.put("label", label);
-        change.put("before", before == null ? "—" : before);
-        change.put("after", after == null ? "—" : after);
-        changes.add(change);
-    }
-}
+package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
+
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
+import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Floor;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.FloorRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.HotelRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.*;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
+import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.BedTypeRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomTypeBedRepository;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomBedRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomCreateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.requests.RoomUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomBedResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomCreateResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.responses.RoomTypeDetailResponse;
+import iuh.fit.se.hotelmanagement_be.modular.room.services.RoomService;
+import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
+import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
+import jakarta.transaction.Transactional;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.*;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class RoomServiceImpl implements RoomService {
+    RoomRepository roomRepository;
+    BookingDetailRepository bookingDetailRepository;
+    FloorRepository floorRepository;
+    AmenityRepository amenityRepository;
+    CloudinaryService cloudinaryService;
+    RoomTypeBedRepository roomTypeBedRepository;
+    BedTypeRepository bedTypeRepository;
+
+    BranchRoomPolicyRepository branchRoomPolicyRepository;
+    HotelRepository hotelRepository;
+    RoomSocketEmitter roomSocketEmitter;
+
+    @Transactional
+    @Override
+    public RoomCreateResponse updateRoom(
+            String roomId,
+            RoomUpdateRequest dto,
+            List<MultipartFile> imageFiles,
+            boolean isSuperAdmin
+    ) {
+
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+        String oldRoomNumber = room.getRoomNumber();
+        String oldRoomType = String.valueOf(room.getRoomType());
+        String oldRoomStatus = String.valueOf(room.getRoomStatus());
+        String oldFloor = room.getFloor() == null
+                ? ""
+                : "Tầng " + room.getFloor().getFloorNumber();
+
+        String oldAmenities = describeAmenities(room.getAmenities());
+        String oldBeds = describeBeds(roomTypeBedRepository.findByRoom_Id(room.getId()));
+        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
+
+        Long roomHotelId = room.getFloor() != null
+                && room.getFloor().getBuilding() != null
+                && room.getFloor().getBuilding().getHotel() != null
+                ? room.getFloor().getBuilding().getHotel().getId()
+                : null;
+
+        if (currentHotelId != null && !currentHotelId.equals(roomHotelId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (roomHotelId == null
+                || (!isSuperAdmin
+                && (currentHotelId == null || !currentHotelId.equals(roomHotelId)))) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Floor newFloor;
+        if (!room.getFloor().getId().equals(dto.getFloorId())) {
+            newFloor = floorRepository.findById(dto.getFloorId())
+                    .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND));
+
+            Long newFloorHotelId = newFloor.getBuilding() != null
+                    && newFloor.getBuilding().getHotel() != null
+                    ? newFloor.getBuilding().getHotel().getId()
+                    : null;
+
+            if (newFloorHotelId == null
+                    || (currentHotelId != null && !currentHotelId.equals(newFloorHotelId))) {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+
+            room.setFloor(newFloor);
+        } else {
+            newFloor = room.getFloor();
+        }
+
+        Long targetHotelId = newFloor.getBuilding() != null
+                && newFloor.getBuilding().getHotel() != null
+                ? newFloor.getBuilding().getHotel().getId()
+                : null;
+
+        if (targetHotelId == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        String roomNumber = dto.getRoomNumber();
+        if (roomNumber == null || roomNumber.trim().isEmpty()) {
+            String maxRoomNumStr = roomRepository.findMaxRoomNumberByFloorId(newFloor.getId());
+
+            if (maxRoomNumStr != null && !maxRoomNumStr.isEmpty()) {
+                try {
+                    roomNumber = String.valueOf(Integer.parseInt(maxRoomNumStr) + 1);
+                } catch (NumberFormatException exception) {
+                    roomNumber = String.valueOf(newFloor.getFloorNumber() * 100 + 1);
+                }
+            } else {
+                roomNumber = String.valueOf(newFloor.getFloorNumber() * 100 + 1);
+            }
+        } else if (roomRepository.existsByFloorIdAndRoomNumberAndIdNot(
+                newFloor.getId(),
+                roomNumber,
+                roomId
+        )) {
+            throw new AppException(ErrorCode.ROOM_NUMBER_ALREADY_EXISTS);
+        }
+
+        room.setRoomNumber(roomNumber);
+
+        List<RoomImage> finalRoomImages = new ArrayList<>();
+
+        List<String> keptImageUrls = dto.getKeptImageUrls() != null
+                ? dto.getKeptImageUrls()
+                : new ArrayList<>();
+
+        for (String url : keptImageUrls) {
+            finalRoomImages.add(RoomImage.builder()
+                    .url(url)
+                    .isDefault(false)
+                    .build());
+        }
+
+        String branchName = newFloor.getBuilding() != null
+                && newFloor.getBuilding().getHotel() != null
+                ? newFloor.getBuilding().getHotel().getName()
+                : "default-branch";
+
+        List<MultipartFile> validNewFiles = validateAndFilterImages(imageFiles, false);
+        if (validNewFiles != null && !validNewFiles.isEmpty()) {
+            List<String> uploadedNewUrls = cloudinaryService.uploadBranchImages(
+                    validNewFiles,
+                    branchName,
+                    ImageCategory.ROOMS
+            );
+
+            for (String url : uploadedNewUrls) {
+                finalRoomImages.add(RoomImage.builder()
+                        .url(url)
+                        .isDefault(false)
+                        .build());
+            }
+        }
+
+        if (finalRoomImages.size() < 4 || finalRoomImages.size() > 8) {
+            throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
+        }
+
+        int targetDefaultIndex = 0;
+        if (dto.getDefaultImageIndex() != null
+                && dto.getDefaultImageIndex() >= 0
+                && dto.getDefaultImageIndex() < finalRoomImages.size()) {
+            targetDefaultIndex = dto.getDefaultImageIndex();
+        }
+
+        for (int i = 0; i < finalRoomImages.size(); i++) {
+            finalRoomImages.get(i).setIsDefault(i == targetDefaultIndex);
+        }
+
+        room.setAvatarUrl(finalRoomImages);
+        room.setRoomType(dto.getRoomType());
+
+        if (dto.getAmenityIds() != null) {
+            Set<Amenity> amenities = new HashSet<>(
+                    amenityRepository.findAllById(dto.getAmenityIds())
+            );
+            room.setAmenities(amenities);
+        }
+
+        BranchRoomPolicy branchRoomPolicy =
+                branchRoomPolicyRepository.findByHotelIdAndRoomType(
+                        targetHotelId,
+                        dto.getRoomType()
+                );
+
+        if (branchRoomPolicy == null) {
+            throw new IllegalStateException(
+                    "Chưa cấu hình chính sách cho loại phòng "
+                            + dto.getRoomType()
+                            + " tại khách sạn "
+                            + targetHotelId
+            );
+        }
+
+        room.setBasePrice(branchRoomPolicy.getBasePrice());
+
+        if (dto.getBeds() != null) {
+            replaceRoomBeds(room, dto.getBeds());
+        }
+
+        Room updatedRoom = roomRepository.save(room);
+
+        RoomCreateResponse response = RoomCreateResponse.builder()
+                .id(updatedRoom.getId())
+                .basePrice(updatedRoom.getBasePrice())
+                .floorId(updatedRoom.getFloor().getId())
+                .roomStatus(updatedRoom.getRoomStatus())
+                .roomType(updatedRoom.getRoomType())
+                .totalAmenitiesPrice(updatedRoom.getTotalAmenitiesPrice())
+                .totalPrice(updatedRoom.calculateRoomTotalPrice(updatedRoom, branchRoomPolicy))
+                .defaultImageUrl(updatedRoom.getDefaultImageUrl())
+                .avatarUrl(updatedRoom.getAvatarUrl())
+                .amenities(updatedRoom.getAmenities())
+                .build();
+
+        List<Map<String, Object>> changes = new ArrayList<>();
+
+        addRoomChange(changes, "Số phòng",
+                oldRoomNumber, updatedRoom.getRoomNumber());
+        addRoomChange(changes, "Loại phòng",
+                oldRoomType, String.valueOf(updatedRoom.getRoomType()));
+        addRoomChange(changes, "Trạng thái",
+                oldRoomStatus, String.valueOf(updatedRoom.getRoomStatus()));
+
+        String newFloor1 = updatedRoom.getFloor() == null
+                ? ""
+                : "Tầng " + updatedRoom.getFloor().getFloorNumber();
+
+        addRoomChange(changes, "Tầng", oldFloor, newFloor1);
+        addRoomChange(changes, "Tiện nghi",
+                oldAmenities, describeAmenities(updatedRoom.getAmenities()));
+        addRoomChange(changes, "Loại giường",
+                oldBeds,
+                describeBeds(roomTypeBedRepository.findByRoom_Id(updatedRoom.getId())));
+
+        Map<String, Object> roomEventData = new LinkedHashMap<>();
+        roomEventData.put("roomId", updatedRoom.getId());
+        roomEventData.put("roomNumber", updatedRoom.getRoomNumber());
+        roomEventData.put("roomType", updatedRoom.getRoomType());
+        roomEventData.put("changes", changes);
+
+        roomSocketEmitter.emitRoomUpdated(
+                targetHotelId,
+                roomEventData,
+                isSuperAdmin
+        );
+
+        return response;
+    }
+
+    @Transactional
+    @Override
+    public RoomResponse updateRoomStatus(String roomId, RoomStatus roomStatus, boolean isSuperAdmin) {
+        if (roomStatus != RoomStatus.READY && roomStatus != RoomStatus.MAINTENANCE) {
+            throw new AppException(ErrorCode.INVALID_ROOM_STATUS_TRANSITION);
+        }
+
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+        Long roomHotelId = room.getFloor() != null
+                && room.getFloor().getBuilding() != null
+                && room.getFloor().getBuilding().getHotel() != null
+                ? room.getFloor().getBuilding().getHotel().getId()
+                : null;
+        Long currentHotelId = SecurityUtils.getCurrentUserHotelId();
+        if (roomHotelId == null
+                || (!isSuperAdmin && (currentHotelId == null || !currentHotelId.equals(roomHotelId)))
+                || (currentHotelId != null && !currentHotelId.equals(roomHotelId))) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (room.getRoomStatus() == RoomStatus.IN_USE
+                || bookingDetailRepository.existsByRoom_IdAndStatus(roomId, BookingStatusType.CHECKED_IN)) {
+            throw new AppException(ErrorCode.ROOM_STATUS_CHANGE_WHILE_OCCUPIED);
+        }
+
+        room.setRoomStatus(roomStatus);
+        Room updatedRoom = roomRepository.save(room);
+        roomSocketEmitter.emitRoomStatusUpdated(
+                roomHotelId,
+                updatedRoom.getId(),
+                updatedRoom.getRoomNumber(),
+                updatedRoom.getRoomStatus()
+        );
+        return getRoomById(roomId, roomHotelId, isSuperAdmin);
+    }
+
+    @Transactional
+    @Override
+    public RoomCreateResponse createRoom(RoomCreateRequest dto, List<MultipartFile> imageFiles) {
+
+        log.info("Thêm phòng, mã: {}", dto.toString());
+        // kiem tra dau vao file anh
+        List<MultipartFile> validFiles = validateAndFilterImages(imageFiles, true);
+        // 2. Tìm Tầng (Floor)
+        Floor floor = floorRepository.findById(dto.getFloorId())
+                .orElseThrow(() -> new AppException(ErrorCode.FLOOR_NOT_FOUND));
+
+        // ==================== BỔ SUNG: XÁC THỰC CHI NHÁNH (HOTEL SCOPE) ====================
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+
+        // Tự động sinh số phòng nếu người dùng không truyền lên (Dùng kiểu String)
+        String roomNumber = dto.getRoomNumber();
+        var authorities = authentication.getAuthorities();
+        boolean isAdmin = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isManager = authorities.stream().anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
+
+        // Lấy hotelId của tài khoản đang đăng nhập
+        Long userHotelId = null;
+        if (authentication.getPrincipal() instanceof Account account) {
+            userHotelId = account.getHotelId();
+        }
+
+        // Lấy hotelId mà Floor này đang thuộc về (Floor -> Building -> Hotel)
+        Long floorHotelId = (floor.getBuilding() != null && floor.getBuilding().getHotel() != null)
+                ? floor.getBuilding().getHotel().getId()
+                : null;
+
+        // Rào chắn bảo mật: Nếu là Manager hoặc Admin đã được gán chi nhánh cố định
+        if (isManager || (isAdmin && userHotelId != null)) {
+            if (userHotelId == null) {
+                throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
+            }
+            // NẾU TẦNG KHÔNG THUỘC KHÁCH SẠN CỦA USER -> BÁO LỖI UNAUTHORIZED
+            if (!userHotelId.equals(floorHotelId)) {
+                throw new AppException(ErrorCode.UNAUTHORIZED); // Hoặc ErrorCode.CANNOT_CREATE_ROOM_FOR_OTHER_HOTEL
+            }
+        }
+        // ===================================================================================
+
+        // 3. Upload ảnh lên Cloudinary
+        //List<String> uploadedUrls = cloudinaryService.uploadMultipleImages(validFiles, "room");
+        // Lấy tên chi nhánh (Hotel Name) từ thông tin Floor -> Building -> Hotel
+        String branchName = (floor.getBuilding() != null && floor.getBuilding().getHotel() != null)
+                ? floor.getBuilding().getHotel().getName()
+                : "default-branch";
+
+        //ĐOẠN CODE MỚI: Upload theo chi nhánh và danh mục ROOMS
+        List<String> uploadedUrls = cloudinaryService.uploadBranchImages(validFiles, branchName, ImageCategory.ROOMS);
+        // 4. Xác định vị trí ảnh đại diện
+        int targetDefaultIndex = 0;
+        if (dto.getDefaultImageIndex() != null
+                && dto.getDefaultImageIndex() >= 0
+                && dto.getDefaultImageIndex() < uploadedUrls.size()) {
+            targetDefaultIndex = dto.getDefaultImageIndex();
+        }
+
+        // 5. Build danh sách RoomImage (gắn cờ isDefault)
+        List<RoomImage> roomImages = new ArrayList<>();
+        for (int i = 0; i < uploadedUrls.size(); i++) {
+            boolean isDefault = (i == targetDefaultIndex);
+            roomImages.add(RoomImage.builder()
+                    .url(uploadedUrls.get(i))
+                    .isDefault(isDefault)
+                    .build());
+        }
+
+        // 6. Lấy danh sách Tiện ích (Amenities) nếu có
+        Set<Amenity> amenities = new HashSet<>();
+        if (dto.getAmenityIds() != null && !dto.getAmenityIds().isEmpty()) {
+            amenities = new HashSet<>(amenityRepository.findAllById(dto.getAmenityIds()));
+        }
+
+        // lay gia phong tieu chuan thong qua loai phong
+        Double baseprice = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, dto.getRoomType()).getBasePrice();
+        // 7. Tạo Entity và Lưu xuống CSDL
+        Room newRoom = Room.builder()
+                .floor(floor)
+                .roomStatus(dto.getRoomStatus())
+                .roomType(dto.getRoomType())
+                // gia phong tieu chuan
+                .basePrice(baseprice)
+                .avatarUrl(roomImages)
+                .amenities(amenities)
+                .roomNumber(roomNumber)
+                .build();
+
+        Room savedRoom = roomRepository.save(newRoom);
+        replaceRoomBeds(savedRoom, dto.getBeds());
+
+        BranchRoomPolicy branchRoomPolicy = branchRoomPolicyRepository.findByHotelIdAndRoomType(userHotelId, savedRoom.getRoomType());
+
+        RoomCreateResponse response = RoomCreateResponse.builder()
+                .id(savedRoom.getId()) // Nên trả về cả ID phòng vừa tạo
+                .floorId(savedRoom.getFloor().getId())
+                .roomStatus(savedRoom.getRoomStatus())
+                .roomType(savedRoom.getRoomType())
+                .totalAmenitiesPrice(savedRoom.getTotalAmenitiesPrice())
+                // Gia final ca tien phong + tien ich
+                .totalPrice(savedRoom.calculateRoomTotalPrice(savedRoom, branchRoomPolicy))
+                .defaultImageUrl(savedRoom.getDefaultImageUrl())
+                .avatarUrl(savedRoom.getAvatarUrl())
+                .amenities(savedRoom.getAmenities())
+
+                .build();
+        // ban su kien soc ket
+
+
+        roomSocketEmitter.emitRoomCreated(floorHotelId, Map.of(
+                "roomId", savedRoom.getId(),
+                "roomNumber", savedRoom.getRoomNumber()
+        ));
+
+        return response;
+    }
+
+    @Override
+    public List<RoomResponse> getRoomsByFloorId(String floorId) {
+        Floor floor = floorRepository.findById(floorId)
+                .orElseThrow(() -> new RuntimeException("Floor not found"));
+
+        Long floorHotelId = floor.getBuilding().getHotel().getId();
+
+        return roomRepository.findByFloorId(floorId).stream()
+                .map(r -> {
+                    BranchRoomPolicy policy =
+                            branchRoomPolicyRepository.findByHotelIdAndRoomType(
+                                    floorHotelId,
+                                    r.getRoomType()
+                            );
+
+                    if (policy == null) {
+                        throw new IllegalStateException(
+                                "Chưa cấu hình chính sách cho loại phòng " + r.getRoomType()
+                                        + " tại khách sạn " + floorHotelId
+                        );
+                    }
+
+                    return RoomResponse.builder()
+                            .id(r.getId())
+                            .floorId(r.getFloor().getId())
+                            .roomStatus(r.getRoomStatus())
+                            .roomType(r.getRoomType())
+                            .totalAmenitiesPrice(r.getTotalAmenitiesPrice())
+                            .totalPrice(r.calculateRoomTotalPrice(r, policy))
+                            .defaultImageUrl(r.getDefaultImageUrl())
+                            .avatarUrl(r.getAvatarUrl())
+                            .amenities(r.getAmenities())
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<RoomResponse> getRoomsByHotelId(Long hotelId) {
+        List<Room> rooms = roomRepository.findByFloor_Building_Hotel_Id(hotelId);
+        if (rooms == null || rooms.isEmpty()) {
+            log.warn("⚠ Không tìm thấy phòng nào cho hotelId: {}", hotelId);
+            return Collections.emptyList();
+        }
+
+        return rooms.stream().map(this::toRoomResponse).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<RoomResponse> getAvailableRoomsByHotelId(
+            Long hotelId,
+            LocalDateTime checkIn,
+            LocalDateTime checkOut) {
+        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        return bookingDetailRepository.findAvailableRooms(hotelId, checkIn, checkOut, fiveMinutesAgo)
+                .stream()
+                .map(this::toRoomResponse)
+                .toList();
+    }
+
+    private RoomResponse toRoomResponse(Room room) {
+        Hotel hotel = room.getFloor().getBuilding().getHotel();
+        BranchRoomPolicy policy = branchRoomPolicyRepository
+                .findByHotelAndRoomType(hotel, room.getRoomType())
+                .orElse(null);
+        List<RoomBedResponse> bedResponses = roomTypeBedRepository.findByRoomId(room.getId()).stream()
+                .map(roomBed -> RoomBedResponse.builder()
+                        .bedTypeName(roomBed.getBedType().getName())
+                        .description(roomBed.getBedType().getDescription())
+                        .quantity(roomBed.getQuantity())
+                        .capacity(roomBed.getBedType().getCapacity())
+                        .isExtraBed(roomBed.getBedType().getIsExtraBed())
+                        .build())
+                .toList();
+
+        return RoomResponse.builder()
+                .id(room.getId())
+                .floorId(room.getFloor() == null ? null : room.getFloor().getId())
+                .roomNumber(room.getRoomNumber())
+                .floorNumber(room.getFloor().getFloorNumber())
+                .nameBuilding(room.getFloor().getBuilding().getName())
+                .roomStatus(room.getRoomStatus())
+                .basePrice(room.getBasePrice())
+                .roomType(room.getRoomType())
+                .area(policy == null ? null : policy.getArea())
+                .avatarUrl(room.getAvatarUrl())
+                .amenities(room.getAmenities())
+                .totalAmenitiesPrice(room.getTotalAmenitiesPrice())
+                .totalPrice(policy == null ? room.getBasePrice() : room.calculateRoomTotalPrice(room, policy))
+                .defaultImageUrl(room.getDefaultImageUrl())
+                .beds(bedResponses)
+                .standardCapacity(policy == null ? null : policy.getStandardCapacity())
+                .maxExtraGuests(policy == null ? null : policy.getMaxExtraGuests())
+                .extraAdultFee(policy == null ? null : policy.getExtraAdultFee())
+                .extraChildFee(policy == null ? null : policy.getExtraChildFee())
+                .build();
+    }
+
+    @Override
+    public RoomTypeDetailResponse getRoomTypeDetailByHotelAndType(Long hotelId, RoomType roomType) {
+        // 1. Lấy thông tin Hotel từ hotelId
+        Hotel hotel = hotelRepository.findById(hotelId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách sạn với ID: " + hotelId));
+
+        // 2. Lấy Chính sách quy định của loại phòng tại khách sạn này
+        BranchRoomPolicy policy = branchRoomPolicyRepository
+                .findByHotelAndRoomType(hotel, roomType)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chính sách cho loại phòng này tại chi nhánh."));
+
+        // 3. Lấy Danh sách giường đi kèm của loại phòng này
+        List<RoomBed> roomBeds = roomTypeBedRepository.findByRoomType(roomType);
+
+        List<RoomBedResponse> bedResponses = roomBeds.stream().map(rtb ->
+                RoomBedResponse.builder()
+                        .bedTypeName(rtb.getBedType().getName())
+                        .description(rtb.getBedType().getDescription())
+                        .quantity(rtb.getQuantity())
+                        .capacity(rtb.getBedType().getCapacity())
+                        .isExtraBed(rtb.getBedType().getIsExtraBed())
+                        .build()
+        ).toList();
+
+        // 4. Tổng hợp và trả về DTO
+        return RoomTypeDetailResponse.builder()
+                .roomType(roomType)
+                .standardCapacity(policy.getStandardCapacity())
+                .maxExtraGuests(policy.getMaxExtraGuests())
+                .extraAdultFee(policy.getExtraAdultFee())
+                .extraChildFee(policy.getExtraChildFee())
+                // gia cua phong
+                .priceBase(policy.getBasePrice())
+                .beds(bedResponses)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public RoomResponse getRoomById(
+            String roomId,
+            Long hotelId,
+            boolean isSuperAdmin) {
+
+        if (!isSuperAdmin && hotelId == null) {
+            throw new AppException(ErrorCode.MANAGER_HOTEL_NOT_ASSIGNED);
+        }
+
+        Room room = isSuperAdmin
+                ? roomRepository.findById(roomId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND))
+                : roomRepository.findByIdAndFloor_Building_Hotel_Id(roomId, hotelId)
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+
+        String floorId = room.getFloor().getId();
+        RoomResponse roomResponse = getRoomsByFloorId(floorId).stream()
+                .filter(item -> roomId.equals(item.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AppException(ErrorCode.ROOM_NOT_FOUND));
+        List<RoomBedResponse> beds = roomTypeBedRepository.findByRoom_Id(room.getId())
+                .stream()
+                .map(roomBed -> RoomBedResponse.builder()
+                        .bedTypeId(roomBed.getBedType().getId())
+                        .bedTypeName(roomBed.getBedType().getName())
+                        .description(roomBed.getBedType().getDescription())
+                        .quantity(roomBed.getQuantity())
+                        .capacity(roomBed.getBedType().getCapacity())
+                        .isExtraBed(roomBed.getBedType().getIsExtraBed())
+                        .build())
+                .toList();
+        return RoomResponse.builder()
+                .id(roomResponse.getId())
+                .floorId(roomResponse.getFloorId())
+                .roomNumber(roomResponse.getRoomNumber())
+                .floorNumber(roomResponse.getFloorNumber())
+                .nameBuilding(roomResponse.getNameBuilding())
+                .roomStatus(roomResponse.getRoomStatus())
+                .roomType(roomResponse.getRoomType())
+                .basePrice(roomResponse.getBasePrice())
+                .totalAmenitiesPrice(roomResponse.getTotalAmenitiesPrice())
+                .totalPrice(roomResponse.getTotalPrice())
+                .area(roomResponse.getArea())
+                .beds(beds) // Gán danh sách giường vừa lấy từ room_beds
+                .defaultImageUrl(roomResponse.getDefaultImageUrl())
+                .avatarUrl(roomResponse.getAvatarUrl())
+                .amenities(roomResponse.getAmenities())
+                .maxExtraGuests(roomResponse.getMaxExtraGuests())
+                .standardCapacity(roomResponse.getStandardCapacity())
+                .extraAdultFee(roomResponse.getExtraAdultFee())
+                .extraChildFee(roomResponse.getExtraChildFee())
+                .build();
+    }
+
+
+    private List<MultipartFile> validateAndFilterImages(List<MultipartFile> imageFiles, boolean isRequired) {
+        if (imageFiles == null || imageFiles.isEmpty()) {
+            if (isRequired) {
+                throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
+            }
+            return Collections.emptyList();
+        }
+
+        // Lọc bỏ các file rỗng
+        List<MultipartFile> validFiles = imageFiles.stream()
+                .filter(file -> file != null && !file.isEmpty())
+                .toList();
+
+        // Kiểm tra số lượng (bắt buộc từ 4 đến 8 ảnh nếu là bắt buộc)
+        if (isRequired && (validFiles.size() < 4 || validFiles.size() > 8)) {
+            throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
+        }
+
+        if (validFiles.isEmpty()) {
+            if (isRequired) {
+                throw new AppException(ErrorCode.INVALID_IMAGE_COUNT);
+            }
+            return Collections.emptyList();
+        }
+
+        // Các định dạng ảnh cho phép & Giới hạn dung lượng (5MB)
+        List<String> allowedContentTypes = List.of("image/jpeg", "image/png", "image/jpg", "image/webp");
+        long maxFileSize = 5 * 1024 * 1024;
+
+        for (MultipartFile file : validFiles) {
+            // Kiểm tra định dạng loại ảnh
+            String contentType = file.getContentType();
+            if (contentType == null || !allowedContentTypes.contains(contentType.toLowerCase())) {
+                throw new AppException(ErrorCode.INVALID_IMAGE_FORMAT);
+            }
+
+            // Kiểm tra dung lượng file
+            if (file.getSize() > maxFileSize) {
+                throw new AppException(ErrorCode.IMAGE_SIZE_TOO_LARGE);
+            }
+        }
+
+        return validFiles;
+    }
+
+
+    private void replaceRoomBeds(Room room, List<RoomBedRequest> newBedRequests) {
+        // 1. Lấy danh sách giường cũ và xóa
+        List<RoomBed> existingBeds = roomTypeBedRepository.findByRoomId(room.getId());
+        if (existingBeds != null && !existingBeds.isEmpty()) {
+            roomTypeBedRepository.deleteAll(existingBeds);
+
+            // 👉 BỔ SUNG DÒNG NÀY ĐỂ ÉP XÓA NGAY LẬP TỨC TRƯỚC KHI INSERT
+            roomTypeBedRepository.flush();
+        }
+
+        if (newBedRequests == null || newBedRequests.isEmpty()) {
+            return;
+        }
+
+        // 2. Lấy thông tin các loại giường từ DB dựa trên ID
+        Set<Long> bedTypeIds = newBedRequests.stream()
+                .map(RoomBedRequest::getBedTypeId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        Map<Long, BedType> bedTypesById = bedTypeRepository.findAllById(bedTypeIds).stream()
+                .collect(java.util.stream.Collectors.toMap(BedType::getId, bt -> bt));
+
+        // 3. Tạo các bản ghi RoomBed mới
+        List<RoomBed> newRoomBeds = new ArrayList<>();
+        for (RoomBedRequest req : newBedRequests) {
+            BedType bedType = bedTypesById.get(req.getBedTypeId());
+            if (bedType == null) {
+                throw new IllegalArgumentException("Loại giường với ID " + req.getBedTypeId() + " không tồn tại.");
+            }
+            newRoomBeds.add(RoomBed.builder()
+                    .room(room)
+                    .bedType(bedType)
+                    .quantity(req.getQuantity())
+                    .build());
+        }
+
+        // 4. Lưu xuống database
+        roomTypeBedRepository.saveAll(newRoomBeds);
+    }
+
+    private String describeAmenities(Set<Amenity> amenities) {
+        if (amenities == null || amenities.isEmpty()) {
+            return "Không có";
+        }
+
+        return amenities.stream()
+                .map(Amenity::getName)
+                .filter(Objects::nonNull)
+                .sorted()
+                .collect(Collectors.joining(", "));
+    }
+
+    private String describeBeds(List<RoomBed> beds) {
+        if (beds == null || beds.isEmpty()) {
+            return "Không có";
+        }
+
+        return beds.stream()
+                .map(bed -> bed.getBedType().getName() + " × " + bed.getQuantity())
+                .sorted()
+                .collect(Collectors.joining(", "));
+    }
+
+    private void addRoomChange(
+            List<Map<String, Object>> changes,
+            String label,
+            Object before,
+            Object after
+    ) {
+        if (Objects.equals(before, after)) {
+            return;
+        }
+
+        Map<String, Object> change = new LinkedHashMap<>();
+        change.put("label", label);
+        change.put("before", before == null ? "—" : before);
+        change.put("after", after == null ? "—" : after);
+        changes.add(change);
+    }
+}

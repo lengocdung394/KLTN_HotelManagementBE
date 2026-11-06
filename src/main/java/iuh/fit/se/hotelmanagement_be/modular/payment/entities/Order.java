@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.entities;
 
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.CashFlowType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentStatus;
@@ -151,8 +153,9 @@ public class Order {
                 .transactionDate(LocalDateTime.now())
                 .paymentType(paymentType)
                 .cashFlowType(CashFlowType.RECEIPT)
-                .paymentSource(PaymentSource.ONLINE_GATEWAY)
+                .paymentSource(resolvePaymentSource())
                 .note(transactionNote)
+                .processorEmployee(bookingEmployee())
                 .order(this)
                 .build();
 
@@ -165,6 +168,27 @@ public class Order {
         this.setPaidAmount(currentPaid.add(amountPaid));
 
         this.operation(); // Kích hoạt logic đóng phòng/đóng đơn của bạn
+    }
+
+    private PaymentSource resolvePaymentSource() {
+        Booking currentBooking = this.booking;
+        if (currentBooking == null) {
+            return PaymentSource.UNKNOWN;
+        }
+        if (currentBooking.getEmployee() != null
+                || currentBooking.getBookingChannel() == BookingChannel.OFFLINE) {
+            return PaymentSource.FRONT_DESK;
+        }
+        if (currentBooking.getBookingChannel() == BookingChannel.ONLINE) {
+            return PaymentSource.ONLINE_BOOKING;
+        }
+        return PaymentSource.UNKNOWN;
+    }
+
+    private Employee bookingEmployee() {
+        return resolvePaymentSource() == PaymentSource.FRONT_DESK && this.booking != null
+                ? this.booking.getEmployee()
+                : null;
     }
 
     // --- TỰ ĐỘNG SINH MÃ ORDER TRƯỚC KHI LƯU ---

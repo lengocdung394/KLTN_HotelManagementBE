@@ -151,7 +151,9 @@ public class AuthServiceImpl implements AuthService {
             position = "Khách hàng";
         } else {
             // Trường hợp tài khoản là Admin thuần túy (không có Employee, không có Customer)
-            fullName = "Quản trị hệ thống"; // Hoặc lấy từ đâu đó
+            fullName = account.getDisplayName() == null || account.getDisplayName().isBlank()
+                    ? "Quản trị hệ thống"
+                    : account.getDisplayName();
             position = "Admin";
             id = account.getId(); // Lấy ID của chính Account luôn
         }

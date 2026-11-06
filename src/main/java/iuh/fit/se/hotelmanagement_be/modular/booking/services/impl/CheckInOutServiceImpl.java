@@ -22,6 +22,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.CheckInOutSummaryResponse;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingServiceResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
+import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingManagementService;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.CheckInOutService;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
@@ -70,6 +71,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     BookingRepository bookingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     BookingService bookingService;
+    BookingManagementService bookingManagementService;
     BookingDetailRepository bookingDetailRepository;
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
@@ -249,6 +251,30 @@ public class CheckInOutServiceImpl implements CheckInOutService {
 
         return BigDecimal.valueOf(dailyRoomPrice);
 
+    }
+
+    @Override
+    public BigDecimal previewLateCheckOutFee(BookingDetail detail, LocalDateTime actualCheckOut) {
+        Room room = detail.getRoom();
+        Long hotelId = room.getFloor().getBuilding().getHotel().getId();
+        BranchRoomPolicy policy = branchRoomPolicyRepository
+                .findByHotelIdAndRoomType(hotelId, room.getRoomType());
+        LocalDate checkoutDate = detail.getCheckoutTime() == null
+                ? actualCheckOut.toLocalDate()
+                : detail.getCheckoutTime().toLocalDate();
+        BigDecimal roomPrice = getDailyRoomPrice(room, checkoutDate, hotelId, policy);
+        return SurchargeCalculator.calculateLateCheckOutFee(
+                detail.getCheckoutTime(),
+                actualCheckOut,
+                roomPrice);
+    }
+
+    @Override
+    public void cancelUnusedServicesBeforeCheckout(
+            String bookingId,
+            List<String> bookingDetailIds,
+            String employeeId) {
+        bookingManagementService.cancelUnusedServicesBeforeCheckout(bookingId, bookingDetailIds, employeeId);
     }
 
     @Transactional

@@ -17,6 +17,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -38,6 +39,7 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
     RoleRepository roleRepository;
     AuthService authService;
     AccountSocketEmitter accountSocketEmitter;
+    PasswordEncoder passwordEncoder;
 
     @Override
     public List<SuperAdminAccountResponse> getAccounts(String requestedType) {
@@ -91,6 +93,17 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
         if ("SUPER_ADMIN".equals(accountType)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Không thể cập nhật tài khoản Super Admin từ màn hình này.");
         }
+        boolean hasNewPassword = request.getPassword() != null && !request.getPassword().isBlank();
+        if (hasNewPassword) {
+            if (!Set.of("ADMIN", "MANAGER", "EMPLOYEE").contains(accountType)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Chỉ có thể đặt mật khẩu trực tiếp cho tài khoản nhân sự.");
+            }
+            if (request.getPassword().length() < 8) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Mật khẩu mới phải có ít nhất 8 ký tự.");
+            }
+        }
 
         if (request.getEmail() != null) {
             String email = request.getEmail().trim();
@@ -122,6 +135,10 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
 
         if (request.getRole() != null && !request.getRole().isBlank()) {
             updateStaffRole(account, request.getRole());
+        }
+
+        if (hasNewPassword) {
+            account.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
         accountRepository.save(account);
@@ -201,9 +218,14 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
     public void requestPasswordReset(String accountId) {
         Account account = accountRepository.findByIdWithProfiles(accountId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản."));
-        if ("WALK_IN_CUSTOMER".equals(accountTypeOf(account))) {
+        String accountType = accountTypeOf(account);
+        if ("WALK_IN_CUSTOMER".equals(accountType)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Khách hàng vãng lai chưa có tài khoản web để đặt lại mật khẩu.");
+        }
+        if (!"CUSTOMER".equals(accountType)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Đặt lại mật khẩu nhân sự được thực hiện trực tiếp trong phần chỉnh sửa tài khoản.");
         }
         if (account.getEmail() == null || account.getEmail().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,

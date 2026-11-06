@@ -64,6 +64,13 @@ public class JwtService {
             extraClaims.put("hotelName", null);
             extraClaims.put("id", cust.getId());
         }
+        else if (account.getDisplayName() != null && !account.getDisplayName().isBlank()) {
+            extraClaims.put("fullName", account.getDisplayName());
+            extraClaims.put("position", "Admin");
+            extraClaims.put("hotelId", null);
+            extraClaims.put("hotelName", "Toàn hệ thống");
+            extraClaims.put("id", account.getId());
+        }
 
         // 3. Đút danh sách Roles vào Token cho Frontend kiểm tra quyền
         if (account.getRoles() != null) {

@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.room.services.impl;
 
+import com.corundumstudio.socketio.SocketIOServer;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Amenity;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.AmenityRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.requests.AmenityRequest;
@@ -21,6 +22,7 @@ import java.util.Locale;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AmenityServiceImpl implements AmenityService {
     AmenityRepository amenityRepository;
+    SocketIOServer socketIOServer;
 
     @Override
     public List<AmenityGetAllResponse> getAllAmenities() {
@@ -55,7 +57,17 @@ public class AmenityServiceImpl implements AmenityService {
         validateUniqueName(request.getName(), id);
         amenity.setName(request.getName().trim());
         amenity.setPrice(request.getPrice());
-        return toResponse(amenityRepository.save(amenity));
+        Amenity saved = amenityRepository.save(amenity);
+        publishAmenityUpdate(saved);
+        return toResponse(saved);
+    }
+
+    private void publishAmenityUpdate(Amenity amenity) {
+        try {
+            socketIOServer.getBroadcastOperations().sendEvent("amenity_catalog_updated");
+        } catch (RuntimeException exception) {
+            log.error("Could not publish amenity catalog update for amenity {}", amenity.getId(), exception);
+        }
     }
 
     private void validateUniqueName(String name, Long excludedId) {

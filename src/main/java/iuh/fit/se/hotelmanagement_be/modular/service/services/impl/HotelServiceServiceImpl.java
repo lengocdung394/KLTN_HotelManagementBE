@@ -65,7 +65,7 @@ public class HotelServiceServiceImpl implements HotelServiceService {
         List<Service> list;
 
         if (hotelId != null) {
-            list = serviceRepository.findAvailableServicesForHotel(hotelId);
+            list = serviceRepository.findServicesForHotel(hotelId);
         } else {
             list = serviceRepository.findAll();
         }

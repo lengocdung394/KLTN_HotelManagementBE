@@ -28,5 +28,7 @@ public class SuperAdminAccountUpdateRequest {
     @Size(max = 100, message = "Chức vụ không được vượt quá 100 ký tự")
     String position;
 
+    String password;
+
     String role;
 }

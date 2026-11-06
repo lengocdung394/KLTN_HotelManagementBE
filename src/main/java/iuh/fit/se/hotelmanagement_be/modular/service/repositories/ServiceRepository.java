@@ -20,6 +20,9 @@ public interface ServiceRepository extends JpaRepository<Service, String> {
     @Query("SELECT s FROM Service s WHERE s.active = true AND (s.hotel IS NULL OR s.hotel.id = :hotelId)")
     List<Service> findAvailableServicesForHotel(@Param("hotelId") Long hotelId);
 
+    @Query("SELECT s FROM Service s WHERE s.hotel IS NULL OR s.hotel.id = :hotelId")
+    List<Service> findServicesForHotel(@Param("hotelId") Long hotelId);
+
     boolean existsByNameIgnoreCase(String name);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, String id);

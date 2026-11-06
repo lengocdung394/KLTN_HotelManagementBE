@@ -240,10 +240,7 @@ public class RoomServiceImpl implements RoomService {
                 .roomStatus(updatedRoom.getRoomStatus())
                 .roomType(updatedRoom.getRoomType())
                 .totalAmenitiesPrice(updatedRoom.getTotalAmenitiesPrice())
-                .totalPrice(
-                        updatedRoom.calculateRoomTotalPrice(updatedRoom, branchRoomPolicy)
-                                + updatedRoom.getTotalAmenitiesPrice()
-                )
+                .totalPrice(updatedRoom.calculateRoomTotalPrice(updatedRoom, branchRoomPolicy))
                 .defaultImageUrl(updatedRoom.getDefaultImageUrl())
                 .avatarUrl(updatedRoom.getAvatarUrl())
                 .amenities(updatedRoom.getAmenities())
@@ -426,7 +423,7 @@ public class RoomServiceImpl implements RoomService {
                 .roomType(savedRoom.getRoomType())
                 .totalAmenitiesPrice(savedRoom.getTotalAmenitiesPrice())
                 // Gia final ca tien phong + tien ich
-                .totalPrice(savedRoom.calculateRoomTotalPrice(savedRoom, branchRoomPolicy) + savedRoom.getTotalAmenitiesPrice())
+                .totalPrice(savedRoom.calculateRoomTotalPrice(savedRoom, branchRoomPolicy))
                 .defaultImageUrl(savedRoom.getDefaultImageUrl())
                 .avatarUrl(savedRoom.getAvatarUrl())
                 .amenities(savedRoom.getAmenities())
@@ -471,10 +468,7 @@ public class RoomServiceImpl implements RoomService {
                             .roomStatus(r.getRoomStatus())
                             .roomType(r.getRoomType())
                             .totalAmenitiesPrice(r.getTotalAmenitiesPrice())
-                            .totalPrice(
-                                    r.calculateRoomTotalPrice(r, policy)
-                                            + r.getTotalAmenitiesPrice()
-                            )
+                            .totalPrice(r.calculateRoomTotalPrice(r, policy))
                             .defaultImageUrl(r.getDefaultImageUrl())
                             .avatarUrl(r.getAvatarUrl())
                             .amenities(r.getAmenities())

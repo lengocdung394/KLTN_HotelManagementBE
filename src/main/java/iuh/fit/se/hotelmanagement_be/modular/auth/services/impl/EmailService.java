@@ -52,7 +52,30 @@ public class EmailService {
             String roomNumber,
             LocalDateTime checkIn,
             LocalDateTime checkOut,
+            long nights,
+            BigDecimal roomAmount,
             List<BookingServiceEmailDetail> services) {}
+
+    public record BookingPriceSummary(
+            BigDecimal roomTotal,
+            BigDecimal serviceTotal,
+            BigDecimal surchargeTotal,
+            BigDecimal roomDiscount,
+            BigDecimal serviceDiscount,
+            BigDecimal totalDiscount,
+            BigDecimal finalAmount) {
+        public BigDecimal subtotal() {
+                return zeroIfNullAmount(roomTotal)
+                        .add(zeroIfNullAmount(serviceTotal))
+                        .add(zeroIfNullAmount(surchargeTotal));
+            }
+
+            public BigDecimal totalSavings() {
+                return zeroIfNullAmount(roomDiscount)
+                        .add(zeroIfNullAmount(serviceDiscount))
+                        .add(zeroIfNullAmount(totalDiscount));
+        }
+    }
 
     private static final DateTimeFormatter BOOKING_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
@@ -172,16 +195,17 @@ public class EmailService {
             String bookingId,
             String hotelName,
             List<BookingRoomEmailDetail> bookingDetails,
-            BigDecimal totalAmount,
+            BookingPriceSummary priceSummary,
             String promotionName,
             String promotionCode,
-            BigDecimal promotionDiscount,
             boolean paymentDueWithinFiveMinutes) {
         String subject = "Xác nhận đặt phòng " + bookingId;
         String plainBookingDetails = bookingDetails.stream()
                 .map(detail -> "Phòng " + valueOrDash(detail.roomNumber())
                         + " | Check-in: " + formatBookingDateTime(detail.checkIn())
                         + " | Check-out: " + formatBookingDateTime(detail.checkOut())
+                        + " | " + detail.nights() + " đêm"
+                        + " | Tiền phòng: " + formatAmount(detail.roomAmount())
                         + plainServices(detail.services()))
                 .reduce((first, next) -> first + "\n" + next)
                 .orElse("Chưa có thông tin phòng");
@@ -190,39 +214,38 @@ public class EmailService {
                 .append("Booking của quý khách đã được tạo thành công.\n")
                 .append("Mã booking: ").append(bookingId).append("\n")
                 .append("Khách sạn: ").append(hotelName).append("\n")
-                .append("Chi tiết đặt phòng:\n").append(plainBookingDetails).append("\n")
-                .append("Tổng tiền tạm tính: ").append(formatAmount(totalAmount)).append("\n");
+                .append("Chi tiết đặt phòng:\n").append(plainBookingDetails).append("\n");
         if (promotionCode != null && !promotionCode.isBlank()) {
             plain.append("Khuyến mãi: ").append(valueOrDash(promotionName))
-                    .append(" (").append(promotionCode).append(")\n")
-                    .append("Số tiền được giảm: ").append(formatAmount(promotionDiscount)).append("\n");
+                    .append(" (").append(promotionCode).append(")\n");
         }
+        appendBookingPriceSummaryPlain(plain, priceSummary);
         if (paymentDueWithinFiveMinutes) {
             plain.append("\nLưu ý: Vui lòng thanh toán trong vòng 5 phút kể từ thời điểm tạo booking để giữ phòng. "
                     + "Sau thời gian này, booking có thể hết hạn và phòng được mở lại.\n");
         }
         plain.append("\nTrân trọng,\n").append(hotelName);
-        String content = paragraph("Kính gửi " + greeting(customerName) + ", đặt phòng của quý khách đã được tạo thành công.")
-                + detailRow("Mã booking", bookingId, true)
-                + detailRow("Khách sạn", hotelName, false)
-                + bookingRoomDetailsTable(bookingDetails)
-                + bookingServicesTable(bookingDetails)
-                + detailRow("Tổng tiền tạm tính", formatAmount(totalAmount), true);
+        StringBuilder content = new StringBuilder()
+                .append(paragraph("Kính gửi " + greeting(customerName) + ", đặt phòng của quý khách đã được tạo thành công."))
+                .append(detailRow("Mã booking", bookingId, true))
+                .append(detailRow("Khách sạn", hotelName, false))
+                .append(bookingRoomDetailsTable(bookingDetails))
+                .append(bookingServicesTable(bookingDetails));
         if (promotionCode != null && !promotionCode.isBlank()) {
-            content += detailRow("Khuyến mãi", valueOrDash(promotionName), false)
-                    + detailRow("Mã khuyến mãi", promotionCode, false)
-                    + detailRow("Số tiền được giảm", formatAmount(promotionDiscount), true);
+            content.append(detailRow("Khuyến mãi", valueOrDash(promotionName), false))
+                    .append(detailRow("Mã khuyến mãi", promotionCode, false));
         }
+        content.append(bookingPriceSummaryTable(priceSummary));
         if (paymentDueWithinFiveMinutes) {
-            content += notice(
+            content.append(notice(
                     "Lưu ý để giữ phòng",
                     "Vui lòng thanh toán trong vòng 5 phút kể từ thời điểm tạo booking. Sau thời gian này, booking có thể hết hạn và phòng được mở lại.",
                     "#fff7ed",
-                    "#9a3412");
+                    "#9a3412"));
         }
         try {
             sendBrandedEmail(email, subject, "XÁC NHẬN ĐẶT PHÒNG", "Đặt phòng đã được ghi nhận",
-                    plain.toString(), hotelName, content);
+                    plain.toString(), hotelName, content.toString());
             log.info("SMTP đã chấp nhận email xác nhận booking {} tới {}", bookingId, maskEmail(email));
         } catch (RuntimeException exception) {
             log.error("Không gửi được email xác nhận booking {}: {}", bookingId, exception.getMessage(), exception);
@@ -323,22 +346,69 @@ public class EmailService {
                 .append("<div style=\"margin-bottom:10px;color:#334155;font-size:13px;font-weight:700\">Chi tiết đặt phòng</div>")
                 .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;table-layout:fixed;border-collapse:collapse\">")
                 .append("<thead><tr>")
-                .append(bookingTableHeader("Số phòng", "24%"))
-                .append(bookingTableHeader("Check-in", "38%"))
-                .append(bookingTableHeader("Check-out", "38%"))
+                .append(bookingTableHeader("Số phòng", "16%"))
+                .append(bookingTableHeader("Check-in", "27%"))
+                .append(bookingTableHeader("Check-out", "27%"))
+                .append(bookingTableHeader("Số đêm", "12%"))
+                .append(bookingTableHeader("Tiền phòng", "18%"))
                 .append("</tr></thead><tbody>");
         if (bookingDetails.isEmpty()) {
-            table.append("<tr><td colspan=\"3\" style=\"padding:12px 4px;color:#64748b;font-size:12px\">Chưa có thông tin phòng</td></tr>");
+            table.append("<tr><td colspan=\"5\" style=\"padding:12px 4px;color:#64748b;font-size:12px\">Chưa có thông tin phòng</td></tr>");
         } else {
             for (BookingRoomEmailDetail detail : bookingDetails) {
                 table.append("<tr>")
                         .append(bookingTableCell(valueOrDash(detail.roomNumber())))
                         .append(bookingTableCell(formatBookingDateTime(detail.checkIn())))
                         .append(bookingTableCell(formatBookingDateTime(detail.checkOut())))
+                        .append(bookingTableCell(detail.nights() + " đêm"))
+                        .append(bookingTableCell(formatAmount(detail.roomAmount())))
                         .append("</tr>");
             }
         }
         return table.append("</tbody></table></div>").toString();
+    }
+
+    private String bookingPriceSummaryTable(BookingPriceSummary summary) {
+        StringBuilder rows = new StringBuilder()
+                .append(detailRow("Tổng tiền phòng", formatAmount(summary.roomTotal()), false))
+                .append(detailRow("Tổng tiền dịch vụ", formatAmount(summary.serviceTotal()), false));
+        if (zeroIfNullAmount(summary.surchargeTotal()).signum() > 0) {
+            rows.append(detailRow("Phụ thu", formatAmount(summary.surchargeTotal()), false));
+        }
+        rows.append(detailRow("Tạm tính", formatAmount(summary.subtotal()), false));
+        if (zeroIfNullAmount(summary.roomDiscount()).signum() > 0) {
+            rows.append(detailRow("Giảm tiền phòng", "-" + formatAmount(summary.roomDiscount()), false));
+        }
+        if (zeroIfNullAmount(summary.serviceDiscount()).signum() > 0) {
+            rows.append(detailRow("Giảm tiền dịch vụ", "-" + formatAmount(summary.serviceDiscount()), false));
+        }
+        if (zeroIfNullAmount(summary.totalDiscount()).signum() > 0) {
+            rows.append(detailRow("Giảm trực tiếp từ khuyến mãi", "-" + formatAmount(summary.totalDiscount()), false));
+        }
+        rows.append(detailRow("Tổng tiền được giảm", formatAmount(summary.totalSavings()), false))
+                .append(detailRow("Tổng tiền cần thanh toán", formatAmount(summary.finalAmount()), true));
+        return "<div style=\"margin-top:16px\">" + rows + "</div>";
+    }
+
+    private void appendBookingPriceSummaryPlain(StringBuilder plain, BookingPriceSummary summary) {
+        plain.append("\nCHI TIẾT THANH TOÁN\n")
+                .append("Tổng tiền phòng: ").append(formatAmount(summary.roomTotal())).append("\n")
+                .append("Tổng tiền dịch vụ: ").append(formatAmount(summary.serviceTotal())).append("\n");
+        if (zeroIfNullAmount(summary.surchargeTotal()).signum() > 0) {
+            plain.append("Phụ thu: ").append(formatAmount(summary.surchargeTotal())).append("\n");
+        }
+        plain.append("Tạm tính: ").append(formatAmount(summary.subtotal())).append("\n");
+        if (zeroIfNullAmount(summary.roomDiscount()).signum() > 0) {
+            plain.append("Giảm tiền phòng: -").append(formatAmount(summary.roomDiscount())).append("\n");
+        }
+        if (zeroIfNullAmount(summary.serviceDiscount()).signum() > 0) {
+            plain.append("Giảm tiền dịch vụ: -").append(formatAmount(summary.serviceDiscount())).append("\n");
+        }
+        if (zeroIfNullAmount(summary.totalDiscount()).signum() > 0) {
+            plain.append("Giảm trực tiếp từ khuyến mãi: -").append(formatAmount(summary.totalDiscount())).append("\n");
+        }
+        plain.append("Tổng tiền được giảm: ").append(formatAmount(summary.totalSavings())).append("\n")
+                .append("Tổng tiền cần thanh toán: ").append(formatAmount(summary.finalAmount())).append("\n");
     }
 
     private String bookingServicesTable(List<BookingRoomEmailDetail> bookingDetails) {
@@ -387,6 +457,10 @@ public class EmailService {
     private BigDecimal serviceLineTotal(BookingServiceEmailDetail service) {
         BigDecimal unitPrice = service.unitPrice() != null ? service.unitPrice() : BigDecimal.ZERO;
         return unitPrice.multiply(BigDecimal.valueOf(service.quantity()));
+    }
+
+    private static BigDecimal zeroIfNullAmount(BigDecimal amount) {
+        return amount != null ? amount : BigDecimal.ZERO;
     }
 
     private String bookingTableHeader(String label, String width) {

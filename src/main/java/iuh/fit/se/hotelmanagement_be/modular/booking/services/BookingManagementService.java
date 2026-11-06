@@ -34,6 +34,8 @@ public interface BookingManagementService {
      */
     BookingModificationResponse modifyBooking(String bookingId, BookingModificationRequest request);
 
+    void cancelUnusedServicesBeforeCheckout(String bookingId, List<String> bookingDetailIds, String employeeId);
+
     BookingServiceResponseForHotel confirmServiceUsed(String bookingId, String serviceDetailId, int quantity, Account account);
 
            /**

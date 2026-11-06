@@ -9,6 +9,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingCancellation;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingChannel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCancellationRefundMethod;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingRefundTransferMethod;
@@ -175,6 +176,46 @@ public class BookingCancellationService {
                 "Nhân viên yêu cầu hủy booking");
     }
 
+    @Transactional
+    public BookingCancellationResponse requestHotelClosureCancellation(
+            String bookingId,
+            BookingCancellationRequest request,
+            Account account) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+        ensureBranchAccess(booking, account);
+        if (booking.getBookingDetails() != null
+                && booking.getBookingDetails().stream()
+                .anyMatch(detail -> detail.getStatus() == BookingStatusType.CHECKED_IN)) {
+            throw new AppException(ErrorCode.BOOKING_ALREADY_COMPLETED);
+        }
+        BookingCancellationRequest cancellationRequest = request == null
+                ? new BookingCancellationRequest()
+                : request;
+        if (cancellationRequest.getReason() == null || cancellationRequest.getReason().isBlank()) {
+            cancellationRequest.setReason("Khách sạn tạm đóng để sửa chữa, cải tạo");
+        }
+        String employeeId = account.getEmployeeId();
+        String cancelledBy = employeeId == null ? "ACCOUNT:" + account.getId() : "EMPLOYEE:" + employeeId;
+        return cancelBooking(booking, cancellationRequest, account, null, false, cancelledBy,
+                "Booking được hủy do khách sạn tạm đóng; hoàn tiền không áp dụng phí phạt", true);
+    }
+
+    public BookingCancellationPreviewResponse previewHotelClosureCancellation(Booking booking) {
+        RefundBreakdown breakdown = fullPaidRefund(booking.getOrder());
+        return BookingCancellationPreviewResponse.builder()
+                .bookingId(booking.getId())
+                .paidAmount(booking.getOrder() == null
+                        ? BigDecimal.ZERO
+                        : zeroIfNull(booking.getOrder().getPaidAmount()))
+                .refundAmount(breakdown.total())
+                .roomRefundAmount(breakdown.roomRefund())
+                .serviceRefundAmount(breakdown.serviceRefund())
+                .roomPenaltyAmount(breakdown.roomPenalty())
+                .refundPolicy("FULL_REFUND_HOTEL_CLOSURE_NO_PENALTY")
+                .build();
+    }
+
     @Transactional(readOnly = true)
     public BookingCancellationPreviewResponse previewCancellationByStaff(String bookingId, Account account) {
         Booking booking = bookingRepository.findById(bookingId)
@@ -210,6 +251,19 @@ public class BookingCancellationService {
             boolean requireBankDetails,
             String cancelledBy,
             String notification) {
+        return cancelBooking(booking, request, requestedByAccount, customerId, requireBankDetails,
+                cancelledBy, notification, false);
+    }
+
+    private BookingCancellationResponse cancelBooking(
+            Booking booking,
+            BookingCancellationRequest request,
+            Account requestedByAccount,
+            String customerId,
+            boolean requireBankDetails,
+            String cancelledBy,
+            String notification,
+            boolean hotelClosureCancellation) {
         String bookingId = booking.getId();
         if (booking.getBookingStatus() != BookingStatus.PENDING
                 && booking.getBookingStatus() != BookingStatus.CONFIRMED) {
@@ -222,7 +276,12 @@ public class BookingCancellationService {
         paymentService.cancelOutstandingPaymentLinks(bookingId);
         LocalDateTime now = LocalDateTime.now();
         CancellationPolicy policy = cancellationPolicy(booking, now);
-        RefundBreakdown breakdown = calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        RefundBreakdown breakdown = hotelClosureCancellation
+                ? fullPaidRefund(booking.getOrder())
+                : calculateRefund(booking.getOrder(), policy.roomPenaltyRate());
+        String refundPolicy = hotelClosureCancellation
+                ? "FULL_REFUND_HOTEL_CLOSURE_NO_PENALTY"
+                : policy.name();
         BookingCancellationRefundMethod refundMethod = requestedByAccount == null || request == null
                 || request.getRefundMethod() == null
                 ? BookingCancellationRefundMethod.BANK
@@ -251,7 +310,7 @@ public class BookingCancellationService {
                 || !amountMatches(request.getConfirmedRoomRefundAmount(), breakdown.roomRefund())
                 || !amountMatches(request.getConfirmedServiceRefundAmount(), breakdown.serviceRefund())
                 || !amountMatches(request.getConfirmedRoomPenaltyAmount(), breakdown.roomPenalty())
-                || !policy.name().equals(request.getConfirmedRefundPolicy()))) {
+                || !refundPolicy.equals(request.getConfirmedRefundPolicy()))) {
             throw new AppException(ErrorCode.CANCELLATION_REFUND_AMOUNT_CHANGED);
         }
         BookingCancellationStatus status = breakdown.total().signum() <= 0
@@ -272,7 +331,7 @@ public class BookingCancellationService {
                 .serviceRefundAmount(breakdown.serviceRefund())
                 .roomPenaltyAmount(breakdown.roomPenalty())
                 .hoursBeforeCheckIn(policy.hoursBeforeCheckIn())
-                .refundPolicy(policy.name())
+                .refundPolicy(refundPolicy)
                 .refundEmail(refundEmail)
                 .requestedByCustomerId(customerId)
                 .requestedByAccount(requestedByAccount)
@@ -307,6 +366,16 @@ public class BookingCancellationService {
             scheduleCancellationEmail(booking, cancellation, refundEmail);
         }
         return toResponse(cancellation);
+    }
+
+    private RefundBreakdown fullPaidRefund(Order order) {
+        if (order == null || order.getPaidAmount() == null || order.getPaidAmount().signum() <= 0) {
+            return RefundBreakdown.zero();
+        }
+        BigDecimal total = roundToWholeVnd(order.getPaidAmount());
+        BigDecimal roomRefund = calculateRefund(order, BigDecimal.ZERO).roomRefund().min(total);
+        BigDecimal serviceRefund = total.subtract(roomRefund).max(BigDecimal.ZERO);
+        return new RefundBreakdown(total, roomRefund, serviceRefund, BigDecimal.ZERO);
     }
 
 
@@ -745,13 +814,19 @@ public class BookingCancellationService {
             throw new AppException(ErrorCode.CANCELLATION_REFUND_EXCEEDS_PAID);
         }
         LocalDateTime now = LocalDateTime.now();
+        Booking booking = cancellation.getBooking();
+        PaymentSource paymentSource = manualBankTransfer
+                ? PaymentSource.FRONT_DESK
+                : paymentSourceForBooking(booking);
         paymentRepository.save(PaymentTransaction.builder()
                 .order(order)
                 .amount(cancellation.getRefundAmount())
                 .paymentType(PaymentType.BANK)
                 .cashFlowType(CashFlowType.REFUND)
-                .paymentSource(manualBankTransfer ? PaymentSource.FRONT_DESK : PaymentSource.ONLINE_GATEWAY)
-                .processorEmployee(manualBankTransfer && account != null ? account.getEmployee() : null)
+                .paymentSource(paymentSource)
+                .processorEmployee(manualBankTransfer
+                        ? account == null ? null : account.getEmployee()
+                        : paymentSource == PaymentSource.FRONT_DESK ? booking.getEmployee() : null)
                 .note(manualBankTransfer
                         ? "Manual bank refund" + (refundReference == null ? "" : " " + refundReference)
                         : "PayOS payout " + refundReference)
@@ -768,7 +843,6 @@ public class BookingCancellationService {
         clearBankDetails(cancellation);
         BookingCancellation saved = cancellationRepository.save(cancellation);
 
-        Booking booking = cancellation.getBooking();
         if (booking.getHotel() != null) {
             bookingSocketEmitter.emitRefundCompleted(booking.getHotel().getId(), booking.getId(), cancellation.getRefundAmount());
             bookingSocketEmitter.emitBookingStateUpdated(booking.getHotel().getId(), booking.getId(), "REFUND_COMPLETED");
@@ -787,6 +861,16 @@ public class BookingCancellationService {
                             recipientEmail, customerName, booking.getId(), hotelName, formattedAmount, refundReference));
         }
         return toResponse(saved);
+    }
+
+    private PaymentSource paymentSourceForBooking(Booking booking) {
+        if (booking.getEmployee() != null || booking.getBookingChannel() == BookingChannel.OFFLINE) {
+            return PaymentSource.FRONT_DESK;
+        }
+        if (booking.getBookingChannel() == BookingChannel.ONLINE) {
+            return PaymentSource.ONLINE_BOOKING;
+        }
+        return PaymentSource.UNKNOWN;
     }
 
     private boolean isPayoutComplete(Payout payout, BigDecimal refundAmount) {
@@ -1025,42 +1109,53 @@ public class BookingCancellationService {
         }
     }
 
-    private RefundBreakdown calculateRefund(Order order, BigDecimal roomPenaltyRate) {
+    RefundBreakdown calculateRefund(Order order, BigDecimal roomPenaltyRate) {
         if (order == null) {
             return RefundBreakdown.zero();
         }
-        BigDecimal roomGross = zeroIfNull(order.getRoomTotalAmount());
-        BigDecimal serviceGross = zeroIfNull(order.getServiceTotalAmount());
-        BigDecimal surchargeGross = zeroIfNull(order.getSurchargeTotalAmount());
+        BigDecimal roomGross = roundToWholeVnd(zeroIfNull(order.getRoomTotalAmount()));
+        BigDecimal serviceGross = roundToWholeVnd(zeroIfNull(order.getServiceTotalAmount()));
+        BigDecimal surchargeGross = roundToWholeVnd(zeroIfNull(order.getSurchargeTotalAmount()));
         BigDecimal coreGross = roomGross.add(serviceGross);
 
-        BigDecimal roomDiscount = zeroIfNull(order.getDiscountRoomAmount());
-        BigDecimal serviceDiscount = zeroIfNull(order.getDiscountServiceAmount());
-        BigDecimal totalDiscount = zeroIfNull(order.getDiscountAmountTotal());
+        BigDecimal roomDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountRoomAmount()));
+        BigDecimal serviceDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountServiceAmount()));
+        BigDecimal totalDiscount = roundToWholeVnd(zeroIfNull(order.getDiscountAmountTotal()));
         BigDecimal totalRoomDiscountShare = coreGross.signum() == 0
                 ? BigDecimal.ZERO
-                : totalDiscount.multiply(roomGross).divide(coreGross, 2, RoundingMode.HALF_UP);
-        BigDecimal totalServiceDiscountShare = totalDiscount.subtract(totalRoomDiscountShare);
+                : totalDiscount.multiply(roomGross).divide(coreGross, 0, RoundingMode.HALF_UP);
+        BigDecimal totalServiceDiscountShare = roundToWholeVnd(totalDiscount.subtract(totalRoomDiscountShare));
 
         BigDecimal roomNet = roomGross.subtract(roomDiscount).subtract(totalRoomDiscountShare).max(BigDecimal.ZERO);
         BigDecimal serviceNet = serviceGross.subtract(serviceDiscount).subtract(totalServiceDiscountShare).max(BigDecimal.ZERO);
         BigDecimal payable = roomNet.add(serviceNet).add(surchargeGross);
-        BigDecimal paid = zeroIfNull(order.getPaidAmount()).min(payable);
+        BigDecimal paid = roundToWholeVnd(zeroIfNull(order.getPaidAmount())).min(payable);
         if (payable.signum() <= 0 || paid.signum() <= 0) {
             return RefundBreakdown.zero();
         }
 
-        BigDecimal paidRoom = paid.multiply(roomNet).divide(payable, 2, RoundingMode.HALF_UP);
-        BigDecimal paidService = paid.multiply(serviceNet).divide(payable, 2, RoundingMode.HALF_UP);
-        BigDecimal roomPenalty = paidRoom.multiply(roomPenaltyRate).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal coreNet = roomNet.add(serviceNet);
+        BigDecimal paidSurcharge = coreNet.signum() == 0
+                ? paid
+                : paid.multiply(surchargeGross).divide(payable, 0, RoundingMode.HALF_UP).min(paid);
+        BigDecimal paidCore = paid.subtract(paidSurcharge);
+        BigDecimal paidRoom = coreNet.signum() == 0
+                ? BigDecimal.ZERO
+                : paidCore.multiply(roomNet).divide(coreNet, 0, RoundingMode.HALF_UP).min(paidCore);
+        BigDecimal paidService = paidCore.subtract(paidRoom);
+        BigDecimal roomPenalty = roundToWholeVnd(paidRoom.multiply(roomPenaltyRate));
         BigDecimal roomRefund = paidRoom.subtract(roomPenalty).max(BigDecimal.ZERO);
         BigDecimal serviceRefund = paidService;
-        BigDecimal refund = roomRefund.add(serviceRefund).min(paid).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal refund = roomRefund.add(serviceRefund);
         return new RefundBreakdown(
-                refund,
+                refund.setScale(2, RoundingMode.HALF_UP),
                 roomRefund.setScale(2, RoundingMode.HALF_UP),
                 serviceRefund.setScale(2, RoundingMode.HALF_UP),
                 roomPenalty.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    private BigDecimal roundToWholeVnd(BigDecimal amount) {
+        return amount.setScale(0, RoundingMode.HALF_UP);
     }
 
     private void cancelBooking(
@@ -1162,7 +1257,7 @@ public class BookingCancellationService {
         return value == null || value.isBlank();
     }
 
-    private record RefundBreakdown(
+    record RefundBreakdown(
             BigDecimal total,
             BigDecimal roomRefund,
             BigDecimal serviceRefund,

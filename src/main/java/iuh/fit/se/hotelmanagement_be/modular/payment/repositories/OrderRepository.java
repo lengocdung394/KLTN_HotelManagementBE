@@ -38,7 +38,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
               AND COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime) < :end
               AND service.used = true
               AND (service.cancelled = false OR service.cancelled IS NULL)
-              AND (detail.status IS NULL OR detail.status <> :cancelledRoomStatus)
+              AND detail.status = :completedRoomStatus
               AND (booking.bookingStatus IS NULL OR booking.bookingStatus NOT IN :cancelledBookingStatuses)
             GROUP BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
             ORDER BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
@@ -47,7 +47,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledRoomStatus") BookingStatusType cancelledRoomStatus,
+            @Param("completedRoomStatus") BookingStatusType completedRoomStatus,
             @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses
     );
 

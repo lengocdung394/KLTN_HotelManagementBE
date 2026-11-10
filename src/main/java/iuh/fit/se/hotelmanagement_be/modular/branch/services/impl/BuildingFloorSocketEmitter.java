@@ -1,6 +1,8 @@
 package iuh.fit.se.hotelmanagement_be.modular.branch.services.impl;
 
 import com.corundumstudio.socketio.SocketIOServer;
+import iuh.fit.se.hotelmanagement_be.modular.branch.responses.BuildingResponse;
+import iuh.fit.se.hotelmanagement_be.modular.branch.responses.FloorResponse;
 import iuh.fit.se.hotelmanagement_be.modular.notification.entities.enums.NotificationType;
 import iuh.fit.se.hotelmanagement_be.modular.notification.services.NotificationService;
 import lombok.AccessLevel;
@@ -54,6 +56,7 @@ public class BuildingFloorSocketEmitter {
                 created
                         ? "Một tòa nhà mới vừa được thêm vào chi nhánh."
                         : "Thông tin tòa nhà tại chi nhánh vừa được cập nhật.",
+                getReferenceId(building),
                 isSuperAdmin
         );
     }
@@ -87,6 +90,7 @@ public class BuildingFloorSocketEmitter {
                 created
                         ? "Một tầng mới vừa được thêm vào tòa nhà."
                         : "Thông tin tầng trong tòa nhà vừa được cập nhật.",
+                getReferenceId(floor),
                 isSuperAdmin
         );
     }
@@ -100,6 +104,7 @@ public class BuildingFloorSocketEmitter {
             NotificationType notificationType,
             String title,
             String fallbackDescription,
+            String referenceId,
             boolean isSuperAdmin
     ) {
         if (hotelId == null) {
@@ -137,7 +142,7 @@ public class BuildingFloorSocketEmitter {
                     title,
                     description,
                     entityType,
-                    null,
+                    referenceId,
                     publishToHotel,
                     publishToSuperAdmin
             );
@@ -178,6 +183,20 @@ public class BuildingFloorSocketEmitter {
                     exception
             );
         }
+    }
+
+    private String getReferenceId(Object data) {
+        if (data instanceof BuildingResponse building) {
+            return building.getId();
+        }
+        if (data instanceof FloorResponse floor) {
+            return floor.getId();
+        }
+        if (data instanceof Map<?, ?> dataMap) {
+            Object id = dataMap.get("id");
+            return id == null ? null : String.valueOf(id);
+        }
+        return null;
     }
 
     private String buildChangeDescription(

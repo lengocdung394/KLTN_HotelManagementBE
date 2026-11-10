@@ -51,7 +51,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public EmployeeCreateResponse createStaffAndAccount(UserRegisterRequest dto, MultipartFile avatarFile, Account currentAccount) {
         Set<String> creatorRoles = currentAccount.getRoles().stream()
-                .map(Role::getName)
+                .map(Role::getCode)
                 .collect(Collectors.toSet());
 
         boolean isManager = creatorRoles.contains("ROLE_MANAGER");

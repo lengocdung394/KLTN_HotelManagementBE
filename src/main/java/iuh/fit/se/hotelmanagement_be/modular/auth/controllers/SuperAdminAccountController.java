@@ -1,9 +1,11 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.SuperAdminProfileUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.SuperAdminAccountUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.SuperAdminAccountResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.SuperAdminAccountService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -11,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -42,10 +45,25 @@ public class SuperAdminAccountController {
         return ResponseEntity.ok(response(accountService.updateAccount(accountId, request), "Cập nhật tài khoản thành công."));
     }
 
+    @PutMapping("/me/profile")
+    public ResponseEntity<ApiResponse<SuperAdminAccountResponse>> updateOwnProfile(
+            @Valid @RequestBody SuperAdminProfileUpdateRequest request,
+            @AuthenticationPrincipal Account currentAccount) {
+        return ResponseEntity.ok(response(
+                accountService.updateOwnProfile(currentAccount.getId(), request),
+                "Cập nhật thông tin Super Admin thành công."));
+    }
+
     @PostMapping("/{accountId}/password-reset")
     public ResponseEntity<ApiResponse<Void>> requestPasswordReset(@PathVariable String accountId) {
         accountService.requestPasswordReset(accountId);
-        return ResponseEntity.ok(response(null, "Mã OTP đặt lại mật khẩu đã được gửi đến email của tài khoản."));
+        return ResponseEntity.ok(response(null, "Mật khẩu mới đã được gửi đến email của tài khoản."));
+    }
+
+    @PostMapping("/me/password-reset")
+    public ResponseEntity<ApiResponse<Void>> requestOwnPasswordReset() {
+        accountService.requestOwnPasswordReset();
+        return ResponseEntity.ok(response(null, "Mật khẩu mới đã được gửi đến email của tài khoản."));
     }
 
     @GetMapping("/customers/{customerId}")

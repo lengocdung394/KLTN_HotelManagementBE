@@ -57,6 +57,8 @@ public enum ErrorCode {
     OTP_INCORRECT_2_ATTEMPTS(2057, " Mã OTP không chính xác. Bạn còn 1 lần thử", HttpStatus.BAD_REQUEST),
     EMAIL_OTP_PENDING(2058, "Email này hiện đang chờ xác thực mã OTP.", HttpStatus.BAD_REQUEST),
     PHONE_OTP_PENDING(2059, "Số điện thoại này đang chờ xác thực bởi một yêu cầu khác.", HttpStatus.BAD_REQUEST),
+    PASSWORD_RESET_LINK_INVALID(2060, "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã được sử dụng.", HttpStatus.BAD_REQUEST),
+    PASSWORD_RESET_LINK_EXPIRED(2061, "Liên kết đặt lại mật khẩu đã hết hạn. Vui lòng yêu cầu liên kết mới.", HttpStatus.BAD_REQUEST),
 
 
     // ==========================================

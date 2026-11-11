@@ -71,7 +71,9 @@ public class FloorServiceImpl implements FloorService {
         Building building = buildingRepository.findByIdAndHotelId(request.getBuildingId(), hotelId)
                 .orElseThrow(() -> new AppException(ErrorCode.BUILDING_NOT_FOUND));
         int floorNumber = request.getFloorNumber();
-        if (floorRepository.existsByBuilding_IdAndFloorNumber(building.getId(), floorNumber)) {
+        String floorId = Floor.generateId(building.getId(), floorNumber);
+        if (floorRepository.existsByBuilding_IdAndFloorNumber(building.getId(), floorNumber)
+                || floorRepository.existsById(floorId)) {
             throw new AppException(ErrorCode.FLOOR_ALREADY_EXISTS);
         }
 
@@ -90,7 +92,7 @@ public class FloorServiceImpl implements FloorService {
                         .build())
                 .build();
 
-        buildingFloorSocketEmitter.emitFloorChanged(hotelId, "CREATE", floorNumber);
+        buildingFloorSocketEmitter.emitFloorChanged(hotelId, "CREATE", floorResponse);
         return floorResponse;
     }
 

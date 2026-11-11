@@ -6,21 +6,26 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Employee;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.AccountRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.CustomerRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerUpdateRequest;
-import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.SuperAdminProfileUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.SuperAdminAccountUpdateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.SuperAdminAccountResponse;
-import iuh.fit.se.hotelmanagement_be.modular.auth.services.AuthService;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.SuperAdminAccountService;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmailService;
+import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -32,14 +37,16 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
 
+    private static final SecureRandom PASSWORD_RESET_RANDOM = new SecureRandom();
     private static final Set<String> STAFF_ROLES = Set.of(
             "ROLE_ADMIN", "ROLE_MANAGER", "ROLE_EMPLOYEE");
     AccountRepository accountRepository;
     CustomerRepository customerRepository;
+    EmployeeRepository employeeRepository;
     RoleRepository roleRepository;
-    AuthService authService;
     AccountSocketEmitter accountSocketEmitter;
     PasswordEncoder passwordEncoder;
+    EmailService emailService;
 
     @Override
     public List<SuperAdminAccountResponse> getAccounts(String requestedType) {
@@ -146,6 +153,37 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
     }
 
     @Override
+    @Transactional
+    public SuperAdminAccountResponse updateOwnProfile(String accountId, SuperAdminProfileUpdateRequest request) {
+        if (request == null || request.getFullName() == null || request.getFullName().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Họ tên không được để trống.");
+        }
+        String fullName = request.getFullName().trim();
+        if (fullName.length() > 150) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Họ tên không được vượt quá 150 ký tự.");
+        }
+        Account account = accountRepository.findByIdWithProfiles(accountId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản."));
+        if (!"SUPER_ADMIN".equals(accountTypeOf(account))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ Super Admin mới được cập nhật hồ sơ này.");
+        }
+        account.setDisplayName(fullName);
+        if (account.getEmployee() != null) {
+            Employee employee = account.getEmployee();
+            employee.setFullName(fullName);
+            employeeRepository.save(employee);
+        }
+        accountRepository.save(account);
+        Account updatedAccount = accountRepository.findByIdWithProfiles(accountId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản."));
+        SuperAdminAccountResponse response = toResponse(updatedAccount);
+        if (!fullName.equals(response.getFullName())) {
+            throw new IllegalStateException("Tên Super Admin chưa được lưu đúng vào hồ sơ tài khoản.");
+        }
+        return response;
+    }
+
+    @Override
     public boolean matchesType(String accountType, String filter) {
         return switch (filter) {
             case "ALL" -> true;
@@ -167,10 +205,10 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Vai trò chỉ được là ROLE_ADMIN, ROLE_MANAGER hoặc ROLE_EMPLOYEE.");
         }
-        Role newRole = roleRepository.findByName(roleName)
+        Role newRole = roleRepository.findByCode(roleName)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Vai trò không tồn tại."));
         Set<Role> roles = (account.getRoles() == null ? Set.<Role>of() : account.getRoles()).stream()
-                .filter(role -> !STAFF_ROLES.contains(role.getName()))
+                .filter(role -> !STAFF_ROLES.contains(role.getCode()))
                 .collect(Collectors.toSet());
         roles.add(newRole);
         account.setRoles(roles);
@@ -215,25 +253,47 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
     }
 
     @Override
+    @Transactional
     public void requestPasswordReset(String accountId) {
         Account account = accountRepository.findByIdWithProfiles(accountId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản."));
-        String accountType = accountTypeOf(account);
-        if ("WALK_IN_CUSTOMER".equals(accountType)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Khách hàng vãng lai chưa có tài khoản web để đặt lại mật khẩu.");
+        resetPasswordAndEmail(account, false);
+    }
+
+    @Override
+    @Transactional
+    public void requestOwnPasswordReset() {
+        String currentEmail = SecurityUtils.getCurrentUserEmail();
+        if (currentEmail == null || currentEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Không xác định được tài khoản đang đăng nhập.");
         }
-        if (!"CUSTOMER".equals(accountType)) {
+        Account account = accountRepository.findByEmailIgnoreCase(currentEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản."));
+        if (!"SUPER_ADMIN".equals(accountTypeOf(account))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Chỉ Super Admin mới được cấp lại mật khẩu của tài khoản này.");
+        }
+        resetPasswordAndEmail(account, true);
+    }
+
+    private void resetPasswordAndEmail(Account account, boolean allowSuperAdmin) {
+        String accountType = accountTypeOf(account);
+        if ("WALK_IN_CUSTOMER".equals(accountType) || ("SUPER_ADMIN".equals(accountType) && !allowSuperAdmin)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Đặt lại mật khẩu nhân sự được thực hiện trực tiếp trong phần chỉnh sửa tài khoản.");
+                    "Không thể cấp lại mật khẩu cho loại tài khoản này.");
+        }
+        if (!Set.of("ADMIN", "MANAGER", "EMPLOYEE", "CUSTOMER", "SUPER_ADMIN").contains(accountType)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Loại tài khoản này không hỗ trợ cấp lại mật khẩu.");
         }
         if (account.getEmail() == null || account.getEmail().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Tài khoản chưa có email để nhận mã OTP đặt lại mật khẩu.");
+                    "Tài khoản chưa có email để nhận mật khẩu mới.");
         }
-        ForgotPasswordRequest request = new ForgotPasswordRequest();
-        request.setEmail(account.getEmail());
-        authService.forgotPasswordRequest(request);
+        byte[] passwordBytes = new byte[24];
+        PASSWORD_RESET_RANDOM.nextBytes(passwordBytes);
+        String temporaryPassword = Base64.getUrlEncoder().withoutPadding().encodeToString(passwordBytes);
+        account.setPassword(passwordEncoder.encode(temporaryPassword));
+        accountRepository.save(account);
+        emailService.sendTemporaryPasswordEmail(account.getEmail(), temporaryPassword);
     }
 
 
@@ -241,7 +301,7 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
         Employee employee = account.getEmployee();
         Customer customer = account.getCustomer();
         Set<String> roles = account.getRoles() == null ? Set.of()
-                : account.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
+                : account.getRoles().stream().map(Role::getCode).collect(Collectors.toSet());
         String accountType = accountTypeOf(account);
 
         return new SuperAdminAccountResponse(
@@ -249,7 +309,7 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
                 employee != null ? employee.getId() : customer != null ? customer.getId() : account.getId(),
                 accountType,
                 account.getEmail(),
-                employee != null ? employee.getFullName() : customer != null ? customer.getFullName() : null,
+                employee != null ? employee.getFullName() : customer != null ? customer.getFullName() : account.getDisplayName(),
                 employee != null ? employee.getPhone() : customer != null ? customer.getPhone() : null,
                 employee != null ? employee.getCccd() : customer != null ? customer.getCccd() : null,
                 employee != null ? employee.getAddress() : null,
@@ -285,7 +345,7 @@ public class SuperAdminAccountServiceImpl implements SuperAdminAccountService {
 
     private String accountTypeOf(Account account) {
         Set<String> roles = account.getRoles() == null ? Set.of()
-                : account.getRoles().stream().map(Role::getName).collect(Collectors.toSet());
+                : account.getRoles().stream().map(Role::getCode).collect(Collectors.toSet());
         if (roles.contains("ROLE_SUPER_ADMIN")) return "SUPER_ADMIN";
         if (account.getEmployee() != null || roles.contains("ROLE_ADMIN")
                 || roles.contains("ROLE_MANAGER") || roles.contains("ROLE_EMPLOYEE")) {

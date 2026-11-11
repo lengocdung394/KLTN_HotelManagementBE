@@ -40,16 +40,16 @@ public class CheckoutRefund {
     @Column(nullable = false, length = 30)
     CheckoutRefundStatus status;
 
-    @Column(length = 120)
+    @Column(length = 768)
     String bankName;
 
-    @Column(length = 30)
+    @Column(length = 256)
     String bankCode;
 
-    @Column(length = 120)
+    @Column(length = 768)
     String bankAccountName;
 
-    @Column(length = 50)
+    @Column(length = 256)
     String bankAccountNumber;
 
     @Column(length = 500)

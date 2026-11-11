@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -165,10 +166,11 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     ) {
         inValidation(request);
 
-        Province province = provinceRepository.findByName(request.getProvinceName())
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy tỉnh/thành: " + request.getProvinceName()
-                ));
+        Province province = findProvinceByName(request.getProvinceName())
+                .orElseGet(() -> provinceRepository.save(Province.builder()
+                        .name(request.getProvinceName().trim())
+                        .backgroundImageUrl("")
+                        .build()));
 
         Role adminRole = roleRepository.findByCode("ROLE_ADMIN")
                 .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_ADMIN"));
@@ -407,7 +409,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             throw new AppException(ErrorCode.INVALID_PHONE);
         }
 
-        if (request.getProvinceName() == null || request.getProvinceName().trim().isEmpty() || !provinceRepository.findByName(request.getProvinceName()).isPresent()) {
+        if (request.getProvinceName() == null || request.getProvinceName().trim().isEmpty()) {
             throw new AppException(ErrorCode.INVALID_PROVINCE_NAME);
         }
 
@@ -429,6 +431,24 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             throw new AppException(ErrorCode.ADDRESS_EXISTED);
         }
 
+    }
+
+    private java.util.Optional<Province> findProvinceByName(String provinceName) {
+        String normalizedName = normalizeProvinceName(provinceName);
+        return provinceRepository.findAll().stream()
+                .filter(province -> normalizeProvinceName(province.getName()).equals(normalizedName))
+                .findFirst();
+    }
+
+    private String normalizeProvinceName(String provinceName) {
+        return Normalizer.normalize(provinceName, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replace('đ', 'd')
+                .replace('Đ', 'D')
+                .trim()
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("\\s+", " ")
+                .replaceFirst("^(tinh|thanh pho|tp)\\s+", "");
     }
 
 

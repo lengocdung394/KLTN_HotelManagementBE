@@ -18,6 +18,8 @@ public interface AccountRepository extends JpaRepository<Account, String> {
             "WHERE a.email = :email")
     Optional<Account> findByEmail(@Param("email") String email);
 
+    Optional<Account> findByEmailIgnoreCase(String email);
+
     boolean existsByEmail(String email);
 
     boolean existsByEmailIgnoreCase(String email);

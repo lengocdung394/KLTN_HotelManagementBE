@@ -14,6 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CheckoutRefundReviewRequest;
+import iuh.fit.se.hotelmanagement_be.modular.payment.responses.CheckoutRefundBankDetailsResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.CheckoutRefundResponse;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.util.List;
 public class CheckoutRefundService {
     CheckoutRefundRepository checkoutRefundRepository;
     PaymentRepository paymentRepository;
+    RefundBankDetailsCrypto bankDetailsCrypto;
 
     public List<CheckoutRefundResponse> getRefunds(Account account) {
         List<CheckoutRefund> refunds;
@@ -58,6 +60,20 @@ public class CheckoutRefundService {
         }
         setBankDetails(refund, request);
         return toResponse(checkoutRefundRepository.save(refund));
+    }
+
+    public CheckoutRefundBankDetailsResponse getBankDetails(String refundId, Account account) {
+        CheckoutRefund refund = getRefundForAccount(refundId, account);
+        requireManagerForBankRefund(account);
+        if (refund.getStatus() == CheckoutRefundStatus.REFUNDED) {
+            throw new AppException(ErrorCode.CHECKOUT_REFUND_INVALID_STATUS);
+        }
+        return CheckoutRefundBankDetailsResponse.builder()
+                .bankName(bankDetailsCrypto.decrypt(refund.getBankName()))
+                .bankCode(bankDetailsCrypto.decrypt(refund.getBankCode()))
+                .bankAccountName(bankDetailsCrypto.decrypt(refund.getBankAccountName()))
+                .bankAccountNumber(bankDetailsCrypto.decrypt(refund.getBankAccountNumber()))
+                .build();
     }
 
     @Transactional
@@ -116,6 +132,7 @@ public class CheckoutRefundService {
                 .amount(refund.getAmount())
                 .paymentType(refund.getRefundMethod())
                 .cashFlowType(CashFlowType.REFUND)
+                .processorEmployee(account.getEmployee())
                 .note((refund.getRefundMethod() == PaymentType.CASH
                         ? "Hoàn dư tiền mặt tại quầy khi check-out booking "
                         : "Hoàn dư qua ngân hàng khi check-out booking ")
@@ -138,6 +155,7 @@ public class CheckoutRefundService {
         refund.setStatus(CheckoutRefundStatus.REFUNDED);
         refund.setRefundedBy(account);
         refund.setRefundedAt(now);
+        clearBankDetails(refund);
         if (request != null && request.getNote() != null && !request.getNote().isBlank()) {
             refund.setNote(request.getNote().trim());
         }
@@ -187,19 +205,33 @@ public class CheckoutRefundService {
         if (request == null) {
             throw new AppException(ErrorCode.CANCELLATION_BANK_DETAILS_REQUIRED);
         }
-        refund.setBankName(trimToNull(request.getBankName()));
-        refund.setBankCode(trimToNull(request.getBankCode()));
-        refund.setBankAccountName(trimToNull(request.getBankAccountName()));
-        refund.setBankAccountNumber(trimToNull(request.getBankAccountNumber()));
+        refund.setBankName(bankDetailsCrypto.encrypt(trimToNull(request.getBankName())));
+        refund.setBankCode(bankDetailsCrypto.encrypt(trimToNull(request.getBankCode())));
+        refund.setBankAccountName(bankDetailsCrypto.encrypt(trimToNull(request.getBankAccountName())));
+        refund.setBankAccountNumber(bankDetailsCrypto.encrypt(trimToNull(request.getBankAccountNumber())));
         validateBankDetails(refund);
     }
 
     private void validateBankDetails(CheckoutRefund refund) {
-        if (!notBlank(refund.getBankName()) || !notBlank(refund.getBankAccountName())
-                || refund.getBankAccountNumber() == null
-                || !refund.getBankAccountNumber().matches("[0-9]{6,50}")) {
+        String bankName = bankDetailsCrypto.decrypt(refund.getBankName());
+        String bankAccountName = bankDetailsCrypto.decrypt(refund.getBankAccountName());
+        String bankAccountNumber = bankDetailsCrypto.decrypt(refund.getBankAccountNumber());
+        if (!notBlank(bankName) || !notBlank(bankAccountName)
+                || bankAccountNumber == null
+                || !bankAccountNumber.matches("[0-9]{6,50}")) {
             throw new AppException(ErrorCode.CANCELLATION_BANK_DETAILS_REQUIRED);
         }
+    }
+
+    private boolean hasBankDetails(CheckoutRefund refund) {
+        return notBlank(refund.getBankAccountNumber());
+    }
+
+    private void clearBankDetails(CheckoutRefund refund) {
+        refund.setBankName(null);
+        refund.setBankCode(null);
+        refund.setBankAccountName(null);
+        refund.setBankAccountNumber(null);
     }
 
     private CheckoutRefundResponse toResponse(CheckoutRefund refund) {
@@ -222,15 +254,38 @@ public class CheckoutRefundService {
                 .refundAmount(refund.getAmount())
                 .refundMethod(refund.getRefundMethod())
                 .status(refund.getStatus())
-                .bankName(refund.getBankName())
-                .bankCode(refund.getBankCode())
-                .bankAccountName(refund.getBankAccountName())
-                .bankAccountNumber(refund.getBankAccountNumber())
+                .hasBankDetails(hasBankDetails(refund))
                 .note(refund.getNote())
+                .refundedBy(refundedByName(refund))
                 .requestedAt(refund.getRequestedAt())
                 .approvedAt(refund.getApprovedAt())
                 .refundedAt(refund.getRefundedAt())
                 .build();
+    }
+
+    private String refundedByName(CheckoutRefund refund) {
+        Account account = refund.getRefundedBy();
+        if (account != null && account.getEmployee() != null
+                && notBlank(account.getEmployee().getFullName())) {
+            return account.getEmployee().getFullName();
+        }
+        if (account != null && notBlank(account.getDisplayName())) {
+            return account.getDisplayName();
+        }
+        Booking booking = refund.getBooking();
+        Order order = booking == null ? null : booking.getOrder();
+        if (refund.getRefundMethod() != PaymentType.CASH || order == null) {
+            return null;
+        }
+        return paymentRepository.findCheckoutCashRefundEmployeeNames(
+                        order.getId(),
+                        CashFlowType.REFUND,
+                        PaymentType.CASH,
+                        refund.getAmount(),
+                        "Hoàn dư tiền mặt tại quầy khi check-out booking " + booking.getId())
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private BigDecimal zeroIfNull(BigDecimal value) {

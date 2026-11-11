@@ -14,11 +14,25 @@ protected backup of the key: losing it makes encrypted pending refund details
 unreadable. Key rotation requires decrypting and re-encrypting pending account
 data with a controlled migration.
 
-Existing booking-cancellation bank details are encrypted when the backend
-starts. Refund list responses omit account numbers; only the manager/admin
-bank-details endpoint reveals the decrypted values for review. Account details
-are deleted immediately for zero-refund, rejected, and completed-payout
-cancellations. Pending account details expire after 30 days.
+Existing booking-cancellation and checkout-refund bank details are encrypted
+when the backend starts. Refund list responses omit all account details and
+include only a flag indicating whether details are stored. Manager/admin-only
+bank-details endpoints reveal decrypted values for review; the checkout
+endpoint also verifies access to the refund's hotel. Account details are
+deleted immediately for zero-refund, rejected, and completed-payout
+cancellations, and after a checkout refund is completed. Pending cancellation
+account details expire after 30 days.
+
+Checkout refund account details use the same AES-GCM encryption helper and
+`REFUND_ENCRYPTION_KEY` as booking cancellations. The checkout-refund database
+columns allow room for the encrypted values. Keep the key stable across
+deployments; replacing it without a controlled key-rotation migration makes
+pending details unreadable.
+
+For bank refunds selected during check-out, bank name, account holder, account
+number, and optional bank code are encrypted before the refund is saved. The
+manager review step can retrieve the saved details through the protected
+checkout-refund bank-details endpoint.
 
 Booking cancellation reasons are stored in `bookings.booking_status` as
 `CANCELLED_BY_CUSTOMER`, `CANCELLED_BY_STAFF`, or

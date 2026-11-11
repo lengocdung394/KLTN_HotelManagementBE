@@ -5,11 +5,13 @@ import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Customer;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.OtpVerification;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.PasswordResetToken;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Role;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.*;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CustomerCreateRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserLoginRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.VerifyOtpRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ResetPasswordLinkRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.AuthenticationResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.CustomerGetOneResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.UserResponse;
@@ -24,9 +26,17 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.core.env.Environment;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -36,15 +46,19 @@ import java.util.Set;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuthServiceImpl implements AuthService {
+    private static final SecureRandom PASSWORD_RESET_RANDOM = new SecureRandom();
+
     EmployeeRepository userRepository;
     CustomerRepository customerRepository;
     PasswordEncoder passwordEncoder;
     AccountRepository accountRepository;
     OtpRepository otpRepository;
+    PasswordResetTokenRepository passwordResetTokenRepository;
     OtpService otpService;
     OtpAttemptService otpAttemptService;
     JwtService jwtService;
     EmailService emailService;
+    Environment environment;
 
     final org.springframework.security.authentication.AuthenticationManager authenticationManager;
     RoleRepository roleRepository;
@@ -304,6 +318,65 @@ public class AuthServiceImpl implements AuthService {
         accountRepository.save(account);
 
         otpRepository.deleteByEmail(request.getEmail().trim());
+    }
+
+    @Override
+    @Transactional
+    public void requestPasswordResetLink(iuh.fit.se.hotelmanagement_be.modular.auth.requests.ForgotPasswordRequest request) {
+        String email = request.getEmail().trim();
+        var account = accountRepository.findByEmailIgnoreCase(email);
+        if (account.isEmpty()) {
+            return;
+        }
+
+        byte[] tokenBytes = new byte[32];
+        PASSWORD_RESET_RANDOM.nextBytes(tokenBytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+        passwordResetTokenRepository.deleteByEmailIgnoreCase(email);
+        passwordResetTokenRepository.save(PasswordResetToken.builder()
+                .email(account.get().getEmail())
+                .tokenHash(hashPasswordResetToken(token))
+                .expiresAt(LocalDateTime.now().plusMinutes(30))
+                .build());
+
+        String frontendUrl = environment.getRequiredProperty("app.frontend-url").replaceAll("/+$", "");
+        String resetUrl = UriComponentsBuilder.fromUriString(frontendUrl)
+                .path("/login")
+                .queryParam("resetToken", token)
+                .build()
+                .toUriString();
+        emailService.sendPasswordResetLinkEmail(account.get().getEmail(), resetUrl);
+    }
+
+    @Override
+    @Transactional
+    public void resetPasswordWithLink(ResetPasswordLinkRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_NOT_MATCH);
+        }
+
+        String tokenHash = hashPasswordResetToken(request.getToken().trim());
+        PasswordResetToken resetToken = passwordResetTokenRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new AppException(ErrorCode.PASSWORD_RESET_LINK_INVALID));
+        if (resetToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.PASSWORD_RESET_LINK_EXPIRED);
+        }
+
+        Account account = accountRepository.findByEmailIgnoreCase(resetToken.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.PASSWORD_RESET_LINK_INVALID));
+        account.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+        passwordResetTokenRepository.deleteByEmailIgnoreCase(resetToken.getEmail());
+        otpRepository.deleteByEmailIgnoreCase(resetToken.getEmail());
+    }
+
+    private String hashPasswordResetToken(String token) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable for password reset token hashing.", exception);
+        }
     }
 
     @Override

@@ -107,7 +107,7 @@ public class HotelReportService {
                         start,
                         endExclusive,
                         BookingStatus.cancelledStatuses(),
-                        BookingStatusType.CANCELLED
+                        BookingStatusType.CHECKED_OUT
                 ),
                 startDate,
                 endDate.plusDays(1)
@@ -118,7 +118,7 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        BookingStatusType.CANCELLED,
+                        BookingStatusType.CHECKED_OUT,
                         BookingStatus.cancelledStatuses()
                 );
         BigDecimal serviceRevenue = BigDecimal.ZERO;

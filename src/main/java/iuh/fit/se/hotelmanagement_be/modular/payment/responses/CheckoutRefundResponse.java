@@ -26,11 +26,9 @@ public class CheckoutRefundResponse {
     BigDecimal refundAmount;
     PaymentType refundMethod;
     CheckoutRefundStatus status;
-    String bankName;
-    String bankCode;
-    String bankAccountName;
-    String bankAccountNumber;
+    boolean hasBankDetails;
     String note;
+    String refundedBy;
     LocalDateTime requestedAt;
     LocalDateTime approvedAt;
     LocalDateTime refundedAt;

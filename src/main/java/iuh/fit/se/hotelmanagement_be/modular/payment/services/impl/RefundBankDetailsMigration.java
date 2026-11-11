@@ -6,6 +6,9 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingCance
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingCancellationRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefund;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.CheckoutRefundStatus;
+import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -22,6 +25,7 @@ import java.util.List;
 public class RefundBankDetailsMigration implements ApplicationRunner {
     private final BookingCancellationRepository cancellationRepository;
     private final BookingRepository bookingRepository;
+    private final CheckoutRefundRepository checkoutRefundRepository;
     private final RefundBankDetailsCrypto crypto;
 
     @Override
@@ -50,6 +54,22 @@ public class RefundBankDetailsMigration implements ApplicationRunner {
         }
         if (changed) {
             cancellationRepository.saveAll(cancellations);
+        }
+
+        List<CheckoutRefund> checkoutRefunds = checkoutRefundRepository.findAll();
+        boolean checkoutRefundsChanged = false;
+        for (CheckoutRefund refund : checkoutRefunds) {
+            if (refund.getStatus() == CheckoutRefundStatus.REFUNDED) {
+                checkoutRefundsChanged |= clearBankDetails(refund);
+                continue;
+            }
+            checkoutRefundsChanged |= encryptLegacyValue(refund.getBankName(), refund::setBankName);
+            checkoutRefundsChanged |= encryptLegacyValue(refund.getBankCode(), refund::setBankCode);
+            checkoutRefundsChanged |= encryptLegacyValue(refund.getBankAccountName(), refund::setBankAccountName);
+            checkoutRefundsChanged |= encryptLegacyValue(refund.getBankAccountNumber(), refund::setBankAccountNumber);
+        }
+        if (checkoutRefundsChanged) {
+            checkoutRefundRepository.saveAll(checkoutRefunds);
         }
     }
 
@@ -125,10 +145,26 @@ public class RefundBankDetailsMigration implements ApplicationRunner {
         return changed;
     }
 
+    private boolean clearBankDetails(CheckoutRefund refund) {
+        boolean changed = hasBankDetails(refund);
+        refund.setBankName(null);
+        refund.setBankCode(null);
+        refund.setBankAccountName(null);
+        refund.setBankAccountNumber(null);
+        return changed;
+    }
+
     private boolean hasBankDetails(BookingCancellation cancellation) {
         return cancellation.getBankName() != null
                 || cancellation.getBankCode() != null
                 || cancellation.getBankAccountName() != null
                 || cancellation.getBankAccountNumber() != null;
+    }
+
+    private boolean hasBankDetails(CheckoutRefund refund) {
+        return refund.getBankName() != null
+                || refund.getBankCode() != null
+                || refund.getBankAccountName() != null
+                || refund.getBankAccountNumber() != null;
     }
 }

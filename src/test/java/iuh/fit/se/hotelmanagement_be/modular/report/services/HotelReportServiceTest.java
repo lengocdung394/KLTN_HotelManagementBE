@@ -72,6 +72,7 @@ class HotelReportServiceTest {
         BookingDetail roomRevenueDetail = new BookingDetail();
         roomRevenueDetail.setCheckinTime(startDate.atTime(14, 0));
         roomRevenueDetail.setCheckoutTime(endDate.plusDays(1).atTime(12, 0));
+        roomRevenueDetail.setStatus(BookingStatusType.CHECKED_OUT);
         roomRevenueDetail.setNightlyPrices(List.of(
                 nightlyPrice(startDate, "120000"),
                 nightlyPrice(endDate, "130000"),
@@ -80,13 +81,14 @@ class HotelReportServiceTest {
         BookingDetail legacyRoomRevenueDetail = new BookingDetail();
         legacyRoomRevenueDetail.setCheckinTime(startDate.minusDays(1).atTime(14, 0));
         legacyRoomRevenueDetail.setCheckoutTime(endDate.atTime(12, 0));
+        legacyRoomRevenueDetail.setStatus(BookingStatusType.CHECKED_OUT);
         legacyRoomRevenueDetail.setRoomSubTotal(200000.0);
         when(bookingRepository.findRoomRevenueDetailsForPeriod(
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
                 BookingStatus.cancelledStatuses(),
-                BookingStatusType.CANCELLED
+                BookingStatusType.CHECKED_OUT
         )).thenReturn(List.of(roomRevenueDetail, legacyRoomRevenueDetail));
         BookingRepository.RoomTypeBookingReportProjection standardRoomBookings =
                 mock(BookingRepository.RoomTypeBookingReportProjection.class);
@@ -129,7 +131,7 @@ class HotelReportServiceTest {
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatusType.CANCELLED,
+                BookingStatusType.CHECKED_OUT,
                 BookingStatus.cancelledStatuses()
         )).thenReturn(List.of(revenueRow));
 

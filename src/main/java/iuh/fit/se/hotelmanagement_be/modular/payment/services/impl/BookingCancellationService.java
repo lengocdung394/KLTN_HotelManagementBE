@@ -1232,10 +1232,22 @@ public class BookingCancellationService {
                 .payoutError(cancellation.getPayoutError())
                 .reviewNote(cancellation.getReviewNote())
                 .refundReference(cancellation.getRefundReference())
+                .refundedBy(refundedByName(cancellation))
                 .requestedAt(cancellation.getRequestedAt())
                 .reviewedAt(cancellation.getReviewedAt())
                 .refundedAt(cancellation.getRefundedAt())
                 .build();
+    }
+
+    private String refundedByName(BookingCancellation cancellation) {
+        Account account = cancellation.getRefundedBy();
+        if (account == null) {
+            return null;
+        }
+        if (account.getEmployee() != null && !isBlank(account.getEmployee().getFullName())) {
+            return account.getEmployee().getFullName();
+        }
+        return account.getDisplayName();
     }
 
     private BigDecimal zeroIfNull(BigDecimal value) {

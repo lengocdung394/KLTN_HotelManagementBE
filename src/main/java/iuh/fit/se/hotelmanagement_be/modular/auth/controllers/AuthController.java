@@ -119,4 +119,30 @@ public class AuthController {
                 .build());
     }
 
+    @Operation(
+            summary = "Gửi liên kết đặt lại mật khẩu",
+            description = "Gửi liên kết dùng một lần có thời hạn đến email tài khoản nếu tài khoản tồn tại."
+    )
+    @PostMapping("/forgot-password/link/request")
+    public ResponseEntity<ApiResponse<Void>> requestPasswordResetLink(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordResetLink(request);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(200)
+                .message("Nếu email thuộc tài khoản hợp lệ, liên kết đặt lại mật khẩu sẽ được gửi.")
+                .build());
+    }
+
+    @Operation(
+            summary = "Đặt mật khẩu mới bằng liên kết email",
+            description = "Xác thực token dùng một lần và cập nhật mật khẩu mới."
+    )
+    @PostMapping("/forgot-password/link/reset")
+    public ResponseEntity<ApiResponse<Void>> resetPasswordWithLink(@Valid @RequestBody ResetPasswordLinkRequest request) {
+        authService.resetPasswordWithLink(request);
+        return ResponseEntity.ok(ApiResponse.<Void>builder()
+                .code(200)
+                .message("Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.")
+                .build());
+    }
+
 }

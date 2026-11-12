@@ -2,6 +2,7 @@ package iuh.fit.se.hotelmanagement_be.modular.payment.controllers;
 
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.payment.requests.CheckoutRefundReviewRequest;
+import iuh.fit.se.hotelmanagement_be.modular.payment.responses.CheckoutRefundBankDetailsResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.responses.CheckoutRefundResponse;
 import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.CheckoutRefundService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
@@ -31,6 +32,18 @@ public class CheckoutRefundManagementController {
         return ResponseEntity.ok(ApiResponse.<List<CheckoutRefundResponse>>builder()
                 .code(1000)
                 .result(checkoutRefundService.getRefunds(account))
+                .build());
+    }
+
+    @GetMapping("/{refundId}/bank-details")
+    @PreAuthorize("hasRole('MANAGER') or hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CheckoutRefundBankDetailsResponse>> getBankDetails(
+            @PathVariable String refundId,
+            Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        return ResponseEntity.ok(ApiResponse.<CheckoutRefundBankDetailsResponse>builder()
+                .code(1000)
+                .result(checkoutRefundService.getBankDetails(refundId, account))
                 .build());
     }
 

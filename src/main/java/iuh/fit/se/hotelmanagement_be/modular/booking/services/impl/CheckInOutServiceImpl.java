@@ -14,6 +14,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.SurchargeCalculato
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.CheckoutRequest;
+import iuh.fit.se.hotelmanagement_be.modular.booking.requests.CheckoutRefundBankDetailsRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.CheckInOutRepository;
@@ -37,6 +38,7 @@ import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentSourc
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.PaymentType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.CheckoutRefundRepository;
 import iuh.fit.se.hotelmanagement_be.modular.payment.repositories.PaymentRepository;
+import iuh.fit.se.hotelmanagement_be.modular.payment.services.impl.RefundBankDetailsCrypto;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.Room;
 import iuh.fit.se.hotelmanagement_be.modular.room.entities.enums.RoomStatus;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -76,6 +78,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
     EmailService emailService;
     CheckoutRefundRepository checkoutRefundRepository;
     PaymentRepository paymentRepository;
+    RefundBankDetailsCrypto refundBankDetailsCrypto;
     BookingSocketEmitter bookingSocketEmitter;
     RoomRepository roomRepository;
     RoomSocketEmitter roomSocketEmitter;
@@ -504,6 +507,7 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                     refund.setAmount(refundAmount);
                     refund.setRefundMethod(PaymentType.CASH);
                     refund.setStatus(CheckoutRefundStatus.REFUNDED);
+                    refund.setRefundedBy(refundingEmployee.getAccount());
                     refund.setRefundedAt(now);
                     refund.setNote(request.getRefundNote() == null || request.getRefundNote().isBlank()
                             ? "Đã hoàn tiền mặt tại quầy khi check-out"
@@ -532,12 +536,31 @@ public class CheckInOutServiceImpl implements CheckInOutService {
                                     ? PaymentStatus.PAID
                                     : PaymentStatus.PARTIAL);
                 } else {
+                    CheckoutRefundBankDetailsRequest bankDetails = request == null
+                            ? null
+                            : request.getRefundBankDetails();
+                    if (bankDetails == null
+                            || bankDetails.getBankName() == null
+                            || bankDetails.getBankName().isBlank()
+                            || bankDetails.getBankAccountName() == null
+                            || bankDetails.getBankAccountName().isBlank()
+                            || bankDetails.getBankAccountNumber() == null
+                            || !bankDetails.getBankAccountNumber().trim().matches("[0-9]{6,50}")) {
+                        throw new AppException(ErrorCode.CANCELLATION_BANK_DETAILS_REQUIRED);
+                    }
                     CheckoutRefund refund = new CheckoutRefund();
                     refund.setId("CR_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
                     refund.setBooking(booking);
                     refund.setAmount(refundAmount);
                     refund.setRefundMethod(PaymentType.BANK);
                     refund.setStatus(CheckoutRefundStatus.PENDING);
+                    refund.setBankName(refundBankDetailsCrypto.encrypt(bankDetails.getBankName().trim()));
+                    refund.setBankCode(refundBankDetailsCrypto.encrypt(
+                            bankDetails.getBankCode() == null || bankDetails.getBankCode().isBlank()
+                                    ? null
+                                    : bankDetails.getBankCode().trim()));
+                    refund.setBankAccountName(refundBankDetailsCrypto.encrypt(bankDetails.getBankAccountName().trim()));
+                    refund.setBankAccountNumber(refundBankDetailsCrypto.encrypt(bankDetails.getBankAccountNumber().trim()));
                     refund.setNote(request.getRefundNote());
                     checkoutRefundRepository.save(refund);
                 }

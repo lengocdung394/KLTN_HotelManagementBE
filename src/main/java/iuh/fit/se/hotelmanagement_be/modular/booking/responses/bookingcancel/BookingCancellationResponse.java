@@ -40,6 +40,7 @@ public class BookingCancellationResponse {
     private String payoutError;
     private String reviewNote;
     private String refundReference;
+    private String refundedBy;
     private LocalDateTime requestedAt;
     private LocalDateTime reviewedAt;
     private LocalDateTime refundedAt;

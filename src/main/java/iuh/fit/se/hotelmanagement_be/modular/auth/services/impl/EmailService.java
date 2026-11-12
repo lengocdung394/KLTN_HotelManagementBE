@@ -94,6 +94,34 @@ public class EmailService {
                 "Sen Việt", content);
     }
 
+    public void sendPasswordResetLinkEmail(String email, String resetUrl) {
+        String subject = "Liên kết đặt lại mật khẩu";
+        String plain = "Sử dụng liên kết sau để đặt lại mật khẩu (có hiệu lực trong 30 phút):\n"
+                + resetUrl + "\n\nNếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.";
+        String content = paragraph("Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.")
+                + "<p style=\"margin:0 0 20px;text-align:center\">"
+                + "<a href=\"" + escapeHtml(resetUrl) + "\" style=\"display:inline-block;padding:13px 22px;"
+                + "border-radius:9px;background:#1d4ed8;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none\">"
+                + "Đặt lại mật khẩu</a></p>"
+                + paragraph("Liên kết chỉ sử dụng một lần và sẽ hết hạn sau 30 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này.");
+        sendBrandedEmail(email, subject, "BẢO MẬT TÀI KHOẢN", "Đặt lại mật khẩu", plain,
+                "Sen Việt", content);
+    }
+
+    public void sendTemporaryPasswordEmail(String email, String temporaryPassword) {
+        String subject = "Mật khẩu mới cho tài khoản Sen Việt";
+        String plain = "Mật khẩu mới của bạn: " + temporaryPassword + "\n"
+                + "Vui lòng đăng nhập và đổi mật khẩu này ngay. Nếu bạn không yêu cầu cấp lại mật khẩu, "
+                + "hãy liên hệ quản trị viên.";
+        String content = paragraph("Quản trị viên đã cấp lại mật khẩu cho tài khoản của bạn.")
+                + "<div style=\"padding:18px;text-align:center;border-radius:12px;background:#eff6ff;"
+                + "color:#1d4ed8;font-size:20px;font-weight:800;letter-spacing:1px;word-break:break-all\">"
+                + escapeHtml(temporaryPassword) + "</div>"
+                + paragraph("Vui lòng đăng nhập và đổi mật khẩu này ngay. Nếu bạn không yêu cầu cấp lại mật khẩu, hãy liên hệ quản trị viên.");
+        sendBrandedEmail(email, subject, "BẢO MẬT TÀI KHOẢN", "Mật khẩu mới", plain,
+                "Sen Việt", content);
+    }
+
     public void sendBookingCancellationRequestedEmail(
             String email,
             String customerName,

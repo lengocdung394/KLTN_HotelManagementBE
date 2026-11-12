@@ -51,14 +51,14 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
               AND bd.checkinTime < :end
               AND bd.checkoutTime > :start
               AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledBookingStatuses)
-              AND (bd.status IS NULL OR bd.status <> :cancelledDetailStatus)
+              AND bd.status = :completedRoomStatus
             """)
     List<BookingDetail> findRoomRevenueDetailsForPeriod(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
             @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses,
-            @Param("cancelledDetailStatus") BookingStatusType cancelledDetailStatus
+            @Param("completedRoomStatus") BookingStatusType completedRoomStatus
     );
 
     @Query("""

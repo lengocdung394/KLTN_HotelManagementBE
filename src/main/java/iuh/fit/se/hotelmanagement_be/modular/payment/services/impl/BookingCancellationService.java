@@ -568,11 +568,40 @@ public class BookingCancellationService {
             String cleanAccNum = rawAccNum == null ? null : rawAccNum.replaceAll("[\\s-]+", "");
             return new RefundBankDetails(
                     trimToNull(request.getBankName()),
-                    trimToNull(request.getBankCode()),
+                    normalizeBankCode(trimToNull(request.getBankCode())),
                     trimToNull(request.getBankAccountName()),
                     cleanAccNum);
         }
         return RefundBankDetails.empty();
+    }
+
+    // Web khach hang gui ma ngan hang dang viet tat (VCB, MB...), PayOS can ma BIN 6 so
+    private static final java.util.Map<String, String> BANK_BIN_BY_SHORT_CODE = java.util.Map.ofEntries(
+            java.util.Map.entry("VCB", "970436"),
+            java.util.Map.entry("MB", "970422"),
+            java.util.Map.entry("TCB", "970407"),
+            java.util.Map.entry("BIDV", "970418"),
+            java.util.Map.entry("CTG", "970415"),
+            java.util.Map.entry("ACB", "970416"),
+            java.util.Map.entry("VPB", "970432"),
+            java.util.Map.entry("TPB", "970423"),
+            java.util.Map.entry("STB", "970403"),
+            java.util.Map.entry("VBA", "970405"),
+            java.util.Map.entry("HDB", "970437"),
+            java.util.Map.entry("VIB", "970441"),
+            java.util.Map.entry("SHB", "970443"),
+            java.util.Map.entry("MSB", "970426"),
+            java.util.Map.entry("OCB", "970448"));
+
+    private static String normalizeBankCode(String bankCode) {
+        if (bankCode == null) {
+            return null;
+        }
+        String trimmed = bankCode.trim();
+        if (trimmed.matches("[0-9]{6}")) {
+            return trimmed;
+        }
+        return BANK_BIN_BY_SHORT_CODE.getOrDefault(trimmed.toUpperCase(java.util.Locale.ROOT), trimmed);
     }
 
     public List<BookingCancellationResponse> getCancellations(
@@ -1056,7 +1085,7 @@ public class BookingCancellationService {
     private RefundBankDetails decryptBankDetails(BookingCancellation cancellation) {
         return new RefundBankDetails(
                 bankDetailsCrypto.decrypt(cancellation.getBankName()),
-                bankDetailsCrypto.decrypt(cancellation.getBankCode()),
+                normalizeBankCode(bankDetailsCrypto.decrypt(cancellation.getBankCode())),
                 bankDetailsCrypto.decrypt(cancellation.getBankAccountName()),
                 bankDetailsCrypto.decrypt(cancellation.getBankAccountNumber()));
     }

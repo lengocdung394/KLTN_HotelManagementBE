@@ -1,7 +1,5 @@
 package iuh.fit.se.hotelmanagement_be.modular.payment.repositories;
 
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
-import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.payment.entities.enums.OrderStatusType;
 import jakarta.persistence.LockModeType;
@@ -27,28 +25,48 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     }
 
     @Query("""
-            SELECT FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime)) AS revenueDate,
-                   COALESCE(SUM(COALESCE(service.price, 0) * service.quantity), 0) AS revenue,
-                   COUNT(service.id) AS serviceUsageCount
+            SELECT FUNCTION('DATE', serviceUsage.confirmedAt) AS revenueDate,
+                   COALESCE(SUM(COALESCE(serviceUsage.unitPrice, 0) * serviceUsage.quantity), 0) AS revenue,
+                   COUNT(serviceUsage.id) AS serviceUsageCount
+            FROM BookingServiceUsage serviceUsage
+            JOIN serviceUsage.bookingServiceDetail service
+            JOIN service.bookingDetail detail
+            JOIN detail.booking booking
+            WHERE booking.hotel.id = :hotelId
+              AND serviceUsage.confirmedAt >= :start
+              AND serviceUsage.confirmedAt < :end
+            GROUP BY FUNCTION('DATE', serviceUsage.confirmedAt)
+            ORDER BY FUNCTION('DATE', serviceUsage.confirmedAt)
+            """)
+    List<DailyServiceRevenueProjection> getDailyConfirmedServiceRevenue(
+            @Param("hotelId") Long hotelId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+            SELECT FUNCTION('DATE', service.usedAt) AS revenueDate,
+                   COALESCE(SUM(COALESCE(service.price, 0) * service.usedQuantity), 0) AS revenue,
+                   COUNT(DISTINCT service.id) AS serviceUsageCount
             FROM BookingServiceDetail service
             JOIN service.bookingDetail detail
             JOIN detail.booking booking
             WHERE booking.hotel.id = :hotelId
-              AND COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime) >= :start
-              AND COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime) < :end
-              AND service.used = true
-              AND (service.cancelled = false OR service.cancelled IS NULL)
-              AND detail.status = :completedRoomStatus
-              AND (booking.bookingStatus IS NULL OR booking.bookingStatus NOT IN :cancelledBookingStatuses)
-            GROUP BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
-            ORDER BY FUNCTION('DATE', COALESCE(service.usedAt, detail.actualCheckOutTime, detail.checkoutTime))
+              AND service.usedAt >= :start
+              AND service.usedAt < :end
+              AND service.usedQuantity > 0
+              AND NOT EXISTS (
+                  SELECT existingUsage.id
+                  FROM BookingServiceUsage existingUsage
+                  WHERE existingUsage.bookingServiceDetail = service
+              )
+            GROUP BY FUNCTION('DATE', service.usedAt)
+            ORDER BY FUNCTION('DATE', service.usedAt)
             """)
-    List<DailyServiceRevenueProjection> getDailyServiceRevenue(
+    List<DailyServiceRevenueProjection> getDailyLegacyServiceRevenue(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end,
-            @Param("completedRoomStatus") BookingStatusType completedRoomStatus,
-            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses
+            @Param("end") LocalDateTime end
     );
 
     @Query("SELECT COUNT(o) > 0 FROM Order o JOIN o.paymentOrderCodes c WHERE c = :paymentOrderCode")

@@ -1,14 +1,18 @@
 package iuh.fit.se.hotelmanagement_be.modular.booking.services.impl;
 
 import iuh.fit.se.hotelmanagement_be.exception.AppException;
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.EmployeeRepository;
+import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceUsage;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingServiceUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.NewServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.RoomServiceAdditionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.ServiceCancellationRequest;
@@ -25,6 +29,7 @@ import iuh.fit.se.hotelmanagement_be.modular.service.repositories.ServiceReposit
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +41,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +51,7 @@ class BookingServiceManagementServiceImplTest {
     @Mock RoomRepository roomRepository;
     @Mock BookingManagementRepository bookingManagementRepository;
     @Mock BookingRepository bookingRepository;
+    @Mock BookingServiceUsageRepository bookingServiceUsageRepository;
     @Mock BookingDetailRepository bookingDetailRepository;
     @Mock EmployeeRepository employeeRepository;
     @Mock BranchRoomPolicyRepository branchRoomPolicyRepository;
@@ -58,6 +66,47 @@ class BookingServiceManagementServiceImplTest {
 
     @InjectMocks
     BookingServiceManagementServiceImpl bookingService;
+
+    @Test
+    void recordsEachPartialServiceConfirmationAsASeparateUsage() {
+        Service catalogService = Service.builder()
+                .id("SERVICE-1")
+                .name("Breakfast")
+                .price(50.0)
+                .build();
+        BookingServiceDetail serviceDetail = BookingServiceDetail.builder()
+                .id("SERVICE-DETAIL-1")
+                .service(catalogService)
+                .quantity(3)
+                .usedQuantity(0)
+                .used(false)
+                .price(50.0)
+                .build();
+        BookingDetail detail = bookingDetail(
+                BookingStatusType.CHECKED_IN,
+                new ArrayList<>(List.of(serviceDetail)));
+        Booking booking = booking(detail);
+        booking.setHotel(Hotel.builder().id(7L).build());
+        Account account = mock(Account.class);
+        when(account.getHotelId()).thenReturn(7L);
+        when(account.getEmail()).thenReturn("staff@example.com");
+        when(bookingRepository.findByIdForUpdate("BOOKING-1")).thenReturn(Optional.of(booking));
+        when(bookingServiceUsageRepository.existsByBookingServiceDetail_Id(serviceDetail.getId()))
+                .thenReturn(false, true);
+
+        bookingService.confirmServiceUsed("BOOKING-1", serviceDetail.getId(), 1, account);
+        bookingService.confirmServiceUsed("BOOKING-1", serviceDetail.getId(), 2, account);
+
+        ArgumentCaptor<BookingServiceUsage> usageCaptor = ArgumentCaptor.forClass(BookingServiceUsage.class);
+        verify(bookingServiceUsageRepository, org.mockito.Mockito.times(2)).save(usageCaptor.capture());
+        assertEquals(List.of(1, 2), usageCaptor.getAllValues().stream()
+                .map(BookingServiceUsage::getQuantity)
+                .toList());
+        assertEquals(List.of(50.0, 50.0), usageCaptor.getAllValues().stream()
+                .map(BookingServiceUsage::getUnitPrice)
+                .toList());
+        assertEquals(3, serviceDetail.getUsedQuantity());
+    }
 
     @Test
     void allowsAddingServicesToCheckedInRooms() {

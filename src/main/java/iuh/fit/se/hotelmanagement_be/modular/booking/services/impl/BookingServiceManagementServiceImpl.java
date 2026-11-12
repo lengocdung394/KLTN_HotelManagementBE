@@ -9,10 +9,12 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.entities.Booking;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingDetail;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingNightlyPrice;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceDetail;
+import iuh.fit.se.hotelmanagement_be.modular.booking.entities.BookingServiceUsage;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatus;
 import iuh.fit.se.hotelmanagement_be.modular.booking.entities.enums.BookingStatusType;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingManagementRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingRepository;
+import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingServiceUsageRepository;
 import iuh.fit.se.hotelmanagement_be.modular.closure.repositories.HotelClosureScheduleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.repositories.BookingDetailRepository;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.*;
@@ -69,6 +71,7 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
     RoomRepository roomRepository;
     BookingManagementRepository bookingManagementRepository;
     BookingRepository bookingRepository;
+    BookingServiceUsageRepository bookingServiceUsageRepository;
     HotelClosureScheduleRepository hotelClosureScheduleRepository;
     BookingDetailRepository bookingDetailRepository;
     EmployeeRepository employeeRepository;
@@ -125,9 +128,31 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
         }
 
         int updatedUsedQuantity = usedQuantity + quantity;
+        LocalDateTime confirmedAt = LocalDateTime.now();
+        Double unitPrice = serviceDetail.getPrice() == null ? 0.0 : serviceDetail.getPrice();
+        if (usedQuantity > 0
+                && serviceDetail.getUsedAt() != null
+                && !bookingServiceUsageRepository.existsByBookingServiceDetail_Id(serviceDetail.getId())) {
+            bookingServiceUsageRepository.save(BookingServiceUsage.builder()
+                    .bookingServiceDetail(serviceDetail)
+                    .quantity(usedQuantity)
+                    .unitPrice(unitPrice)
+                    .confirmedAt(serviceDetail.getUsedAt())
+                    .confirmedBy(serviceDetail.getUsedBy())
+                    .build());
+        }
+        bookingServiceUsageRepository.save(BookingServiceUsage.builder()
+                .bookingServiceDetail(serviceDetail)
+                .quantity(quantity)
+                .unitPrice(unitPrice)
+                .confirmedAt(confirmedAt)
+                .confirmedBy(account.getEmployee() == null
+                        ? account.getEmail()
+                        : account.getEmployee().getFullName())
+                .build());
         serviceDetail.setUsedQuantity(updatedUsedQuantity);
         serviceDetail.setUsed(updatedUsedQuantity >= totalQuantity);
-        serviceDetail.setUsedAt(LocalDateTime.now());
+        serviceDetail.setUsedAt(confirmedAt);
         serviceDetail.setUsedBy(account.getEmployee() == null ? account.getEmail() : account.getEmployee().getFullName());
 
         return BookingServiceResponseForHotel.builder()

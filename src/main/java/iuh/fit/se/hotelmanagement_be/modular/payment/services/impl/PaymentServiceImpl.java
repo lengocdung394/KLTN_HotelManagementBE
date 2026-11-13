@@ -160,28 +160,14 @@ public class PaymentServiceImpl implements PaymentService {
         }
         synchronizeBookingSurcharges(order);
 
-        long amountToPay;
-        if (request.getAmount() != null && request.getAmount() > 0) {
-            amountToPay = request.getAmount();
-            // Đồng bộ số tiền thanh toán thực tế với Order (bao gồm VAT, phụ thu từ Web)
-            order.setTotalAmount(BigDecimal.valueOf(amountToPay));
-            // Cho phép tạo QR thanh toán mới nếu đơn trước đó từng bị đóng hoặc đang test
-            if (order.getOrderStatus() != OrderStatusType.OPEN || (order.getPaidAmount() != null && order.getPaidAmount().compareTo(BigDecimal.ZERO) > 0)) {
-                order.setPaidAmount(BigDecimal.ZERO);
-                order.setOrderStatus(OrderStatusType.OPEN);
-                order.setCloseDate(null);
-            }
-            orderRepository.save(order);
-        } else {
-            if (order.getOrderStatus() != OrderStatusType.OPEN) {
-                throw new AppException(ErrorCode.ORDER_NOT_OPEN);
-            }
-            BigDecimal remainingAmount = order.getRemainingAmount();
-            if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new AppException(ErrorCode.ORDER_ALREADY_PAID);
-            }
-            amountToPay = remainingAmount.longValue();
+        if (order.getOrderStatus() != OrderStatusType.OPEN) {
+            throw new AppException(ErrorCode.ORDER_NOT_OPEN);
         }
+        BigDecimal remainingAmount = order.getRemainingAmount();
+        if (remainingAmount == null || remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.ORDER_ALREADY_PAID);
+        }
+        long amountToPay = remainingAmount.longValue();
 
         // Sinh mã 6 chữ số (100000 - 999999), đảm bảo không trùng với mã đang tồn tại
         long uniqueOrderCode = generateUniqueSixDigitCode();

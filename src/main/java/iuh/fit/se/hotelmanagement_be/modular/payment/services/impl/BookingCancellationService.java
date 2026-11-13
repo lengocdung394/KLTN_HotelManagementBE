@@ -90,12 +90,12 @@ public class BookingCancellationService {
         if (bookingCustomerId == null) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
-        boolean isOwner = accountCustomerId == null
-                || accountCustomerId.equals(bookingCustomerId)
-                || "201".equals(bookingCustomerId)
-                || "4".equals(bookingCustomerId)
-                || (account != null && booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
-                || (account != null && account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
+        if (account == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        boolean isOwner = (accountCustomerId != null && accountCustomerId.equals(bookingCustomerId))
+                || (booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
+                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
         if (!isOwner) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
@@ -985,12 +985,12 @@ public class BookingCancellationService {
         if (bookingCustomerId == null) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
-        boolean isOwner = accountCustomerId == null
-                || accountCustomerId.equals(bookingCustomerId)
-                || "201".equals(bookingCustomerId)
-                || "4".equals(bookingCustomerId)
-                || (account != null && booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
-                || (account != null && account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
+        if (account == null) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        boolean isOwner = (accountCustomerId != null && accountCustomerId.equals(bookingCustomerId))
+                || (booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
+                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
         if (!isOwner) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }

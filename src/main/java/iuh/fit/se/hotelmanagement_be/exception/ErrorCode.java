@@ -83,7 +83,7 @@ public enum ErrorCode {
     INVALID_BRANCH_NAME(4010, "Tên chi nhánh không được để trống", HttpStatus.BAD_REQUEST),
     INVALID_ADDRESS(4011, "Địa chỉ không được để trống", HttpStatus.BAD_REQUEST),
     INVALID_PHONE(4012, "Số điện thoại không hợp lệ hoặc không được để trống", HttpStatus.BAD_REQUEST),
-    INVALID_PROVINCE_NAME(4013, "Tên tỉnh/thành phố không được để trống", HttpStatus.BAD_REQUEST),
+    INVALID_PROVINCE_NAME(4013, "Tỉnh/thành phố không hợp lệ", HttpStatus.BAD_REQUEST),
     ADDRESS_EXISTED(4014, "Địa chỉ này đã được sử dụng bởi một chi nhánh khác", HttpStatus.BAD_REQUEST),
     BRANCH_EXISTED(4015, "Chi nhánh này đã tồn tại trong hệ thống", HttpStatus.BAD_REQUEST),
     PROVINCE_NOT_FOUND(4016, " Không tìm thấy tỉnh/thành phố", HttpStatus.NOT_FOUND),

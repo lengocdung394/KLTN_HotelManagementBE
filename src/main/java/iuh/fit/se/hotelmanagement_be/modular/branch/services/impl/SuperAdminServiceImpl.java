@@ -13,16 +13,13 @@ import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.AccountSocketEmi
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
 import iuh.fit.se.hotelmanagement_be.modular.booking.responses.BookingResponseForHotel;
 import iuh.fit.se.hotelmanagement_be.modular.booking.services.BookingService;
+import iuh.fit.se.hotelmanagement_be.modular.branch.VietnamProvinceCatalog;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.BranchRoomPolicy;
 import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Hotel;
-import iuh.fit.se.hotelmanagement_be.modular.branch.entities.Province;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.*;
 import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateBranchRequest;
-import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateProvinceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminBranchDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminBranchSummaryResponse;
-import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminHotelResponse;
-import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminProvinceResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.services.SuperAdminService;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.PromotionRepository;
 import iuh.fit.se.hotelmanagement_be.modular.room.repositories.RoomRepository;
@@ -35,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -46,7 +42,6 @@ import java.util.Set;
 public class SuperAdminServiceImpl implements SuperAdminService {
 
     HotelRepository hotelRepository;
-    ProvinceRepository provinceRepository;
     BuildingRepository buildingRepository;
     BranchRoomPolicyRepository branchRoomPolicyRepository;
     FloorRepository floorRepository;
@@ -61,28 +56,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     PasswordEncoder passwordEncoder;
     AccountSocketEmitter accountSocketEmitter;
     BranchSocketEmitter branchSocketEmitter;
-
-    // Ham tra ve ds tinh moi tinh - kem theo list khach san
-    @Override
-    public List<SuperAdminProvinceResponse> getProvinces() {
-        return provinceRepository.findAll().stream().map(province ->
-                SuperAdminProvinceResponse.builder()
-                        .id(province.getId())
-                        .name(province.getName())
-                        .backgroundImageUrl(province.getBackgroundImageUrl())
-                        .hotels(
-                                // Map từ List<Hotel> sang List<SuperAdminHotelResponse>
-                                province.getHotels().stream()
-                                        .map(hotel -> SuperAdminHotelResponse.builder()
-                                                .id(hotel.getId())
-                                                .name(hotel.getName())
-                                                // Thêm các trường khác của Hotel nếu có
-                                                .build())
-                                        .toList()
-                        )
-                        .build()
-        ).toList();
-    }
 
 //    @Override
 //    @Transactional
@@ -148,13 +121,10 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     }
 
     @Override
-    public List<SuperAdminBranchSummaryResponse> getBranchesByProvince(String provinceId) {
-        if (!provinceRepository.existsById(provinceId)) {
-            throw new AppException(ErrorCode.PROVINCE_NOT_FOUND);
-        }
-
-
-        return hotelRepository.findAllByProvince_Id(provinceId).stream()
+    public List<SuperAdminBranchSummaryResponse> getBranchesByProvince(String provinceName) {
+        String canonicalProvinceName = VietnamProvinceCatalog.canonicalName(provinceName)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PROVINCE_NAME));
+        return hotelRepository.findAllByProvinceName(canonicalProvinceName).stream()
                 .map(this::summarizeBranch)
                 .toList();
     }
@@ -166,12 +136,8 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     ) {
         inValidation(request);
 
-        Province province = findProvinceByName(request.getProvinceName())
-                .orElseGet(() -> provinceRepository.save(Province.builder()
-                        .name(request.getProvinceName().trim())
-                        .backgroundImageUrl("")
-                        .build()));
-
+        String provinceName = VietnamProvinceCatalog.canonicalName(request.getProvinceName())
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_PROVINCE_NAME));
         Role adminRole = roleRepository.findByCode("ROLE_ADMIN")
                 .orElseThrow(() -> new IllegalStateException("Chưa cấu hình ROLE_ADMIN"));
 
@@ -182,7 +148,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .name(request.getName().trim())
                 .address(request.getAddress().trim())
                 .phone(request.getPhone().trim())
-                .province(province)
+                .provinceName(provinceName)
                 .build());
 
         // Account hiện đăng nhập bằng email; username admin cần là email hợp lệ.
@@ -327,34 +293,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .build();
     }
 
-    @Override
-    @Transactional
-    public SuperAdminProvinceResponse createProvince(SuperAdminCreateProvinceRequest request) {
-        // 1. Kiểm tra request hoặc name không được null
-        if (request == null || request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_PROVINCE_NAME); // Hoặc lỗi tương ứng của bạn
-        }
-
-        // 2. Khởi tạo Province và truyền đúng name từ request vào
-        Province province = Province.builder()
-                .id("TEMP") // Dùng tạm để vượt qua check ID null
-                .name(request.getName().trim())
-                .backgroundImageUrl(request.getBackgroundImageUrl())
-                .build();
-
-        Province savedProvince = provinceRepository.save(province);
-
-        // 3. Trả về response
-        return SuperAdminProvinceResponse.builder()
-                .id(savedProvince.getId())
-                .name(savedProvince.getName())
-                .backgroundImageUrl(
-                        savedProvince.getBackgroundImageUrl()
-                )
-                .hotels(List.of())
-                .build();
-    }
-
     private SuperAdminBranchDetailResponse.RoomPolicyItem toRoomPolicyItem(BranchRoomPolicy policy) {
         return new SuperAdminBranchDetailResponse.RoomPolicyItem(
                 policy.getId(),
@@ -386,7 +324,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .name(hotel.getName())
                 .address(hotel.getAddress())
                 .phone(hotel.getPhone())
-                .provinceName(hotel.getProvince() == null ? null : hotel.getProvince().getName())
+                .provinceName(hotel.getProvinceName())
                 .employeeCount(employeeCount)
                 .bookingCount(bookings.size())
                 .totalRevenue(totalRevenue)
@@ -432,24 +370,5 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
 
     }
-
-    private java.util.Optional<Province> findProvinceByName(String provinceName) {
-        String normalizedName = normalizeProvinceName(provinceName);
-        return provinceRepository.findAll().stream()
-                .filter(province -> normalizeProvinceName(province.getName()).equals(normalizedName))
-                .findFirst();
-    }
-
-    private String normalizeProvinceName(String provinceName) {
-        return Normalizer.normalize(provinceName, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}+", "")
-                .replace('đ', 'd')
-                .replace('Đ', 'D')
-                .trim()
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ")
-                .replaceFirst("^(tinh|thanh pho|tp)\\s+", "");
-    }
-
 
 }

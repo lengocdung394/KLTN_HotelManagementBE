@@ -38,7 +38,7 @@ public class PublicHotelServiceImpl implements PublicHotelService {
                 .name(hotel.getName())
                 .address(hotel.getAddress())
                 .phone(hotel.getPhone())
-                .provinceName(hotel.getProvince() == null ? null : hotel.getProvince().getName())
+                .provinceName(hotel.getProvinceName())
                 .startingPrice(startingPrice)
                 .imageUrls(hotel.getImageUrls() == null ? List.of() : List.copyOf(hotel.getImageUrls()))
                 .build();

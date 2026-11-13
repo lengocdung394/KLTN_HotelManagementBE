@@ -12,8 +12,11 @@ import java.util.Optional;
 public interface ChatSessionRepository extends JpaRepository<ChatSession, Long> {
     Optional<ChatSession> findFirstByCustomerIdAndHotelIdAndStatusOrderByUpdatedAtDesc(String customerId, Long hotelId, ChatSessionStatus status);
     Optional<ChatSession> findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(String customerId, Long hotelId);
+    Optional<ChatSession> findFirstByCustomerIdAndHotelIdIsNullAndStatusOrderByUpdatedAtDesc(String customerId, ChatSessionStatus status);
+    Optional<ChatSession> findFirstByCustomerIdAndHotelIdIsNullOrderByUpdatedAtDesc(String customerId);
     Optional<ChatSession> findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(String customerId, ChatSessionStatus status);
     Optional<ChatSession> findFirstByCustomerIdOrderByUpdatedAtDesc(String customerId);
     List<ChatSession> findAllByOrderByUpdatedAtDesc();
     List<ChatSession> findAllByHotelIdOrderByUpdatedAtDesc(Long hotelId);
+    List<ChatSession> findAllByHotelIdIsNullOrderByUpdatedAtDesc();
 }

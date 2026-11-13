@@ -126,6 +126,7 @@ public class SocketIOConfig {
                 else if (lowerBranch.contains("đà lạt") || lowerBranch.contains("da lat")) hotelId = 5L;
                 else if (lowerBranch.contains("gò công") || lowerBranch.contains("go cong")) hotelId = 6L;
                 else if (lowerBranch.contains("an nhơn") || lowerBranch.contains("an nhon")) hotelId = 7L;
+                else if (lowerBranch.contains("quy nhơn") || lowerBranch.contains("quy nhon")) hotelId = 8L;
 
                 if (hotelId != null) {
                     data.put("hotelId", hotelId);
@@ -148,11 +149,14 @@ public class SocketIOConfig {
                 log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
             }
 
-            // Kiểm tra số lượng nhân viên chi nhánh đang online trong room
+            // Kiểm tra số lượng nhân viên chi nhánh (hoặc Super Admin tổng đài) đang online trong room
             int staffClients = 0;
             if (hotelId != null) {
                 staffClients = server.getRoomOperations("hotel_" + hotelId).getClients().size();
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
+            } else {
+                staffClients = server.getRoomOperations("super_admin_accounts").getClients().size();
+                server.getRoomOperations("super_admin_accounts").sendEvent("customer_staff_chat_message", data);
             }
             boolean isBranchOnline = staffClients > 0;
             data.put("isBranchOnline", isBranchOnline);
@@ -160,7 +164,7 @@ public class SocketIOConfig {
             client.sendEvent("customer_staff_chat_ack", data);
         });
 
-        // Kiểm tra trạng thái trực tuyến (online/offline) của chi nhánh
+        // Kiểm tra trạng thái trực tuyến (online/offline) của chi nhánh hoặc Tổng đài Super Admin
         server.addEventListener("check_branch_online_status", java.util.Map.class, (client, data, ackSender) -> {
             Long hotelId = null;
             if (data != null && data.get("hotelId") != null) {
@@ -168,10 +172,9 @@ public class SocketIOConfig {
                     hotelId = Long.parseLong(data.get("hotelId").toString());
                 } catch (NumberFormatException ignored) {}
             }
-            int staffClients = 0;
-            if (hotelId != null) {
-                staffClients = server.getRoomOperations("hotel_" + hotelId).getClients().size();
-            }
+            int staffClients = (hotelId != null)
+                    ? server.getRoomOperations("hotel_" + hotelId).getClients().size()
+                    : server.getRoomOperations("super_admin_accounts").getClients().size();
             java.util.Map<String, Object> res = new java.util.HashMap<>();
             res.put("hotelId", hotelId);
             res.put("online", staffClients > 0);

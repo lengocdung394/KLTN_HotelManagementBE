@@ -73,8 +73,8 @@ public class LiveChatServiceImpl implements LiveChatService {
                                     .build()));
         } else {
             session = sessionRepository
-                    .findFirstByCustomerIdAndStatusOrderByUpdatedAtDesc(finalCustomerId, ChatSessionStatus.OPEN)
-                    .orElseGet(() -> sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
+                    .findFirstByCustomerIdAndHotelIdIsNullAndStatusOrderByUpdatedAtDesc(finalCustomerId, ChatSessionStatus.OPEN)
+                    .orElseGet(() -> sessionRepository.findFirstByCustomerIdAndHotelIdIsNullOrderByUpdatedAtDesc(finalCustomerId)
                             .map(s -> {
                                 s.setStatus(ChatSessionStatus.OPEN);
                                 return s;
@@ -149,7 +149,7 @@ public class LiveChatServiceImpl implements LiveChatService {
                             .build());
         } else {
             session = sessionRepository
-                    .findFirstByCustomerIdOrderByUpdatedAtDesc(finalCustomerId)
+                    .findFirstByCustomerIdAndHotelIdIsNullOrderByUpdatedAtDesc(finalCustomerId)
                     .orElseGet(() -> ChatSession.builder()
                             .customerId(finalCustomerId)
                             .customerName("Khách hàng")
@@ -192,7 +192,7 @@ public class LiveChatServiceImpl implements LiveChatService {
 
         Optional<ChatSession> sessionOpt = (hotelId != null)
                 ? sessionRepository.findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(customerId, hotelId)
-                : sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(customerId);
+                : sessionRepository.findFirstByCustomerIdAndHotelIdIsNullOrderByUpdatedAtDesc(customerId);
 
         return sessionOpt
                 .map(session -> messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId())
@@ -251,7 +251,7 @@ public class LiveChatServiceImpl implements LiveChatService {
         if (customerId == null || customerId.isBlank()) return;
         Optional<ChatSession> sessionOpt = (hotelId != null)
                 ? sessionRepository.findFirstByCustomerIdAndHotelIdOrderByUpdatedAtDesc(customerId, hotelId)
-                : sessionRepository.findFirstByCustomerIdOrderByUpdatedAtDesc(customerId);
+                : sessionRepository.findFirstByCustomerIdAndHotelIdIsNullOrderByUpdatedAtDesc(customerId);
 
         sessionOpt.ifPresent(session -> {
             List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());

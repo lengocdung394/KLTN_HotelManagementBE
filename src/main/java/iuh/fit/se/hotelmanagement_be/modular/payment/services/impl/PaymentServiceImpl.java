@@ -258,18 +258,8 @@ public class PaymentServiceImpl implements PaymentService {
             order.getPaymentOrderCodes().add(uniqueOrderCode);
             orderRepository.save(order);
         } catch (Exception e) {
-            log.warn("[PayOS] Fallback sang VietQR MB Bank cho orderId={}, orderCode={} do: {}", order.getId(), uniqueOrderCode, e.getMessage());
-            qrCodeUrl = "https://img.vietqr.io/image/MB-6172155164659-compact2.png?amount=" + amountToPay
-                    + "&addInfo=" + java.net.URLEncoder.encode(paymentDescription, java.nio.charset.StandardCharsets.UTF_8)
-                    + "&accountName=HUYNH+VAN+HIEU";
-            checkoutUrl = qrCodeUrl;
-            linkExpiredAt = expiredAt;
-            paymentMessage = "Tạo mã QR VietQR MB Bank thành công (có hiệu lực 5 phút)";
-            if (order.getPaymentOrderCodes() == null) {
-                order.setPaymentOrderCodes(new ArrayList<>());
-            }
-            order.getPaymentOrderCodes().add(uniqueOrderCode);
-            orderRepository.save(order);
+            log.error("[PayOS] Lỗi tạo link PayOS cho orderId={}, orderCode={}: {}", order.getId(), uniqueOrderCode, e.getMessage(), e);
+            throw new RuntimeException("Không thể tạo mã QR thanh toán PayOS: " + e.getMessage(), e);
         }
 
         return PaymentResponse.builder()

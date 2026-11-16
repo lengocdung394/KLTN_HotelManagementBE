@@ -46,6 +46,9 @@ public enum ErrorCode {
     PERMISSION_NOT_NAME(2025, "Phân quyền bắt buộc phải có tên", HttpStatus.BAD_REQUEST),
     PERMISSION_NOT_CODE(2026, "Phân quyền bắt buộc phải có mã code", HttpStatus.BAD_REQUEST),
     PERMISSION_CODE_NOTVALID(2027, "Mã phân quyền không hợp lệ", HttpStatus.BAD_REQUEST),
+    ROLE_ALREADY_EXISTS(2031, "Mã role đã tồn tại", HttpStatus.BAD_REQUEST),
+    ROLE_CODE_NOTVALID(2032, "Mã role không hợp lệ", HttpStatus.BAD_REQUEST),
+    ROLE_CODE_IMMUTABLE(2033, "Không thể thay đổi mã của role hệ thống", HttpStatus.BAD_REQUEST),
 
     INVALID_OTP(2050, " Mã OTP không hợp lệ hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     OTP_NOT_FOUND(2051, "Không tìm thấy thông tin xác thực OTP hợp lệ", HttpStatus.BAD_REQUEST),

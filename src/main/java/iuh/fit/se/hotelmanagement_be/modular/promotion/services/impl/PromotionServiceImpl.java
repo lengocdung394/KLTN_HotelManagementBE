@@ -24,6 +24,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionSummaryResponse;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.PromotionUsageReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.CloudinaryService;
 import iuh.fit.se.hotelmanagement_be.shared.enums.ImageCategory;
@@ -39,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
@@ -224,6 +226,25 @@ public class PromotionServiceImpl implements PromotionService {
                         hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses()),
                 promotionRepository.countExpiringSoonForSummary(hotelId, PromotionStatus.ACTIVE, now, now.plusDays(7))
         );
+    }
+
+    @Override
+    public List<PromotionUsageReportResponse> getPromotionUsageReport(Long hotelId, YearMonth month) {
+        YearMonth targetMonth = month == null ? YearMonth.from(LocalDateTime.now()) : month;
+        LocalDateTime monthStart = targetMonth.atDay(1).atStartOfDay();
+        LocalDateTime nextMonthStart = targetMonth.plusMonths(1).atDay(1).atStartOfDay();
+        return userPromotionUsageRepository.getPromotionReport(
+                        hotelId, monthStart, nextMonthStart, BookingStatus.cancelledStatuses())
+                .stream()
+                .map(row -> new PromotionUsageReportResponse(
+                        row.getPromotionId(),
+                        row.getPromotionName(),
+                        row.getPromotionCode(),
+                        row.getUsageCount() == null ? 0 : row.getUsageCount(),
+                        row.getUserCount() == null ? 0 : row.getUserCount(),
+                        row.getSavings() == null ? BigDecimal.ZERO : row.getSavings()
+                ))
+                .toList();
     }
 
     @Override

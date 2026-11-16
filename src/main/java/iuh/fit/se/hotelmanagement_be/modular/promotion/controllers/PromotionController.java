@@ -16,6 +16,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PageResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionQuoteResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionSummaryResponse;
+import iuh.fit.se.hotelmanagement_be.modular.report.responses.PromotionUsageReportResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import jakarta.validation.Valid;
@@ -28,6 +29,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -149,6 +151,29 @@ public class PromotionController {
                 .code(1000)
                 .result(summary)
                 .message("Lấy thống kê khuyến mãi thành công")
+                .build());
+    }
+
+    @GetMapping("/usage-report")
+    @Operation(summary = "Lấy giá trị khuyến mãi đã sử dụng theo tháng")
+    @PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<List<PromotionUsageReportResponse>>> getUsageReport(
+            @RequestParam(required = false) Long hotelId,
+            @RequestParam(required = false) YearMonth month,
+            Authentication authentication
+    ) {
+        Account account = (Account) authentication.getPrincipal();
+        boolean isSuperAdmin = account.getRoles().stream()
+                .anyMatch(role -> "ROLE_SUPER_ADMIN".equals(role.getCode()));
+        if (!isSuperAdmin && account.getHotelId() == null) {
+            throw new AccessDeniedException("Account has no assigned hotel.");
+        }
+        Long targetHotelId = isSuperAdmin ? hotelId : account.getHotelId();
+
+        return ResponseEntity.ok(ApiResponse.<List<PromotionUsageReportResponse>>builder()
+                .code(1000)
+                .result(promotionService.getPromotionUsageReport(targetHotelId, month))
+                .message("Lấy giá trị khuyến mãi đã sử dụng thành công")
                 .build());
     }
 

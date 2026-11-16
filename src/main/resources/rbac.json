@@ -17,6 +17,12 @@
       "name": "Tạo chi nhánh",
       "description": "Tạo chi nhánh và tài khoản ban đầu",
       "category": "Quản lý chi nhánh"
+    },
+    {
+      "code": "VIEW_REPORTS",
+      "name": "Xem báo cáo doanh thu",
+      "description": "Cho phép xem báo cáo doanh thu",
+      "category": "Báo cáo"
     }
   ]
 }

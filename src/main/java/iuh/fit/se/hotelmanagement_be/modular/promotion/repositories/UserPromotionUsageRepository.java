@@ -33,7 +33,7 @@ public interface UserPromotionUsageRepository extends JpaRepository<UserPromotio
             FROM UserPromotionUsage u
             JOIN u.booking b
             JOIN Promotion p ON p.code = u.promotionCode
-            WHERE b.hotel.id = :hotelId
+            WHERE (:hotelId IS NULL OR b.hotel.id = :hotelId)
               AND u.usedAt >= :start
               AND u.usedAt < :end
               AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledStatuses)

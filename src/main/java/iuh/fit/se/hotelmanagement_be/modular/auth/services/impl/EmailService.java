@@ -103,11 +103,11 @@ public class EmailService {
                     + "Chi nhánh: " + safeBranch + "\n"
                     + "Tiêu đề: " + safeSubject + "\n\n"
                     + "Nội dung:\n" + message;
-            String staffRows = row("Khách hàng", customerName)
-                    + row("Email", customerEmail)
-                    + row("Số điện thoại", customerPhone)
-                    + row("Chi nhánh", safeBranch)
-                    + row("Tiêu đề", safeSubject);
+            String staffRows = invoiceSummaryRow("Khách hàng", customerName, false)
+                    + invoiceSummaryRow("Email", customerEmail, false)
+                    + invoiceSummaryRow("Số điện thoại", customerPhone, false)
+                    + invoiceSummaryRow("Chi nhánh", safeBranch, false)
+                    + invoiceSummaryRow("Tiêu đề", safeSubject, false);
             String staffContent = section("Thông tin khách hàng liên hệ", staffRows)
                     + section("Nội dung thắc mắc / góp ý", "<p style=\"margin:0\">" + htmlLines(message) + "</p>");
             sendBrandedEmail(
@@ -125,9 +125,9 @@ public class EmailService {
                     + "Sen Việt Hotels & Resorts đã nhận được thắc mắc/góp ý của quý khách về " + safeBranch + ".\n"
                     + "Nội dung: " + message + "\n\n"
                     + "Bộ phận CSKH sẽ phản hồi qua email hoặc số điện thoại " + customerPhone + " trong thời gian sớm nhất.";
-            String ackRows = row("Chi nhánh tiếp nhận", safeBranch)
-                    + row("Tiêu đề", safeSubject)
-                    + row("Số điện thoại phản hồi", customerPhone);
+            String ackRows = invoiceSummaryRow("Chi nhánh tiếp nhận", safeBranch, false)
+                    + invoiceSummaryRow("Tiêu đề", safeSubject, false)
+                    + invoiceSummaryRow("Số điện thoại phản hồi", customerPhone, false);
             String ackContent = paragraph("Kính gửi " + customerName + ", cảm ơn quý khách đã gửi thắc mắc & góp ý tới Sen Việt Hotels & Resorts.")
                     + section("Chi tiết yêu cầu đã tiếp nhận", ackRows)
                     + section("Nội dung đã gửi", "<p style=\"margin:0\">" + htmlLines(message) + "</p>")

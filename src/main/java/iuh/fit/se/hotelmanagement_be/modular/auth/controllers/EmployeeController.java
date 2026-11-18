@@ -9,8 +9,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.UserRegisterRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeProfileUpdateRequest;
+import iuh.fit.se.hotelmanagement_be.modular.auth.requests.EmployeeExcelImportRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.EmployeeResponse;
 import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeServiceImpl;
+import iuh.fit.se.hotelmanagement_be.modular.auth.services.impl.EmployeeImportService;
+import iuh.fit.se.hotelmanagement_be.shared.entities.ImportTaskStatus;
 import iuh.fit.se.hotelmanagement_be.config.SecurityUtils;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
@@ -28,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/employee")
@@ -37,6 +41,7 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth") //Giúp Swagger hiển thị khóa Bearer Token trên API này
 public class EmployeeController {
     EmployeeServiceImpl userService;
+    EmployeeImportService employeeImportService;
 
     @Operation(summary = "Cập nhật hồ sơ của nhân viên đang đăng nhập")
     @PutMapping("/me/profile")
@@ -75,6 +80,29 @@ public class EmployeeController {
                 .build();
 
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @Operation(summary = "Nhập danh sách nhân viên bất đồng bộ từ URL ảnh Cloudinary")
+    @PostMapping("/import-urls-async")
+    @PreAuthorize("hasAuthority('ADD_STAFF')")
+    public ResponseEntity<?> startEmployeeUrlImport(
+            @RequestBody EmployeeExcelImportRequest request,
+            @AuthenticationPrincipal Account currentAccount
+    ) {
+        Long hotelId = SecurityUtils.getCurrentUserHotelId();
+        String taskId = employeeImportService.startAsyncUrlImport(request, hotelId, currentAccount);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "taskId", taskId,
+                "message", "Đã tiếp nhận dữ liệu nhân viên và bắt đầu tạo tài khoản."
+        ));
+    }
+
+    @Operation(summary = "Lấy trạng thái tiến trình nhập nhân viên")
+    @GetMapping("/import-status/{taskId}")
+    @PreAuthorize("hasAuthority('ADD_STAFF')")
+    public ResponseEntity<ImportTaskStatus> getEmployeeImportStatus(@PathVariable String taskId) {
+        return ResponseEntity.ok(employeeImportService.getTaskStatus(taskId));
     }
 
     @Operation(summary = "Lấy danh sách nhân viên theo chi nhánh khách sạn")

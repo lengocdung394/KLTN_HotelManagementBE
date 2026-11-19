@@ -11,11 +11,10 @@ public interface HotelRepository  extends JpaRepository<Hotel, Long> {
     boolean existsByName(String s);
 
     Optional<Hotel> findByName(String hotelName);
-    // Ham lay ds khach san theo tinh thanh
-    List<Hotel> findAllByProvince_Id(String provinceId);
+    List<Hotel> findAllByProvinceName(String provinceName);
     boolean existsByPhone(String phone);
     boolean existsByAddress(String address);
 
-    @Query("select distinct hotel from Hotel hotel left join fetch hotel.province left join fetch hotel.roomPolicies")
+    @Query("select distinct hotel from Hotel hotel left join fetch hotel.roomPolicies")
     List<Hotel> findAllWithPublicDetails();
 }

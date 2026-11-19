@@ -489,7 +489,8 @@ public class BookingServiceImpl implements BookingService {
                             .numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
                             .earlyCheckInFee(detail.getEarlyCheckInFee())
                             .lateCheckOutFee(detail.getLateCheckOutFee())
-                            // Map tháº³ng cÃ¡c khoáº£n chi tiáº¿t vÃ o Response
+                            .otherSurcharges(detail.getOtherSurcharges())
+                            // Map thẳng các khoản chi tiết vào Response
                             .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
                             .nightlyPrices(detail.getNightlyPrices() == null ? List.of() : detail.getNightlyPrices().stream().map(price -> BookingNightlyPriceResponse.builder()
                                     .stayDate(price.getStayDate())
@@ -768,8 +769,23 @@ public class BookingServiceImpl implements BookingService {
             // 5. Tá»•ng cá»™ng cuá»‘i cÃ¹ng cá»§a phÃ²ng nÃ y (PhÃ²ng + Dá»‹ch vá»¥)
             double totalPrice = roomSubTotal + serviceSubTotal;
 
-            // 6. XÃ¢y dá»±ng Entity BookingDetail Ä‘áº§y Ä‘á»§ cÃ¡c khoáº£n chi tiáº¿t
-            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
+            // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
+            BookingDetail bookingDetail = BookingDetail.builder()
+                    .booking(booking)
+                    .room(room)
+                    .checkinTime(detailReq.getCheckInTime())
+                    .checkoutTime(detailReq.getCheckOutTime())
+                    .numAdults(detailReq.getNumAdults())
+                    .numChildren(detailReq.getNumChildren())
+                    .numInfants(detailReq.getNumInfants())
+                    .baseRoomPricePerNight(baseRoomPricePerNight)
+                    .extraAdultFeePerNight(extraAdultFeePerNight)
+                    .extraChildFeePerNight(extraChildFeePerNight)
+                    .roomSubTotal(roomSubTotal)
+                    .serviceSubTotal(serviceSubTotal)
+                    .totalPrice(totalPrice)
+                    .status(BookingStatusType.PENDING)
+                    .build();
 
             nightlyPrices.forEach(bookingDetail::addNightlyPrice);
             if (!serviceDetails.isEmpty()) {
@@ -1046,6 +1062,7 @@ public class BookingServiceImpl implements BookingService {
                             .build()).toList())
                     .earlyCheckInFee(detail.getEarlyCheckInFee())
                     .lateCheckOutFee(detail.getLateCheckOutFee())
+                    .otherSurcharges(detail.getOtherSurcharges())
                     // Thoi gian checkin - checkout thuc te
                     .actualCheckOutTime(detail.getActualCheckOutTime())
                     .actualCheckInTime(detail.getActualCheckInTime())

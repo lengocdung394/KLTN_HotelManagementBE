@@ -61,7 +61,7 @@ class HotelReportServiceTest {
     }
 
     @Test
-    void returnsServiceRevenuePromotionsAndCurrentRoomStatusesForSelectedPeriod() {
+    void reportsRoomRevenueOnCheckInAndServiceRevenueOnConfirmationDates() {
         LocalDate startDate = LocalDate.of(2026, 10, 1);
         LocalDate endDate = LocalDate.of(2026, 10, 2);
         when(bookingRepository.countCreatedBookingsForPeriod(
@@ -72,24 +72,41 @@ class HotelReportServiceTest {
         BookingDetail roomRevenueDetail = new BookingDetail();
         roomRevenueDetail.setCheckinTime(startDate.atTime(14, 0));
         roomRevenueDetail.setCheckoutTime(endDate.plusDays(1).atTime(12, 0));
+        roomRevenueDetail.setActualCheckInTime(startDate.atTime(15, 0));
         roomRevenueDetail.setStatus(BookingStatusType.CHECKED_OUT);
+        roomRevenueDetail.setRoomSubTotal(270000.0);
         roomRevenueDetail.setNightlyPrices(List.of(
                 nightlyPrice(startDate, "120000"),
                 nightlyPrice(endDate, "130000"),
                 nightlyPrice(endDate.plusDays(1), "140000")
         ));
         BookingDetail legacyRoomRevenueDetail = new BookingDetail();
-        legacyRoomRevenueDetail.setCheckinTime(startDate.minusDays(1).atTime(14, 0));
-        legacyRoomRevenueDetail.setCheckoutTime(endDate.atTime(12, 0));
+        legacyRoomRevenueDetail.setCheckinTime(endDate.atTime(14, 0));
+        legacyRoomRevenueDetail.setCheckoutTime(endDate.plusDays(1).atTime(12, 0));
         legacyRoomRevenueDetail.setStatus(BookingStatusType.CHECKED_OUT);
         legacyRoomRevenueDetail.setRoomSubTotal(200000.0);
+        BookingDetail currentlyCheckedInRoom = new BookingDetail();
+        currentlyCheckedInRoom.setCheckinTime(endDate.atTime(14, 0));
+        currentlyCheckedInRoom.setActualCheckInTime(endDate.atTime(15, 0));
+        currentlyCheckedInRoom.setStatus(BookingStatusType.CHECKED_IN);
+        currentlyCheckedInRoom.setRoomSubTotal(180000.0);
+        BookingDetail previouslyCheckedInRoom = new BookingDetail();
+        previouslyCheckedInRoom.setCheckinTime(startDate.minusDays(1).atTime(14, 0));
+        previouslyCheckedInRoom.setActualCheckInTime(startDate.minusDays(1).atTime(15, 0));
+        previouslyCheckedInRoom.setCheckoutTime(endDate.plusDays(1).atTime(12, 0));
+        previouslyCheckedInRoom.setStatus(BookingStatusType.CHECKED_OUT);
+        previouslyCheckedInRoom.setRoomSubTotal(900000.0);
         when(bookingRepository.findRoomRevenueDetailsForPeriod(
                 7L,
                 startDate.atStartOfDay(),
                 endDate.plusDays(1).atStartOfDay(),
-                BookingStatus.cancelledStatuses(),
-                BookingStatusType.CHECKED_OUT
-        )).thenReturn(List.of(roomRevenueDetail, legacyRoomRevenueDetail));
+                List.of(BookingStatusType.CHECKED_IN, BookingStatusType.CHECKED_OUT)
+        )).thenReturn(List.of(
+                roomRevenueDetail,
+                legacyRoomRevenueDetail,
+                currentlyCheckedInRoom,
+                previouslyCheckedInRoom
+        ));
         BookingRepository.RoomTypeBookingReportProjection standardRoomBookings =
                 mock(BookingRepository.RoomTypeBookingReportProjection.class);
         when(standardRoomBookings.getRoomType()).thenReturn(RoomType.STANDARD);
@@ -125,15 +142,23 @@ class HotelReportServiceTest {
         OrderRepository.DailyServiceRevenueProjection revenueRow =
                 mock(OrderRepository.DailyServiceRevenueProjection.class);
         when(revenueRow.getRevenueDate()).thenReturn(startDate);
-        when(revenueRow.getRevenue()).thenReturn(125000.0);
+        when(revenueRow.getRevenue()).thenReturn(75000.0);
         when(revenueRow.getServiceUsageCount()).thenReturn(2L);
-        when(orderRepository.getDailyServiceRevenue(
+        OrderRepository.DailyServiceRevenueProjection legacyRevenueRow =
+                mock(OrderRepository.DailyServiceRevenueProjection.class);
+        when(legacyRevenueRow.getRevenueDate()).thenReturn(startDate);
+        when(legacyRevenueRow.getRevenue()).thenReturn(50000.0);
+        when(legacyRevenueRow.getServiceUsageCount()).thenReturn(1L);
+        when(orderRepository.getDailyConfirmedServiceRevenue(
                 7L,
                 startDate.atStartOfDay(),
-                endDate.plusDays(1).atStartOfDay(),
-                BookingStatusType.CHECKED_OUT,
-                BookingStatus.cancelledStatuses()
+                endDate.plusDays(1).atStartOfDay()
         )).thenReturn(List.of(revenueRow));
+        when(orderRepository.getDailyLegacyServiceRevenue(
+                7L,
+                startDate.atStartOfDay(),
+                endDate.plusDays(1).atStartOfDay()
+        )).thenReturn(List.of(legacyRevenueRow));
 
         UserPromotionUsageRepository.PromotionUsageReportProjection promotionRow =
                 mock(UserPromotionUsageRepository.PromotionUsageReportProjection.class);
@@ -205,9 +230,11 @@ class HotelReportServiceTest {
         assertEquals(new BigDecimal("75000"), report.cashRefunded());
         assertEquals(new BigDecimal("25000"), report.cashChangeReturned());
         assertEquals(new BigDecimal("400000"), report.netCashReceived());
-        assertEquals(0, new BigDecimal("350000").compareTo(report.roomRevenue()));
-        assertEquals(2, report.serviceUsageCount());
+        assertEquals(0, new BigDecimal("650000").compareTo(report.roomRevenue()));
+        assertEquals(3, report.serviceUsageCount());
         assertEquals(1, report.dailyServiceRevenue().size());
+        assertEquals(0, new BigDecimal("125000")
+                .compareTo(report.dailyServiceRevenue().get(0).revenue()));
         assertEquals(3, report.promotionUsageCount());
         assertEquals(new BigDecimal("50000"), report.promotionSavings());
         assertEquals(3, report.promotions().get(0).usageCount());

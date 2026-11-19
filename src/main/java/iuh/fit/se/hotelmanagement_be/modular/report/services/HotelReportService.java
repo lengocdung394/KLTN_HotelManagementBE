@@ -28,13 +28,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Service
 @RequiredArgsConstructor
@@ -106,24 +106,19 @@ public class HotelReportService {
                         hotelId,
                         start,
                         endExclusive,
-                        BookingStatus.cancelledStatuses(),
-                        BookingStatusType.CHECKED_OUT
+                        List.of(BookingStatusType.CHECKED_IN, BookingStatusType.CHECKED_OUT)
                 ),
                 startDate,
                 endDate.plusDays(1)
         );
 
-        List<OrderRepository.DailyServiceRevenueProjection> revenueRows =
-                orderRepository.getDailyServiceRevenue(
-                        hotelId,
-                        start,
-                        endExclusive,
-                        BookingStatusType.CHECKED_OUT,
-                        BookingStatus.cancelledStatuses()
-                );
+        List<OrderRepository.DailyServiceRevenueProjection> revenueRows = new ArrayList<>();
+        revenueRows.addAll(orderRepository.getDailyConfirmedServiceRevenue(hotelId, start, endExclusive));
+        revenueRows.addAll(orderRepository.getDailyLegacyServiceRevenue(hotelId, start, endExclusive));
         BigDecimal serviceRevenue = BigDecimal.ZERO;
         long serviceUsageCount = 0;
-        List<DailyServiceRevenueResponse> dailyServiceRevenue = new ArrayList<>();
+        Map<LocalDate, BigDecimal> revenueByDate = new TreeMap<>();
+        Map<LocalDate, Long> usageCountByDate = new TreeMap<>();
         for (OrderRepository.DailyServiceRevenueProjection row : revenueRows) {
             BigDecimal revenue = row.getRevenue() == null
                     ? BigDecimal.ZERO
@@ -131,8 +126,16 @@ public class HotelReportService {
             long usageCount = row.getServiceUsageCount() == null ? 0 : row.getServiceUsageCount();
             serviceRevenue = serviceRevenue.add(revenue);
             serviceUsageCount += usageCount;
-            dailyServiceRevenue.add(new DailyServiceRevenueResponse(row.getRevenueDate(), revenue, usageCount));
+            revenueByDate.merge(row.getRevenueDate(), revenue, BigDecimal::add);
+            usageCountByDate.merge(row.getRevenueDate(), usageCount, Long::sum);
         }
+        List<DailyServiceRevenueResponse> dailyServiceRevenue = revenueByDate.entrySet().stream()
+                .map(entry -> new DailyServiceRevenueResponse(
+                        entry.getKey(),
+                        entry.getValue(),
+                        usageCountByDate.getOrDefault(entry.getKey(), 0L)
+                ))
+                .toList();
 
         List<UserPromotionUsageRepository.PromotionUsageReportProjection> promotionRows =
                 userPromotionUsageRepository.getPromotionReport(
@@ -260,31 +263,15 @@ public class HotelReportService {
     ) {
         BigDecimal revenue = BigDecimal.ZERO;
         for (BookingDetail detail : details) {
-            if (detail.getNightlyPrices() != null && !detail.getNightlyPrices().isEmpty()) {
-                revenue = revenue.add(detail.getNightlyPrices().stream()
-                        .filter(price -> price.getStayDate() != null
-                                && !price.getStayDate().isBefore(startDate)
-                                && price.getStayDate().isBefore(endExclusive))
-                        .map(price -> price.getNightTotal() == null ? BigDecimal.ZERO : price.getNightTotal())
-                        .reduce(BigDecimal.ZERO, BigDecimal::add));
+            LocalDateTime checkInTime = detail.getActualCheckInTime() != null
+                    ? detail.getActualCheckInTime()
+                    : detail.getCheckinTime();
+            if (checkInTime == null || detail.getRoomSubTotal() == null) {
                 continue;
             }
-
-            if (detail.getCheckinTime() == null || detail.getCheckoutTime() == null
-                    || detail.getRoomSubTotal() == null) {
-                continue;
-            }
-            LocalDate checkIn = detail.getCheckinTime().toLocalDate();
-            LocalDate checkOut = detail.getCheckoutTime().toLocalDate();
-            long totalNights = java.time.temporal.ChronoUnit.DAYS.between(checkIn, checkOut);
-            long includedNights = java.time.temporal.ChronoUnit.DAYS.between(
-                    checkIn.isAfter(startDate) ? checkIn : startDate,
-                    checkOut.isBefore(endExclusive) ? checkOut : endExclusive
-            );
-            if (totalNights > 0 && includedNights > 0) {
-                revenue = revenue.add(BigDecimal.valueOf(detail.getRoomSubTotal())
-                        .multiply(BigDecimal.valueOf(includedNights))
-                        .divide(BigDecimal.valueOf(totalNights), 2, RoundingMode.HALF_UP));
+            LocalDate revenueDate = checkInTime.toLocalDate();
+            if (!revenueDate.isBefore(startDate) && revenueDate.isBefore(endExclusive)) {
+                revenue = revenue.add(BigDecimal.valueOf(detail.getRoomSubTotal()));
             }
         }
         return revenue;

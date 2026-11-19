@@ -22,7 +22,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/reports")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyAuthority('ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_EMPLOYEE', 'ROLE_RECEPTIONIST', 'ROLE_STAFF')")
+@PreAuthorize("hasAnyAuthority('VIEW_REPORTS', 'ROLE_SUPER_ADMIN')")
 public class ReportController {
     private final HotelReportService hotelReportService;
     private final HotelRepository hotelRepository;

@@ -1,4 +1,4 @@
-package iuh.fit.se.hotelmanagement_be.modular.branch.responses;
+package iuh.fit.se.hotelmanagement_be.modular.auth.requests;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -12,8 +12,12 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PublicProvinceResponse {
-    String id;
-    String name;
-    String backgroundImageUrl;
+public class EmployeeExcelRowRequest {
+    String fullName;
+    String email;
+    String phone;
+    String cccd;
+    String address;
+    String position;
+    String avatarUrl;
 }

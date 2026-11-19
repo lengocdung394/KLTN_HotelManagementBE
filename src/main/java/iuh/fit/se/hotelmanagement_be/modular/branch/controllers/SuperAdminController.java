@@ -2,10 +2,8 @@ package iuh.fit.se.hotelmanagement_be.modular.branch.controllers;
 
 import iuh.fit.se.hotelmanagement_be.modular.branch.requests.BranchRoomPolicyRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateBranchRequest;
-import iuh.fit.se.hotelmanagement_be.modular.branch.requests.SuperAdminCreateProvinceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminBranchDetailResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminBranchSummaryResponse;
-import iuh.fit.se.hotelmanagement_be.modular.branch.responses.SuperAdminProvinceResponse;
 import iuh.fit.se.hotelmanagement_be.modular.branch.services.SuperAdminService;
 import iuh.fit.se.hotelmanagement_be.shared.dtos.ApiResponse;
 import lombok.AccessLevel;
@@ -27,22 +25,6 @@ public class SuperAdminController {
     SuperAdminService superAdminService;
 
 
-    // Ham tao tinh thanh
-    @PostMapping("/createProvince")
-    public ResponseEntity<ApiResponse<SuperAdminProvinceResponse>> createProvince(@RequestBody SuperAdminCreateProvinceRequest request) {
-        return ResponseEntity.ok(response(
-                superAdminService.createProvince(request),
-                "Tao thanh cong mot tinh thanh"
-        ));
-    }
-
-    @GetMapping("/provinces")
-    public ResponseEntity<ApiResponse<List<SuperAdminProvinceResponse>>> getProvinces() {
-        return ResponseEntity.ok(response(
-                superAdminService.getProvinces(),
-                "Lấy danh sách tỉnh/thành công."));
-    }
-
     @GetMapping("/branches")
     public ResponseEntity<ApiResponse<List<SuperAdminBranchSummaryResponse>>> getBranches() {
         return ResponseEntity.ok(response(
@@ -50,11 +32,11 @@ public class SuperAdminController {
                 "Lấy danh sách chi nhánh thành công."));
     }
 
-    @GetMapping("/branches/by-province/{provinceId}")
+    @GetMapping("/branches/by-province/{provinceName}")
     public ResponseEntity<ApiResponse<List<SuperAdminBranchSummaryResponse>>> getBranchesByProvince(
-            @PathVariable String provinceId) {
+            @PathVariable String provinceName) {
         return ResponseEntity.ok(response(
-                superAdminService.getBranchesByProvince(provinceId),
+                superAdminService.getBranchesByProvince(provinceName),
                 "Lấy danh sách khách sạn theo tỉnh/thành thành công."));
     }
 

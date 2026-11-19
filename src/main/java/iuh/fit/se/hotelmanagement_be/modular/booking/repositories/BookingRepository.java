@@ -46,19 +46,16 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             SELECT DISTINCT bd
             FROM Booking b
             JOIN b.bookingDetails bd
-            LEFT JOIN FETCH bd.nightlyPrices
             WHERE b.hotel.id = :hotelId
-              AND bd.checkinTime < :end
-              AND bd.checkoutTime > :start
-              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledBookingStatuses)
-              AND bd.status = :completedRoomStatus
+              AND COALESCE(bd.actualCheckInTime, bd.checkinTime) >= :start
+              AND COALESCE(bd.actualCheckInTime, bd.checkinTime) < :end
+              AND bd.status IN :revenueRoomStatuses
             """)
     List<BookingDetail> findRoomRevenueDetailsForPeriod(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses,
-            @Param("completedRoomStatus") BookingStatusType completedRoomStatus
+            @Param("revenueRoomStatuses") List<BookingStatusType> revenueRoomStatuses
     );
 
     @Query("""

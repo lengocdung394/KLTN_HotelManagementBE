@@ -102,6 +102,8 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
+        String requestedPaymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().trim().toUpperCase() : "PAYOS";
+        booking.setPaymentMethod("CASH".equals(requestedPaymentMethod) ? "CASH" : "PAYOS");
         // LÆ°u láº¡i tráº¡ng thÃ¡i cÃ³ dÃ¹ng mÃ£ ngay tá»« Ä‘áº§u hÃ m Ä‘á»ƒ trÃ¡nh bá»‹ thay Ä‘á»•i vá» sau
         boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
         // 1. TÃ¬m khÃ¡ch sáº¡n an toÃ n vÃ  gÃ¡n vÃ o booking trÆ°á»›c
@@ -151,29 +153,38 @@ public class BookingServiceImpl implements BookingService {
 
         // CHá»ˆ báº¯n thÃ´ng bÃ¡o Ä‘Æ¡n má»›i tá»›i nhÃ¢n viÃªn vÃ  email khi booking ÄÃƒ ÄÆ¯á»¢C XÃC NHáº¬N / THANH TOÃN THÃ€NH CÃ”NG
         // ÄÆ¡n ONLINE Ä‘ang PENDING chá» thanh toÃ¡n sáº½ chá»‰ báº¯n thÃ´ng bÃ¡o sau khi PayOS/ngÃ¢n hÃ ng xÃ¡c nháº­n thanh toÃ¡n thÃ nh cÃ´ng
-        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED) {
-            Map<String, Object> bookingData = new LinkedHashMap<>();
-            bookingData.put("bookingId", savedBooking.getId());
-            bookingData.put("customerName", customer.getFullName());
-            bookingData.put("customerPhone", customer.getPhone());
-            bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+        // Luôn gửi thông báo "Đặt phòng thành công" cho khách hàng (tách biệt với thông báo "Thanh toán thành công")
+        boolean isCashBooking = "CASH".equalsIgnoreCase(savedBooking.getPaymentMethod());
+        String customerBookingDesc = isCashBooking
+                ? "Mã booking: #" + savedBooking.getId()
+                        + " | Tổng tiền: " + savedBooking.getOrder().getTotalAmount() + "đ"
+                        + " | Hình thức: Tiền mặt tại lễ tân (đã giữ chỗ)."
+                : "Mã booking: #" + savedBooking.getId()
+                        + " | Tổng tiền: " + savedBooking.getOrder().getTotalAmount() + "đ"
+                        + " | Vui lòng quét mã QR PayOS để hoàn tất thanh toán.";
+        bookingSocketEmitter.emitCustomerBookingStatus(
+                customer,
+                savedBooking,
+                NotificationType.BOOKING_CREATED,
+                "Đặt phòng thành công",
+                customerBookingDesc);
 
-            bookingSocketEmitter.emitNewBookingNotification(
-                    hotelId,
-                    savedBooking,
-                    bookingData
-            );
+        // Luôn bắn thông báo "Đặt phòng thành công" tới cả Web nhân viên (Admin/Staff) ngay khi khách đặt trên web
+        Map<String, Object> bookingData = new LinkedHashMap<>();
+        bookingData.put("bookingId", savedBooking.getId());
+        bookingData.put("customerName", customer.getFullName());
+        bookingData.put("customerPhone", customer.getPhone());
+        bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+        bookingData.put("paymentMethod", savedBooking.getPaymentMethod());
+        bookingSocketEmitter.emitNewBookingNotification(
+                hotelId,
+                savedBooking,
+                bookingData
+        );
+
+        // Gửi email xác nhận đặt phòng ngay nếu đã xác nhận hoặc chọn thanh toán tiền mặt tại quầy
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED || isCashBooking) {
             // BÃ¡o vá» cho khÃ¡ch hÃ ng tráº¡ng thÃ¡i Ä‘Æ¡n hÃ ng
-            // Báo về cho khách hàng trạng thái đơn hàng
-            bookingSocketEmitter.emitCustomerBookingStatus(
-                    customer,
-                    savedBooking,
-                    NotificationType.BOOKING_CREATED,
-                    "Đặt phòng thành công",
-                    "Mã booking: #" + savedBooking.getId()
-                            + " | Khách hàng: " + customer.getFullName()
-                            + " | SĐT: " + customer.getPhone()
-                            + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
             sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         }
         // ==========================================
@@ -513,6 +524,7 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
                 .bookingStatus(booking.getBookingStatus())
                 .bookingChannel(booking.getBookingChannel())
+                .paymentMethod(booking.getPaymentMethod())
                 .createdAt(booking.getCreatedAt())
 
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
@@ -1243,28 +1255,34 @@ public class BookingServiceImpl implements BookingService {
         }
         String customerId = null;
         String email = account.getEmail();
-        if (account.getCustomer() != null) {
-            customerId = account.getCustomer().getId();
-            if (email == null) {
-                email = account.getCustomer().getEmail();
-            }
-        } else {
-            final String lookupEmail = email;
+        String phone = null;
+        String cccd = null;
+        Customer resolvedCustomer = account.getCustomer();
+        if (resolvedCustomer == null) {
             java.util.Optional<Customer> opt = customerRepository.findFirstByAccount(account);
-            if (opt.isEmpty() && lookupEmail != null) {
-                opt = customerRepository.findFirstByEmail(lookupEmail);
+            if (opt.isEmpty() && email != null && !email.isBlank()) {
+                opt = customerRepository.findFirstByEmail(email.trim());
             }
-            if (opt.isPresent()) {
-                customerId = opt.get().getId();
-                if (email == null) {
-                    email = opt.get().getEmail();
-                }
-            }
+            resolvedCustomer = opt.orElse(null);
         }
-        if (customerId == null && email == null) {
+        if (resolvedCustomer != null) {
+            customerId = resolvedCustomer.getId();
+            if (email == null || email.isBlank()) {
+                email = resolvedCustomer.getEmail();
+            }
+            phone = resolvedCustomer.getPhone();
+            cccd = resolvedCustomer.getCccd();
+        }
+        String cleanCustomerId = (customerId != null && !customerId.isBlank()) ? customerId.trim() : null;
+        String cleanEmail = (email != null && !email.isBlank()) ? email.trim() : null;
+        String cleanPhone = (phone != null && !phone.isBlank()) ? phone.trim() : null;
+        String cleanCccd = (cccd != null && !cccd.isBlank()) ? cccd.trim() : null;
+        if (cleanCustomerId == null && cleanEmail == null && cleanPhone == null && cleanCccd == null) {
             return List.of();
         }
-        List<Booking> bookings = bookingRepository.findByCustomerIdOrEmail(customerId, email);
+        List<Booking> bookings = bookingRepository.findByCustomerIdentity(
+                cleanCustomerId, cleanEmail, cleanPhone, cleanCccd
+        );
         return bookings.stream().map(this::toBookingResponse).toList();
     }
 }

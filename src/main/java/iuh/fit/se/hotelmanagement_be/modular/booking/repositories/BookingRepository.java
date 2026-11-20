@@ -103,4 +103,19 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             ORDER BY b.createdAt DESC
             """)
     List<Booking> findByCustomerIdOrEmail(@Param("customerId") String customerId, @Param("email") String email);
+
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            WHERE (:customerId IS NOT NULL AND b.customer.id = :customerId)
+               OR (:email IS NOT NULL AND b.customer.email IS NOT NULL AND LOWER(TRIM(b.customer.email)) = LOWER(TRIM(:email)))
+               OR (:phone IS NOT NULL AND b.customer.phone IS NOT NULL AND TRIM(b.customer.phone) = TRIM(:phone))
+               OR (:cccd IS NOT NULL AND b.customer.cccd IS NOT NULL AND TRIM(b.customer.cccd) = TRIM(:cccd))
+            ORDER BY b.createdAt DESC
+            """)
+    List<Booking> findByCustomerIdentity(
+            @Param("customerId") String customerId,
+            @Param("email") String email,
+            @Param("phone") String phone,
+            @Param("cccd") String cccd
+    );
 }

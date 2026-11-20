@@ -92,11 +92,15 @@ public class EmailService {
             String customerPhone,
             String branchName,
             String subject,
-            String message) {
+            String message,
+            String targetRecipientEmail) {
         String safeBranch = (branchName == null || branchName.isBlank()) ? "Toàn hệ thống Sen Việt" : branchName.trim();
         String safeSubject = (subject == null || subject.isBlank()) ? "Thắc mắc & Góp ý từ khách hàng" : subject.trim();
+        String recipient = (targetRecipientEmail != null && !targetRecipientEmail.isBlank())
+                ? targetRecipientEmail.trim()
+                : systemSupportEmail;
 
-        if (systemSupportEmail != null && !systemSupportEmail.isBlank()) {
+        if (recipient != null && !recipient.isBlank()) {
             String staffPlain = "Khách hàng: " + customerName + "\n"
                     + "Email: " + customerEmail + "\n"
                     + "SĐT: " + customerPhone + "\n"
@@ -111,7 +115,7 @@ public class EmailService {
             String staffContent = section("Thông tin khách hàng liên hệ", staffRows)
                     + section("Nội dung thắc mắc / góp ý", "<p style=\"margin:0\">" + htmlLines(message) + "</p>");
             sendBrandedEmail(
-                    systemSupportEmail,
+                    recipient,
                     "[Liên hệ & Góp ý] " + safeSubject + " - " + customerName,
                     "LIÊN HỆ KHÁCH HÀNG",
                     "Thư góp ý / thắc mắc mới",

@@ -37,6 +37,9 @@ public class BookingExpiryScheduler {
             if (booking.getBookingStatus() != BookingStatus.PENDING) {
                 continue;
             }
+            if ("CASH".equalsIgnoreCase(booking.getPaymentMethod())) {
+                continue;
+            }
             try {
                 if (booking.getOrder() != null) {
                     Map<String, Object> paymentStatus =

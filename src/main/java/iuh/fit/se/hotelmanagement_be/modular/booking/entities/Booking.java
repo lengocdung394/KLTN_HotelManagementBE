@@ -44,6 +44,9 @@ public class Booking {
 
     BookingChannel bookingChannel;
 
+    @Column(name = "payment_method")
+    String paymentMethod;
+
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @Builder.Default

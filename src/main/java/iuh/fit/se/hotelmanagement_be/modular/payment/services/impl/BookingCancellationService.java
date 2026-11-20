@@ -95,7 +95,8 @@ public class BookingCancellationService {
         }
         boolean isOwner = (accountCustomerId != null && accountCustomerId.equals(bookingCustomerId))
                 || (booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
-                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
+                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().trim().equals(booking.getCustomer().getPhone().trim()))
+                || (account.getCustomer() != null && account.getCustomer().getCccd() != null && booking.getCustomer().getCccd() != null && !account.getCustomer().getCccd().isBlank() && account.getCustomer().getCccd().trim().equals(booking.getCustomer().getCccd().trim()));
         if (!isOwner) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
@@ -990,7 +991,8 @@ public class BookingCancellationService {
         }
         boolean isOwner = (accountCustomerId != null && accountCustomerId.equals(bookingCustomerId))
                 || (booking.getCustomer().getEmail() != null && account.getEmail() != null && account.getEmail().equalsIgnoreCase(booking.getCustomer().getEmail()))
-                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().equals(booking.getCustomer().getPhone()));
+                || (account.getCustomer() != null && account.getCustomer().getPhone() != null && booking.getCustomer().getPhone() != null && account.getCustomer().getPhone().trim().equals(booking.getCustomer().getPhone().trim()))
+                || (account.getCustomer() != null && account.getCustomer().getCccd() != null && booking.getCustomer().getCccd() != null && !account.getCustomer().getCccd().isBlank() && account.getCustomer().getCccd().trim().equals(booking.getCustomer().getCccd().trim()));
         if (!isOwner) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }

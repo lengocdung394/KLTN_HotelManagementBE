@@ -22,6 +22,7 @@ public class BookingResponse {
     Long hotelId;
     BookingStatus bookingStatus;
     BookingChannel bookingChannel;
+    String paymentMethod;
     LocalDateTime createdAt;
 
     String promotionId; // khuyen mai cua khach hang

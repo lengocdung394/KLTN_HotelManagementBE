@@ -206,9 +206,14 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     public List<PromotionResponse> getActivePromotions() {
+        LocalDateTime now = LocalDateTime.now();
         return promotionRepository
                 .findAllByStatusAndDeletedFalseOrderByCreatedAtDesc(PromotionStatus.ACTIVE)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+                .stream()
+                .filter(p -> p.getEndDate() == null || !now.isAfter(p.getEndDate()))
+                .filter(p -> p.getStartDate() == null || !now.isBefore(p.getStartDate()))
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     @Override

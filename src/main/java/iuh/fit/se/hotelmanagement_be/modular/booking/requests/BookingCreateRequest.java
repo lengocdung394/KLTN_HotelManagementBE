@@ -33,6 +33,8 @@ public class BookingCreateRequest {
 
     BookingChannel bookingChannel; // WALK_IN hoặc ONLINE
 
+    String paymentMethod; // CASH hoặc PAYOS (mặc định PAYOS cho đơn ONLINE)
+
     // Giá phòng thời điểm đó
     String customerPromotionId; // Voucher của khách (nếu có)
 

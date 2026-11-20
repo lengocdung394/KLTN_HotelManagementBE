@@ -28,7 +28,11 @@ public interface LiveChatService {
 
     List<ChatMessageResponse> getMessagesByCustomerId(String customerId);
 
+    List<ChatMessageResponse> getMessagesByCustomerId(String customerId, Long hotelId);
+
     List<ChatSessionResponse> getAllSessions(Long hotelId);
 
     void closeSession(Long sessionId);
+
+    void markMessagesAsRead(String customerId, Long hotelId);
 }

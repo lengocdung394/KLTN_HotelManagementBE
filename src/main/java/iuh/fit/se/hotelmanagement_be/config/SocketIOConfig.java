@@ -29,8 +29,6 @@ public class SocketIOConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        // Đổi chuỗi bên dưới thành đúng cái Secret Key ký JWT trong file application.yml/properties của ông
-        // Hoặc tạm thời để một chuỗi bất kỳ dài trên 32 ký tự để test
         String secretKey = "404E635266556A586E3272357538782F413F4428472B4B6250655368566D5971";
         byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
         SecretKeySpec originalKey = new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256");
@@ -44,7 +42,6 @@ public class SocketIOConfig {
 
         config.setHostname("0.0.0.0");
         config.setPort(8085);
-//        config.setOrigin("https://tobochat-next.vercel.app");
         config.setOrigin("*");
         config.setJsonSupport(new com.corundumstudio.socketio.protocol.JacksonJsonSupport(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()));
 
@@ -112,19 +109,36 @@ public class SocketIOConfig {
         server.addEventListener("customer_send_staff_chat", java.util.Map.class, (client, data, ackSender) -> {
             log.info("📩 [SocketIO] Khách hàng gửi tin nhắn tới nhân viên: {}", data);
 
+            Long hotelId = null;
+            if (data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+
+            String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
+            if (hotelId == null && branchName != null) {
+                String lowerBranch = branchName.toLowerCase();
+                if (lowerBranch.contains("sài gòn") || lowerBranch.contains("sai gon")) hotelId = 1L;
+                else if (lowerBranch.contains("hà nội") || lowerBranch.contains("ha noi")) hotelId = 2L;
+                else if (lowerBranch.contains("đà nẵng") || lowerBranch.contains("da nang")) hotelId = 3L;
+                else if (lowerBranch.contains("nha trang")) hotelId = 4L;
+                else if (lowerBranch.contains("đà lạt") || lowerBranch.contains("da lat")) hotelId = 5L;
+                else if (lowerBranch.contains("gò công") || lowerBranch.contains("go cong")) hotelId = 6L;
+                else if (lowerBranch.contains("an nhơn") || lowerBranch.contains("an nhon")) hotelId = 7L;
+                else if (lowerBranch.contains("quy nhơn") || lowerBranch.contains("quy nhon")) hotelId = 8L;
+
+                if (hotelId != null) {
+                    data.put("hotelId", hotelId);
+                }
+            }
+
             try {
                 String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
                 String customerName = data.get("customerName") != null ? data.get("customerName").toString() : null;
                 String customerPhone = data.get("customerPhone") != null ? data.get("customerPhone").toString() : null;
-                String branchName = data.get("branchName") != null ? data.get("branchName").toString() : null;
                 String message = data.get("message") != null ? data.get("message").toString() : null;
                 String msgId = data.get("msgId") != null ? data.get("msgId").toString() : null;
-                Long hotelId = null;
-                if (data.get("hotelId") != null) {
-                    try {
-                        hotelId = Long.parseLong(data.get("hotelId").toString());
-                    } catch (NumberFormatException ignored) {}
-                }
 
                 if (message != null && !message.trim().isEmpty()) {
                     liveChatService.saveCustomerMessage(
@@ -135,13 +149,58 @@ public class SocketIOConfig {
                 log.error("Lỗi khi lưu tin nhắn khách hàng vào PostgreSQL: ", e);
             }
 
-            Object hotelId = data.get("hotelId");
-            if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {
+            // Kiểm tra số lượng nhân viên chi nhánh (hoặc Super Admin tổng đài) đang online trong room
+            int staffClients = 0;
+            if (hotelId != null) {
+                staffClients = server.getRoomOperations("hotel_" + hotelId).getClients().size();
                 server.getRoomOperations("hotel_" + hotelId).sendEvent("customer_staff_chat_message", data);
             } else {
-                server.getBroadcastOperations().sendEvent("customer_staff_chat_message", data);
+                staffClients = server.getRoomOperations("super_admin_accounts").getClients().size();
+                server.getRoomOperations("super_admin_accounts").sendEvent("customer_staff_chat_message", data);
             }
+            boolean isBranchOnline = staffClients > 0;
+            data.put("isBranchOnline", isBranchOnline);
+            data.put("isRead", false);
             client.sendEvent("customer_staff_chat_ack", data);
+        });
+
+        // Kiểm tra trạng thái trực tuyến (online/offline) của chi nhánh hoặc Tổng đài Super Admin
+        server.addEventListener("check_branch_online_status", java.util.Map.class, (client, data, ackSender) -> {
+            Long hotelId = null;
+            if (data != null && data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+            int staffClients = (hotelId != null)
+                    ? server.getRoomOperations("hotel_" + hotelId).getClients().size()
+                    : server.getRoomOperations("super_admin_accounts").getClients().size();
+            java.util.Map<String, Object> res = new java.util.HashMap<>();
+            res.put("hotelId", hotelId);
+            res.put("online", staffClients > 0);
+            res.put("staffCount", staffClients);
+            client.sendEvent("branch_online_status_result", res);
+        });
+
+        // Nhân viên đánh dấu đã đọc tin nhắn của khách hàng
+        server.addEventListener("staff_mark_customer_read", java.util.Map.class, (client, data, ackSender) -> {
+            log.info("👀 [SocketIO] Nhân viên đã đọc tin nhắn của khách: {}", data);
+            String customerId = data.get("customerId") != null ? data.get("customerId").toString() : null;
+            Long hotelId = null;
+            if (data.get("hotelId") != null) {
+                try {
+                    hotelId = Long.parseLong(data.get("hotelId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+            if (customerId != null) {
+                try {
+                    liveChatService.markMessagesAsRead(customerId, hotelId);
+                } catch (Exception e) {
+                    log.error("Lỗi khi cập nhật đã đọc trong DB: ", e);
+                }
+                server.getRoomOperations("user_" + customerId).sendEvent("customer_chat_messages_read", data);
+                server.getRoomOperations(customerId).sendEvent("customer_chat_messages_read", data);
+            }
         });
 
         server.addEventListener("staff_send_customer_chat", java.util.Map.class, (client, data, ackSender) -> {
@@ -173,6 +232,7 @@ public class SocketIOConfig {
             Object customerId = data.get("customerId");
             if (customerId != null && !customerId.toString().trim().isEmpty()) {
                 server.getRoomOperations("user_" + customerId).sendEvent("staff_customer_chat_reply", data);
+                server.getRoomOperations(customerId.toString()).sendEvent("staff_customer_chat_reply", data);
             }
             Object hotelId = data.get("hotelId");
             if (hotelId != null && !hotelId.toString().trim().isEmpty() && !"null".equalsIgnoreCase(hotelId.toString())) {

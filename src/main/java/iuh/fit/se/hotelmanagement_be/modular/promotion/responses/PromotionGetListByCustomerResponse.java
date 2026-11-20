@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.promotion.responses;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -18,13 +19,20 @@ public class PromotionGetListByCustomerResponse {
     String code;
     String name;
     String description;          // Mô tả chi tiết mã giảm giá
-    String type;                 // Loại giảm giá (ROOM_PERCENTAGE, SERVICE_PERCENTAGE,...)
+    String type;                 // Loại giảm giá (TOTAL, ROOM, SERVICE)
+    String discountType;         // Hình thức giảm giá (PERCENTAGE, FIXED_AMOUNT)
     BigDecimal discountValue;        // Giá trị giảm (% hoặc số tiền)
     BigDecimal maxDiscountAmount;    // Số tiền giảm tối đa
+    @JsonProperty("isUsed")
     boolean isUsed;                   // Voucher của khách hàng đã được dùng chưa
     LocalDateTime usedAt;             // Thời điểm voucher cá nhân được dùng
     BigDecimal minBookingValue;      // Giá trị đơn hàng tối thiểu để áp dụng
+    BigDecimal minRoomValue;         // Tiền phòng tối thiểu
+    BigDecimal minServiceValue;      // Tiền dịch vụ tối thiểu
+    Long hotelId;                    // ID chi nhánh áp dụng (null nếu toàn hệ thống)
+    String hotelName;                // Tên chi nhánh áp dụng
     LocalDateTime startDate;     // Ngày bắt đầu
     LocalDateTime endDate;       // Ngày hết hạn
+    @JsonProperty("isExclusive")
     boolean exclusive;           // Có độc quyền / áp dụng riêng không
 }

@@ -35,18 +35,30 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
      CustomerPromotionRepository customerPromotionRepository;
      // Đảm bảo class của bạn đã có annotation này để sử dụng biến `log`
     @Override
+    @Transactional
     public List<PromotionGetListByCustomerResponse> getPromotionsByCustomerId(String customerId) {
         log.info("==> [API] Đang lấy danh sách mã khuyến mãi cho khách hàng có ID: {}...", customerId);
 
         List<CustomerPromotion> customerPromotions = customerPromotionRepository.findByCustomerId(customerId);
-        log.info("==> [SUCCESS] Tìm thấy tổng cộng {} mã khuyến mãi cho khách hàng [ID: {}].", customerPromotions.size(), customerId);
+        LocalDateTime now = LocalDateTime.now();
+        List<CustomerPromotion> expiredToDelete = new java.util.ArrayList<>();
 
-        return customerPromotions.stream().map(cp -> {
+        List<PromotionGetListByCustomerResponse> activeResponses = customerPromotions.stream().map(cp -> {
                     Promotion p = cp.getPromotion();
 
                     // Kiểm tra an toàn tránh lỗi NullPointerException nếu Promotion bị null
                     if (p == null) {
                         log.warn("Cảnh báo: CustomerPromotion [ID: {}] có liên kết đến Promotion bị null!", cp.getId());
+                        return null;
+                    }
+
+                    boolean isExpired = p.isDeleted()
+                            || p.getStatus() != PromotionStatus.ACTIVE
+                            || (p.getEndDate() != null && now.isAfter(p.getEndDate()));
+                    if (isExpired) {
+                        if (!cp.isUsed()) {
+                            expiredToDelete.add(cp);
+                        }
                         return null;
                     }
 
@@ -60,23 +72,36 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                             .code(cp.getUniqueCode()) // mã riêng biệt nè
                             .name(p.getName())
                             .description(p.getDescription()) // Đảm bảo truyền mô tả ở đây
-                            .type(p.getType().name())
+                            .type(p.getType() != null ? p.getType().name() : "TOTAL")
+                            .discountType(p.getDiscountType() != null ? p.getDiscountType().name() : "PERCENTAGE")
                             .discountValue(p.getDiscountValue())
                             .maxDiscountAmount(p.getMaxDiscountAmount())
-
                             .isUsed(cp.isUsed())
                             .usedAt(cp.getUsedAt())
                             .minBookingValue(p.getMinBookingValue())
+                            .minRoomValue(p.getMinRoomValue())
+                            .minServiceValue(p.getMinServiceValue())
+                            .hotelId(p.getHotel() != null ? p.getHotel().getId() : null)
+                            .hotelName(p.getHotel() != null ? p.getHotel().getName() : "Toàn hệ thống")
                             .startDate(p.getStartDate())
                             .endDate(p.getEndDate())
                             .exclusive(p.getIsExclusive() != null ? p.getIsExclusive() : false)
                             .build();
                 })
-                .filter(response -> response != null) // Lọc bỏ các phần tử null nếu có cảnh báo trên
+                .filter(response -> response != null)
                 .toList();
+
+        if (!expiredToDelete.isEmpty()) {
+            customerPromotionRepository.deleteAll(expiredToDelete);
+            log.info("==> [CLEANUP] Đã tự động xóa {} voucher đã hết hạn của khách hàng [ID: {}].",
+                    expiredToDelete.size(), customerId);
+        }
+
+        return activeResponses;
     }
 
     @Override
+    @Transactional
     public List<PromotionGetListByCustomerResponse> getMySavedPromotions() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()

@@ -1,5 +1,6 @@
 package iuh.fit.se.hotelmanagement_be.modular.auth.controllers;
 
+import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.CreateRoleRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportPermissionCatalogRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportRolePermissionsRequest;
@@ -17,9 +18,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/role_permissions")
@@ -32,13 +36,31 @@ public class RolePermissionController {
 
     // lay tat ca role
     @GetMapping("/roles")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN', 'ROLE_MANAGE', 'VIEW_ROLES', 'PERMISSION_MANAGE')")
     public ApiResponse<List<RoleResponse>> getRoles() {
         return new ApiResponse<>(
                 200,
                 "Success",
                 roleService.getRoles()
         );
+    }
+
+    @GetMapping("/me/permissions")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<List<String>> getMyPermissions(Authentication authentication) {
+        Account account = (Account) authentication.getPrincipal();
+        Set<String> roleCodes = account.getRoles() == null
+                ? Set.of()
+                : account.getRoles().stream()
+                .map(role -> role.getCode())
+                .collect(Collectors.toSet());
+        List<String> permissions = authentication.getAuthorities().stream()
+                .map(authority -> authority.getAuthority())
+                .filter(authority -> !roleCodes.contains(authority))
+                .distinct()
+                .sorted()
+                .toList();
+        return new ApiResponse<>(200, "Success", permissions);
     }
 
     // tao role
@@ -53,9 +75,21 @@ public class RolePermissionController {
         );
     }
 
+    @PutMapping("/roles/{roleCode}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<RoleResponse> updateRole(
+            @PathVariable String roleCode,
+            @Valid @RequestBody CreateRoleRequest request) {
+        return new ApiResponse<>(
+                200,
+                "Role updated",
+                roleService.updateRole(roleCode, request)
+        );
+    }
+
     // lay tat ca permisison thuoc role
     @GetMapping("/roles/permissions")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN', 'PERMISSION_MANAGE', 'VIEW_PERMISSIONS')")
     public ApiResponse<List<RolePermissionOverviewResponse>> getRolePermissions() {
         return new ApiResponse<>(
                 200,
@@ -96,7 +130,7 @@ public class RolePermissionController {
 
     // lay tat ca ds permission
     @GetMapping("/permissions")
-    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPER_ADMIN', 'ROLE_MANAGER', 'ROLE_ADMIN', 'PERMISSION_MANAGE', 'VIEW_PERMISSIONS')")
     public ApiResponse<List<PermissionCatalogResponse
             >> getPermissions() {
         return new ApiResponse<>(
@@ -117,6 +151,28 @@ public class RolePermissionController {
                 "Permission created",
                 permissionCatalogService.createPermission(request)
         );
+    }
+
+    @PutMapping("/permissions/{permissionCode}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<PermissionResponse> updatePermission(
+            @PathVariable String permissionCode,
+            @Valid @RequestBody PermissionCatalogItemRequest request
+    ) {
+        return new ApiResponse<>(
+                200,
+                "Permission updated",
+                permissionCatalogService.updatePermission(permissionCode, request)
+        );
+    }
+
+    @DeleteMapping("/permissions/{permissionCode}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<Void> deletePermission(
+            @PathVariable String permissionCode
+    ) {
+        permissionCatalogService.deletePermission(permissionCode);
+        return ResponseEntity.noContent().build();
     }
 
     // import permission bang file

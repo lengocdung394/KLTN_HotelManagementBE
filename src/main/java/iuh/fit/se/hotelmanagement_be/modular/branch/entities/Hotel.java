@@ -25,11 +25,8 @@ public class Hotel {
 
     String name;
 
-    @JoinColumn(name = "province_id")
-    @ToString.Exclude
-    @ManyToOne(fetch = FetchType.LAZY)
-    @EqualsAndHashCode.Exclude
-    Province province;
+    @Column(name = "province_name")
+    String provinceName;
 
     String phone;
 

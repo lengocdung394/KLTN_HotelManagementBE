@@ -9,6 +9,7 @@ import java.util.List;
 
 public interface RolePermissionService {
     RoleResponse createRole(CreateRoleRequest request);
+    RoleResponse updateRole(String roleCode, CreateRoleRequest request);
     List<RoleResponse> getRoles();
     List<RolePermissionOverviewResponse> importRolePermissions(
             ImportRolePermissionsRequest request);

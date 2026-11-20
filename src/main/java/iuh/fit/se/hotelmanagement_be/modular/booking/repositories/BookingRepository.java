@@ -46,19 +46,16 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             SELECT DISTINCT bd
             FROM Booking b
             JOIN b.bookingDetails bd
-            LEFT JOIN FETCH bd.nightlyPrices
             WHERE b.hotel.id = :hotelId
-              AND bd.checkinTime < :end
-              AND bd.checkoutTime > :start
-              AND (b.bookingStatus IS NULL OR b.bookingStatus NOT IN :cancelledBookingStatuses)
-              AND bd.status = :completedRoomStatus
+              AND COALESCE(bd.actualCheckInTime, bd.checkinTime) >= :start
+              AND COALESCE(bd.actualCheckInTime, bd.checkinTime) < :end
+              AND bd.status IN :revenueRoomStatuses
             """)
     List<BookingDetail> findRoomRevenueDetailsForPeriod(
             @Param("hotelId") Long hotelId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end,
-            @Param("cancelledBookingStatuses") List<BookingStatus> cancelledBookingStatuses,
-            @Param("completedRoomStatus") BookingStatusType completedRoomStatus
+            @Param("revenueRoomStatuses") List<BookingStatusType> revenueRoomStatuses
     );
 
     @Query("""
@@ -74,7 +71,7 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
             @Param("end") LocalDateTime end
     );
 
-    // Lọc danh sách booking theo khách sạn (hotelId) thông qua chuỗi quan hệ phòng -> tầng -> tòa nhà -> khách sạn
+    // Lá»c danh sÃ¡ch booking theo khÃ¡ch sáº¡n (hotelId) thÃ´ng qua chuá»—i quan há»‡ phÃ²ng -> táº§ng -> tÃ²a nhÃ  -> khÃ¡ch sáº¡n
     @Query("""
                 SELECT DISTINCT b FROM Booking b
                 JOIN b.bookingDetails bd
@@ -98,4 +95,27 @@ public interface BookingRepository extends JpaRepository<Booking, String> {
     @Query("select booking from Booking booking where booking.id = :bookingId")
     Optional<Booking> findByIdForUpdate(@Param("bookingId") String bookingId);
 
+
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            WHERE (:customerId IS NOT NULL AND b.customer.id = :customerId)
+               OR (:email IS NOT NULL AND b.customer.email IS NOT NULL AND LOWER(b.customer.email) = LOWER(:email))
+            ORDER BY b.createdAt DESC
+            """)
+    List<Booking> findByCustomerIdOrEmail(@Param("customerId") String customerId, @Param("email") String email);
+
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            WHERE (:customerId IS NOT NULL AND b.customer.id = :customerId)
+               OR (:email IS NOT NULL AND b.customer.email IS NOT NULL AND LOWER(TRIM(b.customer.email)) = LOWER(TRIM(:email)))
+               OR (:phone IS NOT NULL AND b.customer.phone IS NOT NULL AND TRIM(b.customer.phone) = TRIM(:phone))
+               OR (:cccd IS NOT NULL AND b.customer.cccd IS NOT NULL AND TRIM(b.customer.cccd) = TRIM(:cccd))
+            ORDER BY b.createdAt DESC
+            """)
+    List<Booking> findByCustomerIdentity(
+            @Param("customerId") String customerId,
+            @Param("email") String email,
+            @Param("phone") String phone,
+            @Param("cccd") String cccd
+    );
 }

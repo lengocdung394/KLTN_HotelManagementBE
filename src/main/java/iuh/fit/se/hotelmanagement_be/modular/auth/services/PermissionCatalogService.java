@@ -12,6 +12,13 @@ public interface PermissionCatalogService {
 
     PermissionResponse createPermission(PermissionCatalogItemRequest request);
 
+    PermissionResponse updatePermission(
+            String permissionCode,
+            PermissionCatalogItemRequest request
+    );
+
+    void deletePermission(String permissionCode);
+
     List<PermissionCatalogResponse> importPermissions(
             ImportPermissionCatalogRequest request
     );

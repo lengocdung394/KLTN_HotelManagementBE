@@ -47,7 +47,23 @@ public class RbacInitializer implements CommandLineRunner {
     public void run(String... args) {
         Set<Permission> bootstrapPermissions = ensureBootstrapPermissions();
         Role superAdminRole = ensureSuperAdminRole(bootstrapPermissions);
+        ensureManagementReportPermission();
         ensureSuperAdminAccount(superAdminRole);
+    }
+
+    private void ensureManagementReportPermission() {
+        Permission reportPermission = permissionRepository.findByCode("VIEW_REPORTS")
+                .orElseThrow(() -> new AppException(ErrorCode.PERMISSION_NOT_FOUND));
+
+        for (String roleCode : new String[]{"ROLE_ADMIN", "ROLE_MANAGER"}) {
+            roleRepository.findByCode(roleCode).ifPresent(role -> {
+                if (role.getPermissions() == null) {
+                    role.setPermissions(new HashSet<>());
+                }
+                role.getPermissions().add(reportPermission);
+                roleRepository.save(role);
+            });
+        }
     }
 
     /**

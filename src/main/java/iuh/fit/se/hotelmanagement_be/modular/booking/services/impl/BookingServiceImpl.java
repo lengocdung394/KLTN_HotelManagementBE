@@ -57,6 +57,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
@@ -93,7 +94,7 @@ public class BookingServiceImpl implements BookingService {
 
 
     /**
-     * LUỒNG CHÍNH 1: Khách hàng đặt online
+     * LUá»’NG CHÃNH 1: KhÃ¡ch hÃ ng Ä‘áº·t online
      */
     @Transactional
     @Override
@@ -101,37 +102,39 @@ public class BookingServiceImpl implements BookingService {
         Customer customer = validateAndGetCustomer(request.getCustomerId(), request.getCustomerEmail());
         ensureCustomerEmail(customer, request);
         Booking booking = initBookingForCustomer(customer, BookingChannel.ONLINE, BookingStatus.PENDING);
-        // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+        String requestedPaymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod().trim().toUpperCase() : "PAYOS";
+        booking.setPaymentMethod("CASH".equals(requestedPaymentMethod) ? "CASH" : "PAYOS");
+        // LÆ°u láº¡i tráº¡ng thÃ¡i cÃ³ dÃ¹ng mÃ£ ngay tá»« Ä‘áº§u hÃ m Ä‘á»ƒ trÃ¡nh bá»‹ thay Ä‘á»•i vá» sau
         boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
-        // 1. Tìm khách sạn an toàn và gán vào booking trước
+        // 1. TÃ¬m khÃ¡ch sáº¡n an toÃ n vÃ  gÃ¡n vÃ o booking trÆ°á»›c
         Hotel hotel = hotelRepository.findById(request.getHotelId())
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
-        // 2. Xử lý danh sách chi tiết đặt phòng (dựa trên hotel đã được xác định)
+        // 2. Xá»­ lÃ½ danh sÃ¡ch chi tiáº¿t Ä‘áº·t phÃ²ng (dá»±a trÃªn hotel Ä‘Ã£ Ä‘Æ°á»£c xÃ¡c Ä‘á»‹nh)
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
-        // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác, tránh lỗi flush
+        // Äáº£m báº£o clear vÃ  addAll Ä‘á»ƒ Hibernate quáº£n lÃ½ collection chÃ­nh xÃ¡c, trÃ¡nh lá»—i flush
         booking.getBookingDetails().clear();
         if (details != null) {
             for (BookingDetail detail : details) {
-                detail.setBooking(booking); // Thiết lập quan hệ 2 chiều bắt buộc cho JPA
+                detail.setBooking(booking); // Thiáº¿t láº­p quan há»‡ 2 chiá»u báº¯t buá»™c cho JPA
                 booking.getBookingDetails().add(detail);
             }
         }
 
-//        // 2. Tìm khách sạn an toàn (dùng orElseThrow thay vì .get())
+//        // 2. TÃ¬m khÃ¡ch sáº¡n an toÃ n (dÃ¹ng orElseThrow thay vÃ¬ .get())
 //        Hotel hotel = hotelRepository.findById(request.getHotelId())
 //                .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
 
-        // 3. Tính toán và tạo Order
+        // 3. TÃ­nh toÃ¡n vÃ  táº¡o Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
-        // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+        // DÃ¹ng biáº¿n hasPromotion Ä‘Ã£ lÆ°u tá»« Ä‘áº§u, cháº¯c cháº¯n sáº½ khÃ´ng bá»‹ null oan uá»•ng
         booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
-        // 4. Lưu vào Database
+        // 4. LÆ°u vÃ o Database
         Booking savedBooking = bookingRepository.save(booking);
 
         // logic cua khuyen mai
@@ -141,47 +144,56 @@ public class BookingServiceImpl implements BookingService {
                 savedBooking.getCustomerPromotion()
         );
 
-        // === 5. BẮN SOCKET THÔNG BÁO REALTIME ===
+        // === 5. Báº®N SOCKET THÃ”NG BÃO REALTIME ===
         Long hotelId = hotel.getId();
         String customerId = customer.getId();
 
         // Báo cho nhân viên chi nhánh cập nhật lịch phòng & hiện thông báo đơn mới
         bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
 
-        // CHỈ bắn thông báo đơn mới tới nhân viên và email khi booking ĐÃ ĐƯỢC XÁC NHẬN / THANH TOÁN THÀNH CÔNG
-        // Đơn ONLINE đang PENDING chờ thanh toán sẽ chỉ bắn thông báo sau khi PayOS/ngân hàng xác nhận thanh toán thành công
-        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED) {
-            Map<String, Object> bookingData = new LinkedHashMap<>();
-            bookingData.put("bookingId", savedBooking.getId());
-            bookingData.put("customerName", customer.getFullName());
-            bookingData.put("customerPhone", customer.getPhone());
-            bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+        // CHá»ˆ báº¯n thÃ´ng bÃ¡o Ä‘Æ¡n má»›i tá»›i nhÃ¢n viÃªn vÃ  email khi booking ÄÃƒ ÄÆ¯á»¢C XÃC NHáº¬N / THANH TOÃN THÃ€NH CÃ”NG
+        // ÄÆ¡n ONLINE Ä‘ang PENDING chá» thanh toÃ¡n sáº½ chá»‰ báº¯n thÃ´ng bÃ¡o sau khi PayOS/ngÃ¢n hÃ ng xÃ¡c nháº­n thanh toÃ¡n thÃ nh cÃ´ng
+        // Luôn gửi thông báo "Đặt phòng thành công" cho khách hàng (tách biệt với thông báo "Thanh toán thành công")
+        boolean isCashBooking = "CASH".equalsIgnoreCase(savedBooking.getPaymentMethod());
+        String customerBookingDesc = isCashBooking
+                ? "Mã booking: #" + savedBooking.getId()
+                        + " | Tổng tiền: " + savedBooking.getOrder().getTotalAmount() + "đ"
+                        + " | Hình thức: Tiền mặt tại lễ tân (đã giữ chỗ)."
+                : "Mã booking: #" + savedBooking.getId()
+                        + " | Tổng tiền: " + savedBooking.getOrder().getTotalAmount() + "đ"
+                        + " | Vui lòng quét mã QR PayOS để hoàn tất thanh toán.";
+        bookingSocketEmitter.emitCustomerBookingStatus(
+                customer,
+                savedBooking,
+                NotificationType.BOOKING_CREATED,
+                "Đặt phòng thành công",
+                customerBookingDesc);
 
-            bookingSocketEmitter.emitNewBookingNotification(
-                    hotelId,
-                    savedBooking,
-                    bookingData
-            );
-            // Báo về cho khách hàng trạng thái đơn hàng
-            bookingSocketEmitter.emitCustomerBookingStatus(
-                    customer,
-                    savedBooking,
-                    NotificationType.BOOKING_CREATED,
-                    "Đặt phòng thành công",
-                    "Mã booking: #" + savedBooking.getId()
-                            + " | Khách hàng: " + customer.getFullName()
-                            + " | SĐT: " + customer.getPhone()
-                            + " | Tổng tiền booking: " + savedBooking.getOrder().getTotalAmount() + "đ.");
+        // Luôn bắn thông báo "Đặt phòng thành công" tới cả Web nhân viên (Admin/Staff) ngay khi khách đặt trên web
+        Map<String, Object> bookingData = new LinkedHashMap<>();
+        bookingData.put("bookingId", savedBooking.getId());
+        bookingData.put("customerName", customer.getFullName());
+        bookingData.put("customerPhone", customer.getPhone());
+        bookingData.put("totalAmount", savedBooking.getOrder().getTotalAmount());
+        bookingData.put("paymentMethod", savedBooking.getPaymentMethod());
+        bookingSocketEmitter.emitNewBookingNotification(
+                hotelId,
+                savedBooking,
+                bookingData
+        );
 
+        // Gửi email xác nhận đặt phòng ngay nếu đã xác nhận hoặc chọn thanh toán tiền mặt tại quầy
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED || isCashBooking) {
+            // BÃ¡o vá» cho khÃ¡ch hÃ ng tráº¡ng thÃ¡i Ä‘Æ¡n hÃ ng
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         }
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ==========================================
 
         return toBookingResponse(savedBooking);
     }
 
     /**
-     * LUỒNG CHÍNH 2: Nhân viên đặt tại quầy
+     * LUá»’NG CHÃNH 2: NhÃ¢n viÃªn Ä‘áº·t táº¡i quáº§y
      */
     @Transactional
     @Override
@@ -194,26 +206,28 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new AppException(ErrorCode.HOTEL_NOT_FOUND));
         booking.setHotel(hotel);
         // Lưu lại trạng thái có dùng mã ngay từ đầu hàm để tránh bị thay đổi về sau
+
         boolean hasPromotion = (request.getCustomerPromotionId() != null || request.getPromotionId() != null);
-        // 1. Xử lý danh sách chi tiết đặt phòng
+        // 1. Xá»­ lÃ½ danh sÃ¡ch chi tiáº¿t Ä‘áº·t phÃ²ng
         List<BookingDetail> details = processBookingDetails(booking, request.getBookingDetails());
 
-        // Đảm bảo clear và addAll để Hibernate quản lý collection chính xác
+        // Äáº£m báº£o clear vÃ  addAll Ä‘á»ƒ Hibernate quáº£n lÃ½ collection chÃ­nh xÃ¡c
         booking.getBookingDetails().clear();
         if (details != null) {
             for (BookingDetail detail : details) {
-                detail.setBooking(booking); // Thiết lập quan hệ 2 chiều bắt buộc cho JPA
+                detail.setBooking(booking); // Thiáº¿t láº­p quan há»‡ 2 chiá»u báº¯t buá»™c cho JPA
                 booking.getBookingDetails().add(detail);
             }
         }
 
         // Dùng biến hasPromotion đã lưu từ đầu, chắc chắn sẽ không bị null oan uổng
+
         booking.setApplyAt(hasPromotion ? LocalDateTime.now() : null);
-        // 3. Tính toán và tạo Order
+        // 3. TÃ­nh toÃ¡n vÃ  táº¡o Order
         Order order = calculateAndBuildOrder(customer.getId(), request, booking.getBookingDetails(), booking);
         booking.setOrder(order);
 
-        // 4. Lưu vào Database
+        // 4. LÆ°u vÃ o Database
         Booking savedBooking = bookingRepository.save(booking);
         promotionUsageService.replaceBookingPromotion(
                 savedBooking,
@@ -221,14 +235,14 @@ public class BookingServiceImpl implements BookingService {
                 savedBooking.getCustomerPromotion()
         );
 
-        // Sửa lại cú pháp log chuẩn SLF4J
+        // Sá»­a láº¡i cÃº phÃ¡p log chuáº©n SLF4J
         log.info("Nhan vien Tao booking: orderId={}, bookingId={}, promotionId={}",
                 order.getId(),
                 savedBooking.getId(),
                 savedBooking.getPromotion() != null ? savedBooking.getPromotion().getId() : null);
 
-        // === 5. BẮN SOCKET THÔNG BÁO REALTIME CHO CHI NHÁNH ===
-        if (hotelId != null) {
+        // === 5. Báº®N SOCKET THÃ”NG BÃO REALTIME CHO CHI NHÃNH ===
+        if (savedBooking.getBookingStatus() == BookingStatus.CONFIRMED && hotelId != null) {
             bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
             Map<String, Object> bookingData = new LinkedHashMap<>();
             bookingData.put("bookingId", savedBooking.getId());
@@ -241,9 +255,10 @@ public class BookingServiceImpl implements BookingService {
                     savedBooking,
                     bookingData
             );
+            sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
+        } else if (hotelId != null) {
+            bookingSocketEmitter.emitRoomMatrixUpdate(hotelId);
         }
-
-        sendBookingCreatedEmailAfterCommit(savedBooking, customer, hotel);
         // ====================================================
 
         return toBookingResponse(savedBooking);
@@ -356,7 +371,7 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal roomTotal = calculateTotalRoomPrice(details);
         BigDecimal serviceTotal = calculateTotalServicePrice(details);
 
-        // Tính tổng tiền phụ thu từ tất cả các BookingDetail (earlyCheckInFee, lateCheckOutFee,...)
+        // TÃ­nh tá»•ng tiá»n phá»¥ thu tá»« táº¥t cáº£ cÃ¡c BookingDetail (earlyCheckInFee, lateCheckOutFee,...)
         BigDecimal surchargeTotal = details.stream()
                 .map(d -> {
                     BigDecimal earlyFee = d.getEarlyCheckInFee() != null ? d.getEarlyCheckInFee() : BigDecimal.ZERO;
@@ -369,14 +384,14 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal currentSubTotal = roomTotal.add(serviceTotal).add(surchargeTotal);
         BigDecimal discountTotal = BigDecimal.ZERO;
 
-        // 1. Khởi tạo kết quả giảm giá mặc định (bằng 0 cho tất cả các cột)
+        // 1. Khá»Ÿi táº¡o káº¿t quáº£ giáº£m giÃ¡ máº·c Ä‘á»‹nh (báº±ng 0 cho táº¥t cáº£ cÃ¡c cá»™t)
         PromotionDiscountResult discountResult = PromotionDiscountResult.builder()
                 .discountRoomAmount(BigDecimal.ZERO)
                 .discountServiceAmount(BigDecimal.ZERO)
                 .discountAmountTotal(BigDecimal.ZERO)
                 .build();
 
-        // 2. Xử lý áp dụng mã khuyến mãi của chi nhánh hoặc cá nhân khách hàng
+        // 2. Xá»­ lÃ½ Ã¡p dá»¥ng mÃ£ khuyáº¿n mÃ£i cá»§a chi nhÃ¡nh hoáº·c cÃ¡ nhÃ¢n khÃ¡ch hÃ ng
         if (request.getPromotionId() != null) {
             Promotion p = promotionRepository.findById(request.getPromotionId())
                     .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
@@ -402,7 +417,7 @@ public class BookingServiceImpl implements BookingService {
                         .add(discountResult.getDiscountAmountTotal())
         );
 
-        // 3. Truyền thêm surchargeTotal vào hàm tạo Order
+        // 3. Truyá»n thÃªm surchargeTotal vÃ o hÃ m táº¡o Order
         return createAndLinkOrder(roomTotal, serviceTotal, discountResult, surchargeTotal);
     }
 
@@ -485,6 +500,7 @@ public class BookingServiceImpl implements BookingService {
                             .numAdults(detail.getNumAdults()).numChildren(detail.getNumChildren())
                             .earlyCheckInFee(detail.getEarlyCheckInFee())
                             .lateCheckOutFee(detail.getLateCheckOutFee())
+                            .otherSurcharges(detail.getOtherSurcharges())
                             // Map thẳng các khoản chi tiết vào Response
                             .baseRoomPricePerNight(detail.getBaseRoomPricePerNight()).extraAdultFeePerNight(detail.getExtraAdultFeePerNight()).extraChildFeePerNight(detail.getExtraChildFeePerNight()).roomSubTotal(detail.getRoomSubTotal()).serviceSubTotal(detail.getServiceSubTotal()).totalPrice(detail.getTotalPrice())
                             .nightlyPrices(detail.getNightlyPrices() == null ? List.of() : detail.getNightlyPrices().stream().map(price -> BookingNightlyPriceResponse.builder()
@@ -508,6 +524,7 @@ public class BookingServiceImpl implements BookingService {
                 .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
                 .bookingStatus(booking.getBookingStatus())
                 .bookingChannel(booking.getBookingChannel())
+                .paymentMethod(booking.getPaymentMethod())
                 .createdAt(booking.getCreatedAt())
 
                 .customerPromotionId(booking.getCustomerPromotion() != null ? booking.getCustomerPromotion().getId() : null)
@@ -545,7 +562,7 @@ public class BookingServiceImpl implements BookingService {
 
         BigDecimal safeSurcharge = surchargeTotal != null ? surchargeTotal : BigDecimal.ZERO;
 
-        // CÔNG THÚC CHUẨN: (Tiền phòng + Tiền dịch vụ + Phụ thu) - Tổng giảm giá
+        // CÃ”NG THUÌC CHUáº¨N: (Tiá»n phÃ²ng + Tiá»n dá»‹ch vá»¥ + Phá»¥ thu) - Tá»•ng giáº£m giÃ¡
         BigDecimal subTotal = roomTotal.add(serviceTotal).add(safeSurcharge);
         BigDecimal totalDiscountSum = roomDiscount.add(serviceDiscount).add(totalDiscount);
         BigDecimal finalTotalAmount = subTotal.subtract(totalDiscountSum);
@@ -558,7 +575,7 @@ public class BookingServiceImpl implements BookingService {
                 .issueDate(LocalDateTime.now())
                 .roomTotalAmount(roomTotal)
                 .serviceTotalAmount(serviceTotal)
-                .surchargeTotalAmount(safeSurcharge) // Ghi nhận tiền phụ thu vào Order
+                .surchargeTotalAmount(safeSurcharge) // Ghi nháº­n tiá»n phá»¥ thu vÃ o Order
                 .remainingAmount(finalTotalAmount)
                 .discountRoomAmount(roomDiscount)
                 .discountServiceAmount(serviceDiscount)
@@ -617,7 +634,7 @@ public class BookingServiceImpl implements BookingService {
                         .orElse(null);
             }
 
-            // Nếu phòng không khớp hotel của booking, bỏ để tìm phòng thuộc đúng khách sạn
+            // Náº¿u phÃ²ng khÃ´ng khá»›p hotel cá»§a booking, bá» Ä‘á»ƒ tÃ¬m phÃ²ng thuá»™c Ä‘Ãºng khÃ¡ch sáº¡n
             if (room != null && targetHotelId != null) {
                 Long roomHotelId = room.getFloor().getBuilding().getHotel().getId();
                 if (!roomHotelId.equals(targetHotelId)) {
@@ -664,16 +681,21 @@ public class BookingServiceImpl implements BookingService {
                 throw new AppException(ErrorCode.BRANCH_POLICY_NOT_FOUND);
             }
 
-            // 1. Tính tiền phụ thu (người lớn/trẻ em) cho 1 đêm từ Policy
+            // 1. TÃ­nh tiá»n phá»¥ thu (ngÆ°á»i lá»›n/tráº» em) cho 1 Ä‘Ãªm tá»« Policy
             ExtraFeeBreakdownResponse extraFeeBreakdown = roomPricingCalculator.calculateExtraFeeBreakdown(policy, detailReq.getNumAdults(), detailReq.getNumChildren());
 
             double extraAdultFeePerNight = extraFeeBreakdown.getAdultExtraFee();
             double extraChildFeePerNight = extraFeeBreakdown.getChildExtraFee();
             double totalExtraFeePerNight = extraFeeBreakdown.getTotalExtraFee();
 
-            // 2. Xác định ngày check-in, check-out và số đêm
+            // 2. XÃ¡c Ä‘á»‹nh ngÃ y check-in, check-out vÃ  sá»‘ Ä‘Ãªm
             LocalDate checkInDate = detailReq.getCheckInTime().toLocalDate();
             LocalDate checkOutDate = detailReq.getCheckOutTime().toLocalDate();
+
+            LocalDate today = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"));
+            if (checkInDate.isBefore(today)) {
+                throw new AppException(ErrorCode.INVALID_BOOKING_DATE, "Ngày nhận phòng không thể ở trong quá khứ (trước ngày hiện tại: " + today + ")");
+            }
 
             if (!checkOutDate.isAfter(checkInDate)) {
                 throw new AppException(ErrorCode.INVALID_CHECKOUT_DATE);
@@ -700,9 +722,9 @@ public class BookingServiceImpl implements BookingService {
             long nights = ChronoUnit.DAYS.between(checkInDate, checkOutDate);
             if (nights <= 0) nights = 1;
 
-            // 3. Vòng lặp quét từng ngày (Daily Rate) để cộng dồn tiền phòng
+            // 3. VÃ²ng láº·p quÃ©t tá»«ng ngÃ y (Daily Rate) Ä‘á»ƒ cá»™ng dá»“n tiá»n phÃ²ng
             double totalRoomAmountForStay = 0.0;
-            double accumulatedBasePrice = 0.0; // Dùng để tính giá gốc trung bình mỗi đêm
+            double accumulatedBasePrice = 0.0; // DÃ¹ng Ä‘á»ƒ tÃ­nh giÃ¡ gá»‘c trung bÃ¬nh má»—i Ä‘Ãªm
             List<BookingNightlyPrice> nightlyPrices = new ArrayList<>();
             LocalDate currentDate = checkInDate;
 
@@ -725,7 +747,7 @@ public class BookingServiceImpl implements BookingService {
                 }
 
                 accumulatedBasePrice += dailyRoomPrice;
-                // Tiền phòng ngày đó + phụ thu đêm đó
+                // Tiá»n phÃ²ng ngÃ y Ä‘Ã³ + phá»¥ thu Ä‘Ãªm Ä‘Ã³
                 BookingNightlyPrice nightlyPrice = new BookingNightlyPrice();
                 nightlyPrice.setStayDate(currentDate);
                 nightlyPrice.setRoomBasePrice(BigDecimal.valueOf(dailyRoomPrice));
@@ -743,24 +765,39 @@ public class BookingServiceImpl implements BookingService {
                 currentDate = currentDate.plusDays(1);
             }
 
-            // Tính giá phòng gốc trung bình 1 đêm
+            // TÃ­nh giÃ¡ phÃ²ng gá»‘c trung bÃ¬nh 1 Ä‘Ãªm
             double baseRoomPricePerNight = accumulatedBasePrice / nights;
             double roomSubTotal = nightlyPrices.stream()
                     .map(BookingNightlyPrice::getNightTotal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
                     .doubleValue();
 
-            // 4. Xử lý dịch vụ đi kèm và tính tổng tiền dịch vụ
+            // 4. Xá»­ lÃ½ dá»‹ch vá»¥ Ä‘i kÃ¨m vÃ  tÃ­nh tá»•ng tiá»n dá»‹ch vá»¥
             List<BookingServiceDetail> serviceDetails = processAndAttachServices(null, detailReq.getServiceRequests());
             double serviceSubTotal = serviceDetails.stream().filter(sd -> !Boolean.TRUE.equals(sd.getIsPaid())).mapToDouble(sd -> sd.getPrice() * sd.getQuantity()).sum(); //
 
             // cap nhat trang thai dich vu da duoc cong tien
             markServicesAsProcessedOrPaid(serviceDetails);
-            // 5. Tổng cộng cuối cùng của phòng này (Phòng + Dịch vụ)
+            // 5. Tá»•ng cá»™ng cuá»‘i cÃ¹ng cá»§a phÃ²ng nÃ y (PhÃ²ng + Dá»‹ch vá»¥)
             double totalPrice = roomSubTotal + serviceSubTotal;
 
             // 6. Xây dựng Entity BookingDetail đầy đủ các khoản chi tiết
-            BookingDetail bookingDetail = BookingDetail.builder().booking(booking).room(room).checkinTime(detailReq.getCheckInTime()).checkoutTime(detailReq.getCheckOutTime()).numAdults(detailReq.getNumAdults()).numChildren(detailReq.getNumChildren()).baseRoomPricePerNight(baseRoomPricePerNight).extraAdultFeePerNight(extraAdultFeePerNight).extraChildFeePerNight(extraChildFeePerNight).roomSubTotal(roomSubTotal).serviceSubTotal(serviceSubTotal).totalPrice(totalPrice).status(BookingStatusType.PENDING).build();
+            BookingDetail bookingDetail = BookingDetail.builder()
+                    .booking(booking)
+                    .room(room)
+                    .checkinTime(detailReq.getCheckInTime())
+                    .checkoutTime(detailReq.getCheckOutTime())
+                    .numAdults(detailReq.getNumAdults())
+                    .numChildren(detailReq.getNumChildren())
+                    .numInfants(detailReq.getNumInfants())
+                    .baseRoomPricePerNight(baseRoomPricePerNight)
+                    .extraAdultFeePerNight(extraAdultFeePerNight)
+                    .extraChildFeePerNight(extraChildFeePerNight)
+                    .roomSubTotal(roomSubTotal)
+                    .serviceSubTotal(serviceSubTotal)
+                    .totalPrice(totalPrice)
+                    .status(BookingStatusType.PENDING)
+                    .build();
 
             nightlyPrices.forEach(bookingDetail::addNightlyPrice);
             if (!serviceDetails.isEmpty()) {
@@ -773,35 +810,35 @@ public class BookingServiceImpl implements BookingService {
         }).toList();
     }
 
-    // Hàm cập nhật những dịch vụ đã được tính tiền
+    // HaÌ€m cÃ¢Ì£p nhÃ¢Ì£t nhÆ°Ìƒng diÌ£ch vuÌ£ Ä‘aÌƒ Ä‘Æ°Æ¡Ì£c tiÌnh tiÃªÌ€n
     private void markServicesAsProcessedOrPaid(List<BookingServiceDetail> serviceDetails) {
         if (serviceDetails == null || serviceDetails.isEmpty()) {
             return;
         }
         for (BookingServiceDetail sd : serviceDetails) {
-            // Chỉ cập nhật những món chưa thanh toán
+            // Chá»‰ cáº­p nháº­t nhá»¯ng mÃ³n chÆ°a thanh toÃ¡n
             if (!Boolean.TRUE.equals(sd.getIsPaid())) {
                 sd.setIsPaid(true);
             }
         }
-        log("Đã cập nhật xong nhung dich vu da duoc tinh tien");
+        log("Đã cập nhật xong những dịch vụ đã được tính tiền");
     }
 
-    // Ham nay sử dụng khi checkout tính tiền phần dịch vụ chưa được tính tiền
+    // Ham nay sÆ°Ì‰ duÌ£ng khi checkout tiÌnh tiÃªÌ€n phÃ¢Ì€n diÌ£ch vuÌ£ chÆ°a Ä‘Æ°Æ¡Ì£c tiÌnh tiÃªÌ€n
     @Override
     public CheckoutSummaryResponse getCheckoutSummary(String bookingId) {
         Booking booking = bookingRepository.findById(bookingId).get();
         Order order = booking.getOrder();
 
-        // Lọc ra tất cả các dịch vụ CHƯA thanh toán (isPaid = false)
+        // Lá»c ra táº¥t cáº£ cÃ¡c dá»‹ch vá»¥ CHÆ¯A thanh toÃ¡n (isPaid = false)
         List<BookingServiceDetail> unpaidServices = booking.getBookingDetails().stream().flatMap(detail -> detail.getBookingServiceDetails().stream()).filter(service -> !service.getIsPaid()).toList();
 
-        List<UnpaidServiceItemResponse> unpaidServiceItemResponseList = unpaidServices.stream().map(v -> UnpaidServiceItemResponse.builder().bookingServiceId(v.getId()).serviceName(v.getService() != null ? v.getService().getName() : null) // Thay tên hàm get tùy theo Entity Service của bạn (ví dụ: getName())
+        List<UnpaidServiceItemResponse> unpaidServiceItemResponseList = unpaidServices.stream().map(v -> UnpaidServiceItemResponse.builder().bookingServiceId(v.getId()).serviceName(v.getService() != null ? v.getService().getName() : null) // Thay tÃªn hÃ m get tÃ¹y theo Entity Service cá»§a báº¡n (vÃ­ dá»¥: getName())
                 .quantity(v.getQuantity()).price(v.getPrice()).subTotal(v.getPrice() != null ? v.getPrice() * v.getQuantity() : 0.0).usedAt(v.getUsedAt()).build()).toList();
         BigDecimal unpaidServiceTotal = unpaidServices.stream().map(s -> BigDecimal.valueOf(s.getPrice()).multiply(BigDecimal.valueOf(s.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
 
 
-        return CheckoutSummaryResponse.builder().orderId(order.getId()).unpaidServices(unpaidServiceItemResponseList).remainingAmountToPay(unpaidServiceTotal) // Số tiền thực tế cần trả lúc checkout
+        return CheckoutSummaryResponse.builder().orderId(order.getId()).unpaidServices(unpaidServiceItemResponseList).remainingAmountToPay(unpaidServiceTotal) // Sá»‘ tiá»n thá»±c táº¿ cáº§n tráº£ lÃºc checkout
                 .build();
     }
 
@@ -816,7 +853,7 @@ public class BookingServiceImpl implements BookingService {
             iuh.fit.se.hotelmanagement_be.modular.service.entities.Service service = serviceRepository.findById(servReq.getServiceId()).orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
             BigDecimal unitPrice = servReq.getPrice() != null ? BigDecimal.valueOf(servReq.getPrice()) : BigDecimal.valueOf(service.getPrice());
-            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName()).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).used(false).isPaid(false).build();
+            return BookingServiceDetail.builder().bookingDetail(bookingDetail).service(service).name(servReq.getName() != null && !servReq.getName().isBlank() ? servReq.getName() : (service != null ? service.getName() : "Dịch vụ")).quantity(servReq.getQuantity()).price(unitPrice.doubleValue()).used(false).isPaid(false).build();
         }).collect(Collectors.toList());
     }
 
@@ -834,7 +871,7 @@ public class BookingServiceImpl implements BookingService {
 
     private PromotionDiscountResult applyPromotion(String customerId, String promoCode, BigDecimal currentTotalAmount, BigDecimal roomTotal, BigDecimal serviceTotal, Booking booking) {
 
-        // 1. Nếu không có mã khuyến mãi, trả về kết quả bằng 0 cho tất cả các cột
+        // 1. Náº¿u khÃ´ng cÃ³ mÃ£ khuyáº¿n mÃ£i, tráº£ vá» káº¿t quáº£ báº±ng 0 cho táº¥t cáº£ cÃ¡c cá»™t
         if (promoCode == null || promoCode.trim().isEmpty()) {
             return PromotionDiscountResult.builder()
                     .discountRoomAmount(BigDecimal.ZERO)
@@ -847,7 +884,7 @@ public class BookingServiceImpl implements BookingService {
 
         var customerPromoOtp = customerPromotionRepository.findByUniqueCodeAndCustomerId(promoCode, customerId);
         if (customerPromoOtp.isPresent()) {
-            // Tính toán cho khuyến mãi riêng của khách hàng
+            // TÃ­nh toÃ¡n cho khuyáº¿n mÃ£i riÃªng cá»§a khÃ¡ch hÃ ng
             CustomerPromotion customerPromotion = customerPromoOtp.get();
 
             if (customerPromotion.isUsed()) {
@@ -869,7 +906,7 @@ public class BookingServiceImpl implements BookingService {
             return calculateDiscountBreakdown(promotion, roomTotal, serviceTotal);
         }
 
-        // 2. Khuyến mãi chung của hệ thống / chi nhánh
+        // 2. Khuyáº¿n mÃ£i chung cá»§a há»‡ thá»‘ng / chi nhÃ¡nh
         Promotion promotion = promotionRepository.findByCodeAndDeletedFalse(promoCode)
                 .orElseThrow(() -> new AppException(ErrorCode.PROMOTION_NOT_FOUND));
 
@@ -893,17 +930,17 @@ public class BookingServiceImpl implements BookingService {
             throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
         }
 
-        // Kiểm tra ngưỡng tổng đơn tối thiểu
+        // Kiá»ƒm tra ngÆ°á»¡ng tá»•ng Ä‘Æ¡n tá»‘i thiá»ƒu
         if (promotion.getMinBookingValue() != null && currentTotalAmount.compareTo(promotion.getMinBookingValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
         }
 
-        // Kiểm tra ngưỡng tiền phòng tối thiểu (MỚI)
+        // Kiá»ƒm tra ngÆ°á»¡ng tiá»n phÃ²ng tá»‘i thiá»ƒu (Má»šI)
         if (promotion.getMinRoomValue() != null && roomTotal.compareTo(promotion.getMinRoomValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ROOM_NOT_MET);
         }
 
-        // Kiểm tra ngưỡng tiền dịch vụ tối thiểu (MỚI)
+        // Kiá»ƒm tra ngÆ°á»¡ng tiá»n dá»‹ch vá»¥ tá»‘i thiá»ƒu (Má»šI)
         if (promotion.getMinServiceValue() != null && serviceTotal.compareTo(promotion.getMinServiceValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_SERVICE_NOT_MET);
         }
@@ -916,12 +953,12 @@ public class BookingServiceImpl implements BookingService {
             throw new AppException(ErrorCode.PROMOTION_MIN_ORDER_NOT_MET);
         }
 
-        // Kiểm tra ngưỡng tiền phòng tối thiểu (MỚI)
+        // Kiá»ƒm tra ngÆ°á»¡ng tiá»n phÃ²ng tá»‘i thiá»ƒu (Má»šI)
         if (promotion.getMinRoomValue() != null && roomTotal.compareTo(promotion.getMinRoomValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_ROOM_NOT_MET);
         }
 
-        // Kiểm tra ngưỡng tiền dịch vụ tối thiểu (MỚI)
+        // Kiá»ƒm tra ngÆ°á»¡ng tiá»n dá»‹ch vá»¥ tá»‘i thiá»ƒu (Má»šI)
         if (promotion.getMinServiceValue() != null && serviceTotal.compareTo(promotion.getMinServiceValue()) < 0) {
             throw new AppException(ErrorCode.PROMOTION_MIN_SERVICE_NOT_MET);
         }
@@ -937,7 +974,7 @@ public class BookingServiceImpl implements BookingService {
         serviceTotal = serviceTotal != null ? serviceTotal : BigDecimal.ZERO;
         BigDecimal absoluteTotal = roomTotal.add(serviceTotal); // tong tien (tien phong + tien dich vu)
 
-        // 1. Tính số tiền giảm thô dựa trên loại mã khuyến mãi
+        // 1. TÃ­nh sá»‘ tiá»n giáº£m thÃ´ dá»±a trÃªn loáº¡i mÃ£ khuyáº¿n mÃ£i
         BigDecimal rawDiscount = switch (promotion.getType()) {
             case ROOM -> calculateBaseDiscount(roomTotal, promotion);
             case SERVICE -> calculateBaseDiscount(serviceTotal, promotion);
@@ -945,15 +982,15 @@ public class BookingServiceImpl implements BookingService {
             default -> BigDecimal.ZERO;
         };
 
-        // 2. Chặn trần giảm giá tối đa (maxDiscountAmount) nếu có cấu hình
+        // 2. Cháº·n tráº§n giáº£m giÃ¡ tá»‘i Ä‘a (maxDiscountAmount) náº¿u cÃ³ cáº¥u hÃ¬nh
         if (promotion.getMaxDiscountAmount() != null && rawDiscount.compareTo(promotion.getMaxDiscountAmount()) > 0) {
             rawDiscount = promotion.getMaxDiscountAmount();
         }
 
-        // 3. Đảm bảo tiền giảm không vượt quá tổng tiền thực tế của hóa đơn
+        // 3. Äáº£m báº£o tiá»n giáº£m khÃ´ng vÆ°á»£t quÃ¡ tá»•ng tiá»n thá»±c táº¿ cá»§a hÃ³a Ä‘Æ¡n
         rawDiscount = rawDiscount.min(absoluteTotal);
 
-        // 4. Phân tách rõ ràng vào các biến tương ứng tùy theo loại mã
+        // 4. PhÃ¢n tÃ¡ch rÃµ rÃ ng vÃ o cÃ¡c biáº¿n tÆ°Æ¡ng á»©ng tÃ¹y theo loáº¡i mÃ£
         switch (promotion.getType()) {
             case ROOM:
                 roomDiscount = rawDiscount;
@@ -970,7 +1007,7 @@ public class BookingServiceImpl implements BookingService {
                 break;
         }
 
-        // Trả về đối tượng class chứa đầy đủ chi tiết từng khoản giảm
+        // Tráº£ vá» Ä‘á»‘i tÆ°á»£ng class chá»©a Ä‘áº§y Ä‘á»§ chi tiáº¿t tá»«ng khoáº£n giáº£m
         return PromotionDiscountResult.builder()
                 .discountRoomAmount(roomDiscount)
                 .discountServiceAmount(serviceDiscount)
@@ -979,20 +1016,20 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    // Hàm phụ trợ để tính tiền giảm thô theo % hoặc số tiền mặt cố định
+    // HÃ m phá»¥ trá»£ Ä‘á»ƒ tÃ­nh tiá»n giáº£m thÃ´ theo % hoáº·c sá»‘ tiá»n máº·t cá»‘ Ä‘á»‹nh
     public BigDecimal calculateBaseDiscount(BigDecimal baseAmount, Promotion promotion) {
         if (promotion.getDiscountType() == PromotionDiscountType.PERCENTAGE) {
             return baseAmount.multiply(promotion.getDiscountValue())
                     .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
         } else if (promotion.getDiscountType() == PromotionDiscountType.FIXED_AMOUNT) {
-            return promotion.getDiscountValue(); // Giảm số tiền mặt cố định (VD: giảm thẳng 50k)
+            return promotion.getDiscountValue(); // Giáº£m sá»‘ tiá»n máº·t cá»‘ Ä‘á»‹nh (VD: giáº£m tháº³ng 50k)
         }
         return BigDecimal.ZERO;
     }
 
 
     /**
-     * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - Tính tiền nốt lúc Checkout)
+     * 3. NGHIỆP VỤ THÊM DỊCH VỤ VÀO PHÒNG (Room Charge - TÃ­nh tiá»n ná»‘t lÃºc Checkout)
      */
 
 
@@ -1017,6 +1054,7 @@ public class BookingServiceImpl implements BookingService {
                     .roomNumber(detail.getRoom().getRoomNumber()).bookingDetailId(detail.getId()).roomId(detail.getRoom() != null ? detail.getRoom().getId() : null).roomName(detail.getRoom() != null ? detail.getRoom().getRoomType().toString() : null).roomTypeName(detail.getRoom() != null ? detail.getRoom().getRoomType().name() : null).checkInTime(detail.getCheckinTime()).checkOutTime(detail.getCheckoutTime()).numAdults(detail.getNumAdults() != null ? detail.getNumAdults() : 0).numChildren(detail.getNumChildren() != null ? detail.getNumChildren() : 0).numInfants(detail.getNumInfants() != null ? detail.getNumInfants() : 0)
                     // Map thẳng các khoản chi tiết vào Response
                     .cancelledBy(detail.getCancelledBy())
+
                     .baseRoomPricePerNight(detail.getBaseRoomPricePerNight())
                     .extraAdultFeePerNight(detail.getExtraAdultFeePerNight())
                     .extraChildFeePerNight(detail.getExtraChildFeePerNight())
@@ -1036,6 +1074,7 @@ public class BookingServiceImpl implements BookingService {
                             .build()).toList())
                     .earlyCheckInFee(detail.getEarlyCheckInFee())
                     .lateCheckOutFee(detail.getLateCheckOutFee())
+                    .otherSurcharges(detail.getOtherSurcharges())
                     // Thoi gian checkin - checkout thuc te
                     .actualCheckOutTime(detail.getActualCheckOutTime())
                     .actualCheckInTime(detail.getActualCheckInTime())
@@ -1080,7 +1119,7 @@ public class BookingServiceImpl implements BookingService {
                 .surchargeTotalAmount(order.getSurchargeTotalAmount()) // tong tien phu thu
                 .applyAt(booking.getApplyAt() != null ? booking.getApplyAt() : null)
                 .discountTotal(order != null ? order.getDiscountAmountTotal() : null) // cai nay la cai field lay tien giam gia ( dinh nghia chung)
-                .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toán
+                .paidAmount(order != null ? order.getPaidAmount() : null) // tien da thanh toaÌn
                 .collectedAmount(order == null
                         ? BigDecimal.ZERO
                         : (order.getPaidAmount() == null ? BigDecimal.ZERO : order.getPaidAmount()).add(refundedAmount))
@@ -1104,7 +1143,7 @@ public class BookingServiceImpl implements BookingService {
     @Override
     @Transactional
     public List<BookingResponseForHotel> getBookingsByHotel(Long hotelId) {
-        // Gọi repository lấy danh sách booking theo hotelId
+        // Gá»i repository láº¥y danh sÃ¡ch booking theo hotelId
         List<Booking> bookings = bookingRepository.findAllByHotelId(hotelId);
         Map<String, BigDecimal> refundedAmounts = paymentRepository
                 .findRefundTotalsByHotelId(hotelId, CashFlowType.REFUND)
@@ -1119,7 +1158,7 @@ public class BookingServiceImpl implements BookingService {
                         cancellation -> cancellation.getBooking().getId(),
                         cancellation -> cancellation));
 
-        // Chuyển đổi sang danh sách BookingResponse
+        // Chuyá»ƒn Ä‘á»•i sang danh sÃ¡ch BookingResponse
         return bookings.stream()
                 .map(booking -> toBookingForHotelResponse(
                         booking,
@@ -1171,6 +1210,7 @@ public class BookingServiceImpl implements BookingService {
                                 : detail.getCheckinTime();
                         LocalDateTime effectiveCheckOut = detail.getCheckoutTime();
 
+
                         List<LocalDate> dates = new ArrayList<>();
                         if (effectiveCheckIn != null && effectiveCheckOut != null) {
                             LocalDate current = effectiveCheckIn.toLocalDate();
@@ -1189,6 +1229,7 @@ public class BookingServiceImpl implements BookingService {
                                 .checkinTime(detail.getCheckinTime())
                                 .actualCheckInTime(actualCheckIn)
                                 .checkoutTime(effectiveCheckOut)
+
                                 .bookingStatus(detail.getBooking() != null ? detail.getBooking().getBookingStatus() : null)
                                 .roomStatus(detail.getStatus())
                                 .occupiedDates(dates)
@@ -1204,5 +1245,44 @@ public class BookingServiceImpl implements BookingService {
                     .schedules(schedules)
                     .build();
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public List<BookingResponse> getMyBookings(iuh.fit.se.hotelmanagement_be.modular.auth.entities.Account account) {
+        if (account == null) {
+            return List.of();
+        }
+        String customerId = null;
+        String email = account.getEmail();
+        String phone = null;
+        String cccd = null;
+        Customer resolvedCustomer = account.getCustomer();
+        if (resolvedCustomer == null) {
+            java.util.Optional<Customer> opt = customerRepository.findFirstByAccount(account);
+            if (opt.isEmpty() && email != null && !email.isBlank()) {
+                opt = customerRepository.findFirstByEmail(email.trim());
+            }
+            resolvedCustomer = opt.orElse(null);
+        }
+        if (resolvedCustomer != null) {
+            customerId = resolvedCustomer.getId();
+            if (email == null || email.isBlank()) {
+                email = resolvedCustomer.getEmail();
+            }
+            phone = resolvedCustomer.getPhone();
+            cccd = resolvedCustomer.getCccd();
+        }
+        String cleanCustomerId = (customerId != null && !customerId.isBlank()) ? customerId.trim() : null;
+        String cleanEmail = (email != null && !email.isBlank()) ? email.trim() : null;
+        String cleanPhone = (phone != null && !phone.isBlank()) ? phone.trim() : null;
+        String cleanCccd = (cccd != null && !cccd.isBlank()) ? cccd.trim() : null;
+        if (cleanCustomerId == null && cleanEmail == null && cleanPhone == null && cleanCccd == null) {
+            return List.of();
+        }
+        List<Booking> bookings = bookingRepository.findByCustomerIdentity(
+                cleanCustomerId, cleanEmail, cleanPhone, cleanCccd
+        );
+        return bookings.stream().map(this::toBookingResponse).toList();
     }
 }

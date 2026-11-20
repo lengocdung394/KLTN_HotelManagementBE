@@ -31,9 +31,13 @@ public class ServiceImportController {
     @PostMapping("/import-urls-async")
     public ResponseEntity<?> startUrlImport(
             @RequestBody ServiceExcelImportRequest request,
+            @RequestParam(required = false) Long hotelId,
             Authentication authentication) {
         Account account = (Account) authentication.getPrincipal();
-        String taskId = serviceImportService.startAsyncUrlImport(request, account.getHotelId());
+        boolean isSuperAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
+        Long targetHotelId = isSuperAdmin ? hotelId : account.getHotelId();
+        String taskId = serviceImportService.startAsyncUrlImport(request, targetHotelId);
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "taskId", taskId,

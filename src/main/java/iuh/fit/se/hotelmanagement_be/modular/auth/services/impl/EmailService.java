@@ -5,6 +5,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -81,6 +82,70 @@ public class EmailService {
 
     @Autowired
     private JavaMailSender mailSender;
+
+    @Value("${spring.mail.username:}")
+    private String systemSupportEmail;
+
+    public void sendContactInquiryEmail(
+            String customerName,
+            String customerEmail,
+            String customerPhone,
+            String branchName,
+            String subject,
+            String message,
+            String targetRecipientEmail) {
+        String safeBranch = (branchName == null || branchName.isBlank()) ? "Toàn hệ thống Sen Việt" : branchName.trim();
+        String safeSubject = (subject == null || subject.isBlank()) ? "Thắc mắc & Góp ý từ khách hàng" : subject.trim();
+        String recipient = (targetRecipientEmail != null && !targetRecipientEmail.isBlank())
+                ? targetRecipientEmail.trim()
+                : systemSupportEmail;
+
+        if (recipient != null && !recipient.isBlank()) {
+            String staffPlain = "Khách hàng: " + customerName + "\n"
+                    + "Email: " + customerEmail + "\n"
+                    + "SĐT: " + customerPhone + "\n"
+                    + "Chi nhánh: " + safeBranch + "\n"
+                    + "Tiêu đề: " + safeSubject + "\n\n"
+                    + "Nội dung:\n" + message;
+            String staffRows = invoiceSummaryRow("Khách hàng", customerName, false)
+                    + invoiceSummaryRow("Email", customerEmail, false)
+                    + invoiceSummaryRow("Số điện thoại", customerPhone, false)
+                    + invoiceSummaryRow("Chi nhánh", safeBranch, false)
+                    + invoiceSummaryRow("Tiêu đề", safeSubject, false);
+            String staffContent = section("Thông tin khách hàng liên hệ", staffRows)
+                    + section("Nội dung thắc mắc / góp ý", "<p style=\"margin:0\">" + htmlLines(message) + "</p>");
+            sendBrandedEmail(
+                    recipient,
+                    "[Liên hệ & Góp ý] " + safeSubject + " - " + customerName,
+                    "LIÊN HỆ KHÁCH HÀNG",
+                    "Thư góp ý / thắc mắc mới",
+                    staffPlain,
+                    "Sen Việt",
+                    staffContent);
+        }
+
+        if (customerEmail != null && !customerEmail.isBlank()) {
+            String ackPlain = "Kính gửi " + customerName + ",\n"
+                    + "Sen Việt Hotels & Resorts đã nhận được thắc mắc/góp ý của quý khách về " + safeBranch + ".\n"
+                    + "Nội dung: " + message + "\n\n"
+                    + "Bộ phận CSKH sẽ phản hồi qua email hoặc số điện thoại " + customerPhone + " trong thời gian sớm nhất.";
+            String ackRows = invoiceSummaryRow("Chi nhánh tiếp nhận", safeBranch, false)
+                    + invoiceSummaryRow("Tiêu đề", safeSubject, false)
+                    + invoiceSummaryRow("Số điện thoại phản hồi", customerPhone, false);
+            String ackContent = paragraph("Kính gửi " + customerName + ", cảm ơn quý khách đã gửi thắc mắc & góp ý tới Sen Việt Hotels & Resorts.")
+                    + section("Chi tiết yêu cầu đã tiếp nhận", ackRows)
+                    + section("Nội dung đã gửi", "<p style=\"margin:0\">" + htmlLines(message) + "</p>")
+                    + notice("Trạng thái tiếp nhận", "Đội ngũ CSKH đã nhận được email và sẽ phản hồi quý khách trong thời gian sớm nhất.", "#eff6ff", "#1e3a8a");
+            sendBrandedEmail(
+                    customerEmail,
+                    "Xác nhận tiếp nhận góp ý - Sen Việt Hotels & Resorts",
+                    "CHĂM SÓC KHÁCH HÀNG",
+                    "Đã tiếp nhận thư góp ý của quý khách",
+                    ackPlain,
+                    "Sen Việt",
+                    ackContent);
+        }
+    }
 
     public void sendOtpEmail(String email, String otpCode) {
         String subject = "Mã xác thực tài khoản";

@@ -40,13 +40,11 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
         String name = request.getName().trim();
 
         if (!code.matches("^ROLE_[A-Z0-9_]+$")) {
-            throw new IllegalArgumentException(
-                    "Mã role phải bắt đầu bằng ROLE_ và chỉ gồm chữ in hoa, số hoặc dấu gạch dưới"
-            );
+            throw new AppException(ErrorCode.ROLE_CODE_NOTVALID);
         }
 
         if (roleRepository.existsByCode(code)) {
-            throw new IllegalArgumentException("Role " + code + " đã tồn tại");
+            throw new AppException(ErrorCode.ROLE_ALREADY_EXISTS);
         }
 
         Role role = new Role();
@@ -57,6 +55,37 @@ public class RolePermissionPermissionServiceImpl implements RolePermissionServic
 
         Role saved = roleRepository.save(role);
 
+        return new RoleResponse(
+                saved.getCode(),
+                saved.getName(),
+                saved.getDescription(),
+                saved.isSystem()
+        );
+    }
+
+    @Override
+    public RoleResponse updateRole(String roleCode, CreateRoleRequest request) {
+        String normalizedRoleCode = roleCode.trim().toUpperCase(Locale.ROOT);
+        String code = request.getCode().trim().toUpperCase(Locale.ROOT);
+        if (!code.matches("^ROLE_[A-Z0-9_]+$")) {
+            throw new AppException(ErrorCode.ROLE_CODE_NOTVALID);
+        }
+
+        Role role = roleRepository.findByCode(normalizedRoleCode)
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        if (role.isSystem() && !code.equals(normalizedRoleCode)) {
+            throw new AppException(ErrorCode.ROLE_CODE_IMMUTABLE);
+        }
+        if (!code.equals(normalizedRoleCode) && roleRepository.existsByCode(code)) {
+            throw new AppException(ErrorCode.ROLE_ALREADY_EXISTS);
+        }
+
+        role.setCode(code);
+        role.setName(request.getName().trim());
+        role.setDescription(request.getDescription() == null ? "" : request.getDescription().trim());
+
+        Role saved = roleRepository.save(role);
         return new RoleResponse(
                 saved.getCode(),
                 saved.getName(),

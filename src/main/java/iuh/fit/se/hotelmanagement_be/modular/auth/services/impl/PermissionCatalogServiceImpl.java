@@ -4,6 +4,7 @@ import iuh.fit.se.hotelmanagement_be.exception.AppException;
 import iuh.fit.se.hotelmanagement_be.exception.ErrorCode;
 import iuh.fit.se.hotelmanagement_be.modular.auth.entities.Permission;
 import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.PermissionRepository;
+import iuh.fit.se.hotelmanagement_be.modular.auth.repositories.RoleRepository;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.ImportPermissionCatalogRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.requests.PermissionCatalogItemRequest;
 import iuh.fit.se.hotelmanagement_be.modular.auth.responses.PermissionCatalogResponse;
@@ -26,6 +27,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
             Pattern.compile("^[A-Z][A-Z0-9_.:-]*$");
 
     PermissionRepository permissionRepository;
+    RoleRepository roleRepository;
 
     // lay danh sach permission
     @Override
@@ -78,9 +80,47 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
                 .code(code)
                 .name(request.getName().trim())
                 .description(normalizeDescription(request.getDescription()))
+                .category(request.getCategory().trim())
                 .build();
 
         return toResponseFor(permissionRepository.save(permission));
+    }
+
+    @Override
+    public PermissionResponse updatePermission(
+            String permissionCode,
+            PermissionCatalogItemRequest request
+    ) {
+        String code = normalizeCode(permissionCode);
+        Permission permission = permissionRepository.findByCode(code)
+                .orElseThrow(() -> new AppException(ErrorCode.PERMISSION_NOT_FOUND));
+        String normalizedCode = normalizeCode(request.getCode());
+        validateCode(normalizedCode, request.getCategory());
+
+        if (!permission.getCode().equals(normalizedCode)
+                && permissionRepository.findByCode(normalizedCode).isPresent()) {
+            throw new AppException(ErrorCode.PERMISSION_EXIST);
+        }
+
+        permission.setCode(normalizedCode);
+        permission.setName(request.getName().trim());
+        permission.setDescription(normalizeDescription(request.getDescription()));
+        permission.setCategory(request.getCategory().trim());
+        return toResponseFor(permissionRepository.save(permission));
+    }
+
+    @Override
+    public void deletePermission(String permissionCode) {
+        String code = normalizeCode(permissionCode);
+        Permission permission = permissionRepository.findByCode(code)
+                .orElseThrow(() -> new AppException(ErrorCode.PERMISSION_NOT_FOUND));
+
+        roleRepository.findAll().forEach(role -> {
+            if (role.getPermissions().remove(permission)) {
+                roleRepository.save(role);
+            }
+        });
+        permissionRepository.delete(permission);
     }
 
     // file excel nap vao he thong
@@ -109,6 +149,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
             permission.setDescription(
                     normalizeDescription(item.getDescription())
             );
+            permission.setCategory(item.getCategory().trim());
 
             permissionRepository.save(permission);
         }

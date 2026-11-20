@@ -43,7 +43,7 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
 
         // Resolve Promotion Code to ID if present
         String actualPromoId = null;
-        if (request.getPromoCode() != null && !request.getPromoCode().isEmpty()) {
+        if (request.getPromoCode() != null && !request.getPromoCode().isEmpty() && !"DEMO2K".equalsIgnoreCase(request.getPromoCode().trim())) {
             actualPromoId = promotionRepository.findByCodeAndDeletedFalse(request.getPromoCode())
                     .map(iuh.fit.se.hotelmanagement_be.modular.promotion.entities.Promotion::getId)
                     .orElse(request.getPromoCode()); // Fallback to raw value if not found, let BookingService handle the error
@@ -86,13 +86,34 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
 
         // 3. Build BookingDetailCreateRequest for each room
         List<BookingDetailCreateRequest> details = new ArrayList<>();
-        for (String roomId : request.getRoomIds()) {
+        int roomCount = Math.max(1, request.getRoomIds().size());
+        int totalAdults = (request.getNumAdults() != null && request.getNumAdults() > 0)
+                ? request.getNumAdults()
+                : (2 * roomCount);
+        int totalChildren = (request.getNumChildren() != null && request.getNumChildren() > 0)
+                ? request.getNumChildren()
+                : 0;
+
+        int baseAdults = totalAdults / roomCount;
+        int remAdults = totalAdults % roomCount;
+
+        int baseChildren = totalChildren / roomCount;
+        int remChildren = totalChildren % roomCount;
+
+        for (int i = 0; i < request.getRoomIds().size(); i++) {
+            String roomId = request.getRoomIds().get(i);
+            int roomAdults = baseAdults + (i < remAdults ? 1 : 0);
+            int roomChildren = baseChildren + (i < remChildren ? 1 : 0);
+            if (roomAdults == 0 && totalAdults > 0) {
+                roomAdults = 1;
+            }
+
             details.add(BookingDetailCreateRequest.builder()
                     .roomId(roomId)
                     .checkInTime(request.getCheckInTime())
                     .checkOutTime(request.getCheckOutTime())
-                    .numAdults(request.getNumAdults() != null ? request.getNumAdults() : 2)
-                    .numChildren(request.getNumChildren() != null ? request.getNumChildren() : 0)
+                    .numAdults(roomAdults)
+                    .numChildren(roomChildren)
                     .numInfants(0)
                     .serviceRequests(serviceRequests)
                     .build());
@@ -117,16 +138,13 @@ public class ChatbotBookingServiceImpl implements ChatbotBookingService {
         );
         
         // HACK: IF DEMO2K, SET TOTAL AMOUNT TO 2000
-        if ("DEMO2K".equalsIgnoreCase(request.getPromoCode())) {
+        if (request.getPromoCode() != null && "DEMO2K".equalsIgnoreCase(request.getPromoCode().trim())) {
             order.setTotalAmount(BigDecimal.valueOf(2000));
+            order.setRemainingAmount(BigDecimal.valueOf(2000));
             order.setDiscountAmountTotal(order.getRoomTotalAmount().add(order.getServiceTotalAmount()).subtract(BigDecimal.valueOf(2000)));
         }
 
-        Long orderCode = (System.currentTimeMillis() * 1000) % 1000000000L;
-        if (order.getPaymentOrderCodes() == null) {
-            order.setPaymentOrderCodes(new ArrayList<>());
-        }
-        order.getPaymentOrderCodes().add(orderCode);
+        Long orderCode = 100000L + (long) (Math.random() * 900000L);
         orderRepository.save(order);
 
         return ChatbotBookingResponse.builder()

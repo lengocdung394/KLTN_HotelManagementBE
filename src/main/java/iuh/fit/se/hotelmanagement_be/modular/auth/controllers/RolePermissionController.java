@@ -153,6 +153,28 @@ public class RolePermissionController {
         );
     }
 
+    @PutMapping("/permissions/{permissionCode}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ApiResponse<PermissionResponse> updatePermission(
+            @PathVariable String permissionCode,
+            @Valid @RequestBody PermissionCatalogItemRequest request
+    ) {
+        return new ApiResponse<>(
+                200,
+                "Permission updated",
+                permissionCatalogService.updatePermission(permissionCode, request)
+        );
+    }
+
+    @DeleteMapping("/permissions/{permissionCode}")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
+    public ResponseEntity<Void> deletePermission(
+            @PathVariable String permissionCode
+    ) {
+        permissionCatalogService.deletePermission(permissionCode);
+        return ResponseEntity.noContent().build();
+    }
+
     // import permission bang file
     @PostMapping("/permissions/import")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")

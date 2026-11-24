@@ -730,7 +730,9 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             Booking booking,
             BookingDetail detail,
             LocalDateTime cancelledAt) {
-        if (booking.getOrder() == null || detail.getCheckinTime() == null) {
+        if (booking.getOrder() == null || detail.getCheckinTime() == null
+                || detail.getRoomSubTotal() == null
+                || zeroIfNull(booking.getOrder().getPaidAmount()).signum() <= 0) {
             return BigDecimal.ZERO;
         }
 
@@ -741,37 +743,8 @@ public class BookingServiceManagementServiceImpl implements BookingManagementSer
             return BigDecimal.ZERO;
         }
 
-        Order order = booking.getOrder();
-        BigDecimal roomGross = zeroIfNull(order.getRoomTotalAmount());
-        BigDecimal serviceGross = zeroIfNull(order.getServiceTotalAmount());
-        BigDecimal coreGross = roomGross.add(serviceGross);
-        if (roomGross.signum() <= 0 || coreGross.signum() <= 0) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal totalDiscount = zeroIfNull(order.getDiscountAmountTotal());
-        BigDecimal totalRoomDiscountShare = totalDiscount.multiply(roomGross)
-                .divide(coreGross, 2, RoundingMode.HALF_UP);
-        BigDecimal roomNet = roomGross
-                .subtract(zeroIfNull(order.getDiscountRoomAmount()))
-                .subtract(totalRoomDiscountShare)
-                .max(BigDecimal.ZERO);
-        BigDecimal serviceNet = serviceGross
-                .subtract(zeroIfNull(order.getDiscountServiceAmount()))
-                .subtract(totalDiscount.subtract(totalRoomDiscountShare))
-                .max(BigDecimal.ZERO);
-        BigDecimal payable = roomNet.add(serviceNet).add(zeroIfNull(order.getSurchargeTotalAmount()));
-        if (payable.signum() <= 0 || roomNet.signum() <= 0) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal paid = zeroIfNull(order.getPaidAmount()).min(payable);
-        BigDecimal paidRoom = paid.multiply(roomNet).divide(payable, 2, RoundingMode.HALF_UP);
-        BigDecimal cancelledRoomShare = BigDecimal.valueOf(
-                        detail.getRoomSubTotal() != null ? detail.getRoomSubTotal() : 0.0)
-                .divide(roomGross, 8, RoundingMode.HALF_UP)
-                .min(BigDecimal.ONE);
-        return paidRoom.multiply(cancelledRoomShare)
+        return BigDecimal.valueOf(detail.getRoomSubTotal())
+                .max(BigDecimal.ZERO)
                 .multiply(roomPenaltyRate)
                 .setScale(2, RoundingMode.HALF_UP);
     }

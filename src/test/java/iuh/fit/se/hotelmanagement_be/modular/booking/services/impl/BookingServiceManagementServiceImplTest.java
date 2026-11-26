@@ -17,6 +17,7 @@ import iuh.fit.se.hotelmanagement_be.modular.booking.requests.NewServiceRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.RoomServiceAdditionRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.ServiceCancellationRequest;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.ServiceQuantityItem;
+import iuh.fit.se.hotelmanagement_be.modular.payment.entities.Order;
 import iuh.fit.se.hotelmanagement_be.modular.booking.requests.UpdateServiceQuantityRequest;
 import iuh.fit.se.hotelmanagement_be.modular.branch.repositories.BranchRoomPolicyRepository;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.repositories.CustomerPromotionRepository;
@@ -35,6 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -66,6 +68,35 @@ class BookingServiceManagementServiceImplTest {
 
     @InjectMocks
     BookingServiceManagementServiceImpl bookingService;
+
+    @Test
+    void calculatesRoomCancellationPenaltyFromCancelledRoomSubtotal() {
+        BookingDetail cancelledDetail = BookingDetail.builder()
+                .id("CANCELLED-ROOM")
+                .status(BookingStatusType.PENDING)
+                .checkinTime(LocalDateTime.now().plusHours(48))
+                .roomSubTotal(1000.0)
+                .otherSurcharges(BigDecimal.ZERO)
+                .build();
+        BookingDetail remainingDetail = BookingDetail.builder()
+                .id("REMAINING-ROOM")
+                .status(BookingStatusType.PENDING)
+                .roomSubTotal(9000.0)
+                .build();
+        Booking booking = Booking.builder()
+                .id("BOOKING-1")
+                .order(Order.builder()
+                        .roomTotalAmount(new BigDecimal("10000"))
+                        .serviceTotalAmount(new BigDecimal("10000"))
+                        .paidAmount(new BigDecimal("5000"))
+                        .build())
+                .bookingDetails(new ArrayList<>(List.of(cancelledDetail, remainingDetail)))
+                .build();
+
+        bookingService.processCancellations(booking, List.of("CANCELLED-ROOM"), "staff");
+
+        assertEquals(new BigDecimal("500.00"), cancelledDetail.getOtherSurcharges());
+    }
 
     @Test
     void recordsEachPartialServiceConfirmationAsASeparateUsage() {

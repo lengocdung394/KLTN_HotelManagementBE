@@ -256,6 +256,47 @@ public class BookingCancellationService {
                 cancelledBy, notification, false);
     }
 
+    @Transactional
+    public BookingCancellationResponse cancelBookingFromChatbot(
+            String bookingId,
+            String reason,
+            String customerEmail,
+            String customerPhone) {
+        Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                .orElseThrow(() -> new AppException(ErrorCode.BOOKING_NOT_FOUND));
+
+        Customer customer = booking.getCustomer();
+        if (customer != null && ((customerEmail != null && !customerEmail.isBlank()) || (customerPhone != null && !customerPhone.isBlank()))) {
+            boolean emailMatch = customerEmail != null && !customerEmail.isBlank()
+                    && customer.getEmail() != null
+                    && customer.getEmail().equalsIgnoreCase(customerEmail.trim());
+            boolean phoneMatch = customerPhone != null && !customerPhone.isBlank()
+                    && customer.getPhone() != null
+                    && customer.getPhone().trim().equals(customerPhone.trim());
+            if (!emailMatch && !phoneMatch) {
+                throw new AppException(ErrorCode.UNAUTHORIZED);
+            }
+        }
+
+        BookingCancellationRequest req = new BookingCancellationRequest();
+        req.setReason(trimToNull(reason) != null ? trimToNull(reason) : "Khách hàng yêu cầu hủy qua Trợ lý AI");
+        req.setRefundMethod(BookingCancellationRefundMethod.BANK);
+
+        String customerId = customer != null ? customer.getId() : null;
+        String cancelledBy = customerId != null ? "CUSTOMER_CHATBOT:" + customerId : "CUSTOMER_CHATBOT";
+        String notifyReason = "Khách hàng yêu cầu hủy qua Trợ lý AI";
+
+        return cancelBooking(
+                booking,
+                req,
+                null,
+                customerId,
+                false,
+                cancelledBy,
+                notifyReason,
+                false);
+    }
+
     private BookingCancellationResponse cancelBooking(
             Booking booking,
             BookingCancellationRequest request,

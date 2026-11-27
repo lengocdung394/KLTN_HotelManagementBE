@@ -359,10 +359,10 @@ public class ShiftServiceImpl implements ShiftService {
             int required
     ) {
         int actual = slots.getOrDefault(date + "|" + shiftType + "|" + role, List.of()).size();
-        if (actual != required) {
+        if (actual > required) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    date + " " + shiftType + " cần đúng " + required + " nhân viên " + role + "."
+                    date + " " + shiftType + " tối đa " + required + " nhân viên " + role + "."
             );
         }
     }

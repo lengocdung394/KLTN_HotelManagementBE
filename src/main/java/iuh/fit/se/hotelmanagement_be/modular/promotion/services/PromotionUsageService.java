@@ -87,9 +87,18 @@ public class PromotionUsageService {
         }
 
         int usedCount = lockedPromotion.getUsedCount() == null ? 0 : lockedPromotion.getUsedCount();
-        if (lockedPromotion.getUsageLimit() != null
-                && usedCount >= lockedPromotion.getUsageLimit()) {
-            throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
+        if (customerPromotion == null && lockedPromotion.getUsageLimit() != null) {
+            long savedVoucherCount = customerPromotionRepository.countByPromotionId(lockedPromotion.getId());
+            long usedSavedVoucherCount = customerPromotionRepository.countUsedByPromotionId(lockedPromotion.getId());
+
+            if (PromotionUsageLimit.isExhausted(
+                    lockedPromotion.getUsageLimit(),
+                    savedVoucherCount,
+                    usedCount,
+                    usedSavedVoucherCount
+            )) {
+                throw new AppException(ErrorCode.PROMOTION_OUT_OF_STOCK);
+            }
         }
 
         LocalDateTime appliedAt = LocalDateTime.now();

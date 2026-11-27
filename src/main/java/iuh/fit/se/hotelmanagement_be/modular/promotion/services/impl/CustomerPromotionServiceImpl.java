@@ -13,6 +13,7 @@ import iuh.fit.se.hotelmanagement_be.modular.promotion.requests.ClaimPromotionRe
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.CustomerPromotionResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.responses.PromotionGetListByCustomerResponse;
 import iuh.fit.se.hotelmanagement_be.modular.promotion.services.CustomerPromotionService;
+import iuh.fit.se.hotelmanagement_be.modular.promotion.services.PromotionUsageLimit;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -156,14 +157,20 @@ public class CustomerPromotionServiceImpl implements CustomerPromotionService {
                     "Bạn đã lưu mã khuyến mãi này trước đó rồi!"
             );
         }
-        // so luong khuyen mai da duoc khach hang luu ve may
         int claimedCount = promotion.getClaimedCount() != null ? promotion.getClaimedCount() : 0;
+        if (promotion.getUsageLimit() != null) {
+            long savedVoucherCount = customerPromotionRepository.countByPromotionId(promotion.getId());
+            long usedSavedVoucherCount = customerPromotionRepository.countUsedByPromotionId(promotion.getId());
+            int usedCount = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
 
-        int usedCount = promotion.getUsedCount() != null ? promotion.getUsedCount() : 0;
-
-        if (promotion.getUsageLimit() != null
-                && Math.max(claimedCount, usedCount) >= promotion.getUsageLimit()) {
-            throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_EXCEEDED);
+            if (PromotionUsageLimit.isExhausted(
+                    promotion.getUsageLimit(),
+                    savedVoucherCount,
+                    usedCount,
+                    usedSavedVoucherCount
+            )) {
+                throw new AppException(ErrorCode.PROMOTION_USAGE_LIMIT_EXCEEDED);
+            }
         }
 
         promotion.setClaimedCount(claimedCount + 1); // so luot tang len mot

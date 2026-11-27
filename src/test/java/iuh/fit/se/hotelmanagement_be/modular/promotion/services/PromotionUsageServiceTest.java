@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -57,6 +58,57 @@ class PromotionUsageServiceTest {
         assertEquals(1, promotion.getUsedCount());
         verify(promotionRepository).save(promotion);
         verify(usageRepository).save(any(UserPromotionUsage.class));
+    }
+
+    @Test
+    void directUseCannotConsumeCapacityReservedBySavedVouchers() {
+        Customer customer = Customer.builder().id("CUS-1").build();
+        Promotion promotion = promotion("PROMO-1", 1);
+        promotion.setClaimedCount(1);
+        promotion.setUsageLimit(2);
+        Booking booking = booking("BOOK-1", customer);
+
+        when(promotionRepository.findByIdForUpdate(promotion.getId()))
+                .thenReturn(Optional.of(promotion));
+        when(usageRepository.findByCustomerAndPromotionCodeForUpdate(customer.getId(), promotion.getCode()))
+                .thenReturn(Optional.empty());
+        when(customerPromotionRepository.countByPromotionId(promotion.getId()))
+                .thenReturn(1L);
+        when(customerPromotionRepository.countUsedByPromotionId(promotion.getId()))
+                .thenReturn(0L);
+
+        assertThrows(
+                AppException.class,
+                () -> service.replaceBookingPromotion(booking, promotion, null)
+        );
+        assertEquals(1, promotion.getUsedCount());
+    }
+
+    @Test
+    void savedVoucherUsesItsReservedSlotEvenWhenQuotaIsOtherwiseFull() {
+        Customer customer = Customer.builder().id("CUS-1").build();
+        Promotion promotion = promotion("PROMO-1", 1);
+        promotion.setClaimedCount(1);
+        promotion.setUsageLimit(2);
+        Booking booking = booking("BOOK-1", customer);
+        CustomerPromotion voucher = CustomerPromotion.builder()
+                .id("CP-1")
+                .customer(customer)
+                .promotion(promotion)
+                .isUsed(false)
+                .build();
+
+        when(promotionRepository.findByIdForUpdate(promotion.getId()))
+                .thenReturn(Optional.of(promotion));
+        when(usageRepository.findByCustomerAndPromotionCodeForUpdate(customer.getId(), promotion.getCode()))
+                .thenReturn(Optional.empty());
+        when(customerPromotionRepository.findByIdAndCustomerIdForUpdate(voucher.getId(), customer.getId()))
+                .thenReturn(Optional.of(voucher));
+
+        service.replaceBookingPromotion(booking, promotion, voucher);
+
+        assertEquals(2, promotion.getUsedCount());
+        assertTrue(voucher.isUsed());
     }
 
     @Test

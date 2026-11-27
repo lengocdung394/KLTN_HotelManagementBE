@@ -18,6 +18,19 @@ public interface CustomerPromotionRepository extends JpaRepository<CustomerPromo
 
     Optional<CustomerPromotion> findByCustomerIdAndPromotionId(String customerId, String promotionId);
 
+    @Query("""
+            select count(cp) from CustomerPromotion cp
+            where cp.promotion.id = :promotionId
+            """)
+    long countByPromotionId(@Param("promotionId") String promotionId);
+
+    @Query("""
+            select count(cp) from CustomerPromotion cp
+            where cp.promotion.id = :promotionId
+              and cp.isUsed = true
+            """)
+    long countUsedByPromotionId(@Param("promotionId") String promotionId);
+
     Optional<CustomerPromotion> findByUniqueCodeAndCustomerId(String uniqueCode, String customerId);
 
     List<CustomerPromotion> findByCustomerId(String customerId);
